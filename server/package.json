@@ -1,0 +1,18 @@
+{
+  "name": "reveal-server",
+  "version": "0.1.0",
+  "description": "Reveal Planning Poker — backend server",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
