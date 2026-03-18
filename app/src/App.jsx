@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 import { useSound } from "./shared/useSound.js";
+import Landing from "./screens/Landing.jsx";
 import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
 import AvatarCreator from "./screens/AvatarCreator.jsx";
@@ -12,7 +13,7 @@ import "./shared/animations.css";
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authScreen, setAuthScreen] = useState("login"); // login | lobby | game
+  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | game
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
@@ -42,7 +43,7 @@ export default function App() {
         setAuthScreen("lobby");
       }
       if (!u) {
-        setAuthScreen("login");
+        setAuthScreen("landing");
       }
     });
 
@@ -84,14 +85,24 @@ export default function App() {
     return null;
   }
 
-  // Not logged in → login screen
+  // Not logged in → landing (default) or login (if coming from /game path or "Start Playing")
   if (!user && authScreen !== "game") {
+    // Show login if explicitly navigated there or via /game path
+    if (authScreen === "login" || window.location.pathname.startsWith('/game')) {
+      return (
+        <Login
+          onGuestPlay={(session) => {
+            // Guest joined a session by code — go straight to game
+            setAuthScreen("game");
+          }}
+        />
+      );
+    }
+    // Default: show landing page
     return (
-      <Login
-        onGuestPlay={(session) => {
-          // Guest joined a session by code — go straight to game
-          setAuthScreen("game");
-        }}
+      <Landing
+        onStartPlaying={() => setAuthScreen("login")}
+        onJoinSession={(session) => setAuthScreen("game")}
       />
     );
   }
