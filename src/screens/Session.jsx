@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { C, PF, BF, CLASSES, NPC_TEAM } from "../shared/constants.js";
+import { C, PF, BF, CLASSES, NPC_TEAM, ROULETTE_CHALLENGES } from "../shared/constants.js";
 import { dk, pick } from "../shared/utils.js";
+import RouletteOverlay from "../components/RouletteOverlay.jsx";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -19,6 +20,7 @@ const ACHIEVEMENTS = [
   { id: "sniper", name: "ESTIMATION SNIPER", icon: "🎯", desc: "Ramte tæt på gennemsnittet" },
   { id: "team", name: "TEAM PLAYER", icon: "🤝", desc: "Alle havde lav spredning" },
   { id: "brave", name: "BRAVE SOUL", icon: "💪", desc: "Confidence 5/5" },
+  { id: "roulette", name: "SCOPE SURVIVOR", icon: "🎰", desc: "Overlevede en Roulette-udfordring" },
 ];
 
 function Scene({ children, mc = C.acc }) {
@@ -231,6 +233,12 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [spellName, setSpellName] = useState(null);
   const finCalled = useRef(false);
 
+  // Roulette states
+  const [showRoulette, setShowRoulette] = useState(false);
+  const [activeChallenge, setActiveChallenge] = useState(null);
+  const [initialVote, setInitialVote] = useState(null);
+  const [revoting, setRevoting] = useState(false);
+
   function safeComplete() {
     if (finCalled.current) return;
     finCalled.current = true;
@@ -262,7 +270,20 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     return () => clearTimeout(timer);
   }, [pv, rdy]);
 
+  function handleChallengeComplete(challenge) {
+    setActiveChallenge(challenge);
+    setShowRoulette(false);
+    setRevoting(true);
+    // Boss regen
+    const bonusHp = Math.round(maxHp * (challenge.modifier - 1.0) * 0.4);
+    setBossHp(prev => Math.min(prev + bonusHp, Math.round(maxHp * 1.5)));
+    addAchieve(ACHIEVEMENTS.find(a => a.id === "roulette"));
+  }
+
   function doVote(v) {
+    if (isR && !revoting && initialVote === null) {
+      setInitialVote(v); // gem første estimat
+    }
     setPv(v); sound("attack");
     setAtk(true);
     setSpellName(TEAM[0].cls.spellName);
@@ -336,6 +357,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
         <div style={{ fontFamily: PF, fontSize: cd > 0 ? "80px" : "60px", color: cd > 0 ? C.acc : C.grn, textShadow: `0 0 50px ${cd > 0 ? C.acc : C.grn}`, animation: "pop 0.4s" }}>{cd > 0 ? cd : "⚔️ REVEAL!"}</div>
         {cd > 0 && <div style={{ fontFamily: PF, fontSize: "8px", color: C.dim, marginTop: "16px", animation: "pulse 0.75s infinite" }}>ALLE KORT VENDES...</div>}
       </div>}
+      {showRoulette && <RouletteOverlay onComplete={handleChallengeComplete} />}
       {showAchieve && <AchievePopup achieve={showAchieve} onDone={() => setShowAchieve(null)} />}
       <ComboDisplay count={combo} />
       {spellName && <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, pointerEvents: "none", animation: "spellFlash 0.6s ease-out forwards" }}><div style={{ fontFamily: PF, fontSize: "14px", color: C.wht, textShadow: `0 0 20px ${C.wht}, 0 0 40px ${mc}`, letterSpacing: "3px" }}>{spellName}!</div></div>}
@@ -393,7 +415,31 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
                   </div>
                 ))}
               </div>
-              {rdy && <Btn large color={C.acc} onClick={doReveal} style={{ fontSize: "11px", animation: "pulse 0.8s infinite" }}>⚔️ REVEAL ATTACK!</Btn>}
+              {rdy && isR && !activeChallenge && (
+                <button onClick={() => setShowRoulette(true)}
+                  style={{
+                    fontFamily: PF, fontSize: 9, color: C.bg, background: C.yel,
+                    border: `3px solid ${C.yel}`, borderBottom: `5px solid ${C.bg}`,
+                    borderRight: `5px solid ${C.bg}`, padding: "12px 24px",
+                    cursor: "pointer", letterSpacing: 1, animation: "pulse 1.5s ease-in-out infinite"
+                  }}>
+                  🎰 TRÆK CHALLENGE!
+                </button>
+              )}
+              {rdy && isR && activeChallenge && !rev && (
+                <div style={{ textAlign: "center", padding: 16 }}>
+                  <div style={{ fontFamily: PF, fontSize: 7, color: C.yel, marginBottom: 8 }}>
+                    AKTIV CHALLENGE: {activeChallenge.title}
+                  </div>
+                  <div style={{ fontFamily: PF, fontSize: 7, color: C.dim, marginBottom: 12 }}>
+                    RE-ESTIMER OG ANGRIB!
+                  </div>
+                  {revoting && pv !== null && (
+                    <Btn large color={C.acc} onClick={doReveal} style={{ fontSize: "11px", animation: "pulse 0.8s infinite" }}>⚔️ REVEAL ATTACK!</Btn>
+                  )}
+                </div>
+              )}
+              {rdy && !isR && <Btn large color={C.acc} onClick={doReveal} style={{ fontSize: "11px", animation: "pulse 0.8s infinite" }}>⚔️ REVEAL ATTACK!</Btn>}
             </div>}
 
             {/* STEP 1: Reveal */}
@@ -404,6 +450,13 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
                 <Box glow={(spread > 5 ? C.acc : C.grn) + "33"} style={{ padding: "10px", minWidth: "70px" }}><div style={{ fontFamily: PF, fontSize: "4px", color: C.dim }}>SPREAD</div><div style={{ fontFamily: PF, fontSize: "18px", color: spread > 5 ? C.acc : C.grn }}>{spread}</div></Box>
                 <Box style={{ padding: "10px", minWidth: "70px" }}><div style={{ fontFamily: PF, fontSize: "4px", color: C.dim }}>STATUS</div><div style={{ fontFamily: PF, fontSize: "9px", color: spread > 5 ? C.acc : spread > 2 ? C.yel : C.grn }}>{spread > 5 ? "⚠️ HØJ" : spread > 2 ? "MEDIUM" : "✓ ALIGN"}</div></Box>
               </div>
+              {isR && activeChallenge && initialVote !== null && (
+                <div style={{ fontFamily: PF, fontSize: 7, color: C.yel, marginTop: 8, marginBottom: 8 }}>
+                  FØRSTE ESTIMAT: {initialVote} SP → NU: {pv} SP
+                  {pv > initialVote && <span style={{ color: C.red }}> (+{pv - initialVote} pga. {activeChallenge.title})</span>}
+                  {pv === initialVote && <span style={{ color: C.grn }}> (INGEN ÆNDRING)</span>}
+                </div>
+              )}
               <Btn large color={C.blu} onClick={doDisc}>💬 DISKUSSION & POWER-UPS</Btn>
             </div>}
 

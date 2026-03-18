@@ -82,6 +82,27 @@ export const AMULETS = [
 export const SKINS = ["#fdd","#fed","#edc","#ffe","#fec","#dbc","#c9a","#fca","#b97","#864"];
 
 // Worlds for WorldSelect (demo data, real data comes from props in production)
+export const ROULETTE_CHALLENGES = [
+  { id:"c01", cat:"human", icon:"🏖️", title:"IT HAR FERIE", desc:"Nøglepersonen er på ferie i 2 uger. Hvem overtager?", modifier: 1.5, color: "#feae34" },
+  { id:"c02", cat:"human", icon:"🧑‍💻", title:"SINGLE POINT OF KNOWLEDGE", desc:"Kun én person forstår den kode. Han er syg.", modifier: 2.0, color: "#e04040" },
+  { id:"c03", cat:"human", icon:"🔄", title:"NY UDVIKLER PÅ HOLDET", desc:"Junior starter mandag. On-boarding tager tid.", modifier: 1.3, color: "#feae34" },
+  { id:"c04", cat:"human", icon:"🤷", title:"PRODUCT OWNER UTILGÆNGELIG", desc:"PO er i møde hele ugen. Ingen kan godkende krav.", modifier: 1.4, color: "#feae34" },
+  { id:"c05", cat:"human", icon:"💼", title:"KONSULENT STOPPER", desc:"Ekstern konsulent forlader projektet om 3 dage.", modifier: 1.8, color: "#e04040" },
+  { id:"c06", cat:"tech", icon:"📉", title:"USTABILT MILJØ", desc:"Test-serveren crasher under load. CI/CD er ude.", modifier: 1.6, color: "#d77643" },
+  { id:"c07", cat:"tech", icon:"🧱", title:"LEGACY INTEGRATION", desc:"Systemet skal snakke med et 20 år gammelt AS/400.", modifier: 2.0, color: "#e04040" },
+  { id:"c08", cat:"tech", icon:"🔒", title:"SIKKERHEDSKRAV DUKKER OP", desc:"GDPR-review kræver ekstra audit trail og kryptering.", modifier: 1.7, color: "#d77643" },
+  { id:"c09", cat:"tech", icon:"📦", title:"DEPENDENCY OPDATERING", desc:"Kritisk npm-pakke har breaking changes i ny version.", modifier: 1.4, color: "#feae34" },
+  { id:"c10", cat:"tech", icon:"🐛", title:"SKJULT TEKNISK GÆLD", desc:"Koden har ingen tests. Refaktor kræves før feature.", modifier: 1.8, color: "#e04040" },
+  { id:"c11", cat:"tech", icon:"🌐", title:"API ÆNDRET UDEN VARSEL", desc:"Ekstern leverandør har ændret endpoint-struktur.", modifier: 1.5, color: "#d77643" },
+  { id:"c12", cat:"extern", icon:"🔄", title:"KUNDEN ÆNDRER KRAV", desc:"Midt i sprinten kommer ny feature-request fra direktionen.", modifier: 1.6, color: "#f04f78" },
+  { id:"c13", cat:"extern", icon:"📄", title:"DOKUMENTATION MANGLER", desc:"Ingen spec overhovedet. Dev skal selv analysere og dokumentere.", modifier: 1.5, color: "#d77643" },
+  { id:"c14", cat:"extern", icon:"🏛️", title:"MYNDIGHEDSKRAV", desc:"NIS2-direktiv kræver compliance-ændringer inden release.", modifier: 2.0, color: "#e04040" },
+  { id:"c15", cat:"extern", icon:"⚖️", title:"JURIDISK REVIEW", desc:"Advokat skal godkende data-behandlingsaftale. 2 uger.", modifier: 1.4, color: "#feae34" },
+  { id:"c16", cat:"extern", icon:"🧪", title:"UAT FAILER", desc:"Kunden finder showstopper-bug i UAT. Scope udvides.", modifier: 1.6, color: "#f04f78" },
+  { id:"c17", cat:"extern", icon:"🏢", title:"TREDJEPARTSLEVERANDØR FORSINKET", desc:"Azure AD-integration venter på svar fra Microsoft support.", modifier: 1.5, color: "#d77643" },
+  { id:"c18", cat:"extern", icon:"💸", title:"BUDGET SKÆRES", desc:"Kunden reducerer hours med 20%. Scope skal prioriteres.", modifier: 1.3, color: "#feae34" },
+];
+
 export const WORLDS = [
   {id:"w1", name:"Platform Team", sprint:"Sprint 14", icon:"⚔️", color:"#38b764", prog:5, tot:12, lv:"WORLD 1", boss:"👾",
     sky:"#6a98e0", grs:"#38b764", drt:"#d77643",
