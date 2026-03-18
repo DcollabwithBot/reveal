@@ -82,6 +82,21 @@ export const AMULETS = [
 export const SKINS = ["#fdd","#fed","#edc","#ffe","#fec","#dbc","#c9a","#fca","#b97","#864"];
 
 // Worlds for WorldSelect (demo data, real data comes from props in production)
+export const SPRINT_EVENTS = [
+  { id:"e01", cat:"well",     icon:"✅", title:"LEVERET TIL TIDEN",            desc:"Feature/task landed as expected",              dmg: 15 },
+  { id:"e02", cat:"well",     icon:"🤝", title:"GOD KOMMUNIKATION",             desc:"Teamet holdt hinanden opdaterede",              dmg: 12 },
+  { id:"e03", cat:"well",     icon:"🔥", title:"TEKNISK FREMSKRIDT",            desc:"Vi betalte teknisk gæld ned",                   dmg: 18 },
+  { id:"e04", cat:"wrong",    icon:"💥", title:"SCOPE CREEP",                   desc:"Opgaven voksede undervejs uden aftale",         hp: 20 },
+  { id:"e05", cat:"wrong",    icon:"🐛", title:"BUGS I PROD",                   desc:"Vi sendte fejl til production",                 hp: 25 },
+  { id:"e06", cat:"wrong",    icon:"🗣️", title:"BLOCKER FOR SENT",             desc:"Vi sad stille for længe med en blocker",        hp: 15 },
+  { id:"e07", cat:"wrong",    icon:"📄", title:"MANGLENDE SPEC",                desc:"Vi startede uden tydelige krav",                hp: 20 },
+  { id:"e08", cat:"improve",  icon:"🔄", title:"REVIEW PROCESSEN",              desc:"PR review var flaskehals eller manglede",       hp: 10, dmg: 5 },
+  { id:"e09", cat:"improve",  icon:"📊", title:"ESTIMERING",                    desc:"Estimater ramte ikke",                          hp: 10, dmg: 5 },
+  { id:"e10", cat:"improve",  icon:"🧪", title:"TEST COVERAGE",                 desc:"Vi testede for lidt eller for sent",            hp: 12, dmg: 5 },
+  { id:"e11", cat:"surprise", icon:"😱", title:"UVENTET AFHÆNGIGHED",           desc:"En afhængighed vi ikke kendte til dukkede op",  hp: 20 },
+  { id:"e12", cat:"surprise", icon:"🌀", title:"UVENTET KOMPLEKSITET",          desc:"Opgaven var langt sværere end antaget",         hp: 25 },
+];
+
 export const ROULETTE_CHALLENGES = [
   { id:"c01", cat:"human", icon:"🏖️", title:"IT HAR FERIE", desc:"Nøglepersonen er på ferie i 2 uger. Hvem overtager?", modifier: 1.5, color: "#feae34" },
   { id:"c02", cat:"human", icon:"🧑‍💻", title:"SINGLE POINT OF KNOWLEDGE", desc:"Kun én person forstår den kode. Han er syg.", modifier: 2.0, color: "#e04040" },
