@@ -57,26 +57,37 @@ app.post('/api/auth/provision', async (req, res) => {
   if (!user_id) return res.status(400).json({ error: 'user_id required' });
 
   try {
-    // Check if user already has an org
-    const { data: existing } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('owner_id', user_id)
+    // Check if user already has a team membership
+    const { data: existingMember } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', user_id)
       .maybeSingle();
 
-    if (existing) return res.json({ org_id: existing.id });
+    if (existingMember) return res.json({ team_id: existingMember.team_id });
 
     // Create org
+    const slug = `team-${user_id.slice(0, 8)}`;
     const { data: org, error: orgErr } = await supabase
       .from('organizations')
-      .insert({ name: `${display_name || 'My'} Team`, owner_id: user_id })
+      .insert({
+        name: `${display_name || 'My'} Team`,
+        slug,
+        plan: 'free',
+        language: 'da',
+        data_retention_months: 12
+      })
       .select().single();
     if (orgErr) throw orgErr;
 
     // Create default team
     const { data: team, error: teamErr } = await supabase
       .from('teams')
-      .insert({ org_id: org.id, name: 'Default Team' })
+      .insert({
+        organization_id: org.id,
+        name: 'Default Team',
+        created_by: user_id
+      })
       .select().single();
     if (teamErr) throw teamErr;
 
@@ -92,6 +103,118 @@ app.post('/api/auth/provision', async (req, res) => {
     console.error('Provision error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── POST /api/sessions ───────────────────────────────────
+app.post('/api/sessions', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (!user || authErr) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { name, session_type, items } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+
+  // Get or create user's team
+  let teamId;
+  const { data: member } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (member) {
+    teamId = member.team_id;
+  } else {
+    // Auto-provision
+    const slug = `team-${user.id.slice(0, 8)}`;
+    const { data: org } = await supabase
+      .from('organizations')
+      .insert({ name: 'My Team', slug, plan: 'free', language: 'da', data_retention_months: 12 })
+      .select().single();
+    if (org) {
+      const { data: team } = await supabase
+        .from('teams')
+        .insert({ organization_id: org.id, name: 'Default Team', created_by: user.id })
+        .select().single();
+      if (team) {
+        teamId = team.id;
+        await supabase.from('team_members').insert({ team_id: team.id, user_id: user.id, role: 'admin' });
+      }
+    }
+  }
+
+  if (!teamId) return res.status(500).json({ error: 'Could not resolve team' });
+
+  const { data: session, error } = await supabase
+    .from('sessions')
+    .insert({
+      name,
+      session_type: session_type || 'estimation',
+      team_id: teamId,
+      game_master_id: user.id,
+      created_by: user.id,
+      status: 'draft'
+    })
+    .select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (items && items.length > 0) {
+    const itemRows = items.map((title, i) => ({
+      session_id: session.id,
+      title,
+      item_order: i,
+      status: 'pending'
+    }));
+    const { error: itemErr } = await supabase.from('session_items').insert(itemRows);
+    if (itemErr) console.error('Item insert error:', itemErr.message);
+  }
+
+  res.json(session);
+});
+
+// ─── PATCH /api/sessions/:id ──────────────────────────────
+app.patch('/api/sessions/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status, current_item_index, current_item_id } = req.body;
+  const updateObj = {};
+  if (status !== undefined) {
+    updateObj.status = status;
+    if (status === 'active') updateObj.started_at = new Date().toISOString();
+    if (status === 'completed') updateObj.ended_at = new Date().toISOString();
+  }
+  if (current_item_index !== undefined) updateObj.current_item_index = current_item_index;
+  if (current_item_id !== undefined) updateObj.current_item_id = current_item_id;
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .update(updateObj)
+    .eq('id', id)
+    .select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// ─── GET /api/sessions ────────────────────────────────────
+app.get('/api/sessions', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (!user || authErr) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*, session_items(count)')
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 // ─── SPA fallback ─────────────────────────────────────────
