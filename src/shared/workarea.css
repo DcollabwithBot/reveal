@@ -1,0 +1,231 @@
+:root {
+  --wa-bg: #f4f6fb;
+  --wa-surface: #ffffff;
+  --wa-surface-muted: #eef2ff;
+  --wa-border: #d6dcee;
+  --wa-border-strong: #b7c0dd;
+  --wa-text: #152033;
+  --wa-text-muted: #4f5b75;
+  --wa-primary: #4457ff;
+  --wa-primary-hover: #3447ea;
+  --wa-success: #157347;
+  --wa-success-bg: #e8f7ef;
+  --wa-danger: #b42318;
+  --wa-danger-bg: #fdecec;
+  --wa-warning: #9a6700;
+  --wa-warning-bg: #fff4db;
+  --wa-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --wa-shadow-md: 0 6px 18px rgba(15, 23, 42, 0.08);
+  --wa-radius: 12px;
+}
+
+.wa-shell {
+  min-height: 100vh;
+  background: var(--wa-bg);
+  color: var(--wa-text);
+  padding: 24px;
+}
+
+.wa-shell * {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.wa-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.wa-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wa-title {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.wa-subtitle {
+  font-size: 14px;
+  color: var(--wa-text-muted);
+  margin-top: 4px;
+}
+
+.wa-actions,
+.wa-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wa-card {
+  background: var(--wa-surface);
+  border: 1px solid var(--wa-border);
+  border-radius: var(--wa-radius);
+  box-shadow: var(--wa-shadow-sm);
+  padding: 16px;
+}
+
+.wa-grid-kpi {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wa-kpi-label {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.wa-kpi-value {
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.wa-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.wa-btn {
+  border: 1px solid var(--wa-border-strong);
+  background: #fff;
+  color: var(--wa-text);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wa-btn:hover {
+  border-color: #95a2cc;
+}
+
+.wa-btn-primary {
+  background: var(--wa-primary);
+  border-color: var(--wa-primary);
+  color: #fff;
+}
+
+.wa-btn-primary:hover {
+  background: var(--wa-primary-hover);
+}
+
+.wa-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wa-input,
+.wa-select {
+  border: 1px solid var(--wa-border-strong);
+  background: #fff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: var(--wa-text);
+  min-width: 170px;
+  font-size: 14px;
+}
+
+.wa-input::placeholder {
+  color: #8391af;
+}
+
+.wa-table-wrap {
+  overflow-x: auto;
+}
+
+.wa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.wa-table th,
+.wa-table td {
+  border-bottom: 1px solid var(--wa-border);
+  padding: 10px 8px;
+  text-align: left;
+}
+
+.wa-table th {
+  color: var(--wa-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.wa-banner {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.wa-banner-error {
+  color: var(--wa-danger);
+  background: var(--wa-danger-bg);
+  border: 1px solid #f4b4b1;
+}
+
+.wa-banner-success {
+  color: var(--wa-success);
+  background: var(--wa-success-bg);
+  border: 1px solid #a0deba;
+}
+
+.wa-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wa-badge-active { background: #e9f5ec; color: #137547; }
+.wa-badge-on_hold { background: var(--wa-warning-bg); color: var(--wa-warning); }
+.wa-badge-completed { background: #eef2ff; color: #3947a9; }
+
+.wa-focus:focus-visible,
+.wa-btn:focus-visible,
+.wa-input:focus-visible,
+.wa-select:focus-visible {
+  outline: 3px solid rgba(68, 87, 255, 0.3);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1024px) {
+  .wa-grid-kpi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .wa-shell {
+    padding: 14px;
+  }
+
+  .wa-topbar {
+    flex-direction: column;
+  }
+
+  .wa-grid-kpi {
+    grid-template-columns: 1fr;
+  }
+
+  .wa-input,
+  .wa-select {
+    min-width: 100%;
+  }
+}

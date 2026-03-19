@@ -8,6 +8,7 @@ import DashboardScreen from './screens/DashboardScreen.jsx'
 import ProjectsScreen from './screens/ProjectsScreen.jsx'
 import SessionResultsScreen from './screens/SessionResultsScreen.jsx'
 import './shared/animations.css'
+import './shared/workarea.css'
 
 function push(path) {
   window.history.pushState({}, '', path)
