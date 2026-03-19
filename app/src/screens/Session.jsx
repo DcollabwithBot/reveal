@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { C, PF, BF, CLASSES, NPC_TEAM, ROULETTE_CHALLENGES, SPRINT_EVENTS } from "../shared/constants.js";
-import { dk, pick } from "../shared/utils.js";
+import { useState, useEffect, useRef, useReducer } from "react";
+import { C, PF, BF, CLASSES, NPC_TEAM, SPRINT_EVENTS } from "../shared/constants.js";
+import { dk } from "../shared/utils.js";
 import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
 import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/session/rewards/achievements.js";
 import { projectBossEncounter } from "../domain/session/boss/bossProjection.js";
-import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
 import { buildRootState } from "../domain/session/root/selectors.js";
 import { buildSessionViewModel } from "../domain/session/root/viewModel.js";
+import { initialSessionUiState, sessionUiReducer } from "../domain/session/root/sessionUiReducer.js";
 import { projectWorld } from "../domain/session/world/projectWorld.js";
 import { buildChallenge } from "../domain/session/challenge/buildChallenge.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
@@ -21,13 +21,6 @@ const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
 
-const CHAL = [
-  { i: "🏖️", t: "IT HAR FERIE!", d: "Nøglepersonen er væk i 2 uger!" },
-  { i: "🔄", t: "KRAV ÆNDRET!", d: "Kunden vil noget helt andet!" },
-  { i: "📉", t: "USTABILT!", d: "API'et crasher under load!" },
-  { i: "📄", t: "DOCS MANGLER!", d: "Ingen spec overhovedet!" },
-  { i: "🧑‍💻", t: "SINGLE POK!", d: "Kun én forstår den kode!" },
-];
 
 function Scene({ children, mc = C.acc }) {
   const [t, setT] = useState(0);
@@ -219,17 +212,10 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [cv, setCv] = useState(null);
   const [ac, setAc] = useState([]);
   const [bossHp, setBossHp] = useState(maxHp);
-  const [bossHit, setBossHit] = useState(false);
-  const [bossDead, setBossDead] = useState(false);
-  const [atk, setAtk] = useState(false);
-  const [npcAtk, setNpcAtk] = useState([]);
-  const [npcHits, setNpcHits] = useState([]);
-  const [dmgNums, setDmgNums] = useState([]);
-  const [flash, setFlash] = useState(null);
-  const [shake, setShake] = useState(false);
+  const [sessionUi, dispatchUi] = useReducer(sessionUiReducer, initialSessionUiState);
+  const { bossHit, bossDead, atk, npcAtk, npcHits, dmgNums, flash, shake, showAchieve, spellName } = sessionUi;
   const [combo, setCombo] = useState(0);
   const [achieves, setAchieves] = useState([]);
-  const [showAchieve, setShowAchieve] = useState(null);
   const [loot, setLoot] = useState([]);
   const [projectionConfig, setProjectionConfig] = useState(null);
   const [showLoot, setShowLoot] = useState(false);
@@ -243,7 +229,6 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [rc, setRc] = useState([]);
   const [ll, setLl] = useState(null);
   const [llr, setLlr] = useState(null);
-  const [spellName, setSpellName] = useState(null);
   const finCalled = useRef(false);
 
   // Roulette states
@@ -296,17 +281,17 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const world = projectWorld(rootState, projectionConfig, { xp: C.xp, acc: C.acc, org: C.org, pur: C.pur, gld: C.gld, yel: C.yel, blu: C.blu, red: C.red, grn: C.grn, dim: C.dim });
   const currentChallenge = buildChallenge(rootState, world);
 
-  function addDmg(val, x, critical = false) { setDmgNums(p => [...p, { id: Date.now() + Math.random(), val, x, critical }]); setTimeout(() => setDmgNums(p => p.slice(1)), 1200); }
+  function addDmg(val, x, critical = false) { dispatchUi({ type: 'dmgNums:add', value: { id: Date.now() + Math.random(), val, x, critical } }); setTimeout(() => dispatchUi({ type: 'dmgNums:trimFront', count: 1 }), 1200); }
   function addAchieve(a) {
     const resolved = typeof a === 'string' ? resolveProjectionAchievement(a) : a;
     if (!resolved || achieves.includes(resolved.id)) return;
     setAchieves(p => [...p, resolved.id]);
-    setShowAchieve(resolved);
+    dispatchUi({ type: 'showAchieve', value: resolved });
     sound("achieve");
   }
-  function doFlash(col) { setFlash(col); setTimeout(() => setFlash(null), 300); }
-  function doShake() { setShake(true); setTimeout(() => setShake(false), 400); }
-  function doBossHit(dmg) { setBossHit(true); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => setBossHit(false), 200); sound("hit"); }
+  function doFlash(col) { dispatchUi({ type: 'flash', value: col }); setTimeout(() => dispatchUi({ type: 'flash', value: null }), 300); }
+  function doShake() { dispatchUi({ type: 'shake', value: true }); setTimeout(() => dispatchUi({ type: 'shake', value: false }), 400); }
+  function doBossHit(dmg) { dispatchUi({ type: 'bossHit', value: true }); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => dispatchUi({ type: 'bossHit', value: false }), 200); sound("hit"); }
 
   useEffect(() => {
     if (pv === null || rdy) return;
@@ -314,13 +299,13 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
       const v = gv(pv, 2); setVotes(v); setRdy(true);
       v.forEach((vote, i) => {
         setTimeout(() => {
-          setNpcAtk(p => [...p, vote.mid]);
+          dispatchUi({ type: 'npcAtk:add', value: vote.mid });
           sound("spell");
-          setSpellName(TEAM.find(m => m.id === vote.mid)?.cls?.spellName || "ATTACK");
-          setTimeout(() => { setSpellName(null); }, 600);
+          dispatchUi({ type: 'spellName', value: TEAM.find(m => m.id === vote.mid)?.cls?.spellName || "ATTACK" });
+          setTimeout(() => { dispatchUi({ type: 'spellName', value: null }); }, 600);
           doBossHit(vote.val * 1.5);
           addDmg(vote.val, 35 + i * 10);
-          setTimeout(() => setNpcAtk(p => p.filter(x => x !== vote.mid)), 500);
+          setTimeout(() => dispatchUi({ type: 'npcAtk:remove', value: vote.mid }), 500);
         }, 400 + i * 500);
       });
     }, 1200);
@@ -368,14 +353,14 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     }
     setPv(result.selectedVote);
     sound('attack');
-    setAtk(true);
-    setSpellName(TEAM[0].cls.spellName);
-    setTimeout(() => { setSpellName(null); }, 600);
+    dispatchUi({ type: 'atk', value: true });
+    dispatchUi({ type: 'spellName', value: TEAM[0].cls.spellName });
+    setTimeout(() => { dispatchUi({ type: 'spellName', value: null }); }, 600);
     doBossHit(result.attackDamage);
     addDmg(v, 50, result.critical);
     doFlash(TEAM[0].cls.trail);
     doShake();
-    setTimeout(() => setAtk(false), 500);
+    setTimeout(() => dispatchUi({ type: 'atk', value: false }), 500);
     setCombo(c => c + result.comboDelta);
     result.achievementIds.forEach((id) => addAchieve(id));
     if (result.sound === 'combo') sound('combo');
@@ -389,7 +374,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
           clearInterval(i);
           setTimeout(() => {
             setCd(-1); sound("countgo"); doFlash(mc); doShake();
-            setBossHp(0); setBossDead(true);
+            setBossHp(0); dispatchUi({ type: 'bossDead', value: true });
             setTimeout(() => {
               sound("boom"); doFlash(C.wht); doShake();
               setRev(true); setStep(1);
@@ -613,7 +598,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
         {cd > 0 && <div style={{ fontFamily: PF, fontSize: "8px", color: C.dim, marginTop: "16px", animation: "pulse 0.75s infinite" }}>ALLE KORT VENDES...</div>}
       </div>}
       {sessionVm.overlays.showRoulette && <RouletteOverlay onComplete={handleChallengeComplete} />}
-      {sessionVm.overlays.showAchieve && <AchievePopup achieve={showAchieve} onDone={() => setShowAchieve(null)} />}
+      {sessionVm.overlays.showAchieve && <AchievePopup achieve={showAchieve} onDone={() => dispatchUi({ type: 'showAchieve', value: null })} />}
       <ComboDisplay count={combo} />
       {sessionVm.overlays.spellName && <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, pointerEvents: "none", animation: "spellFlash 0.6s ease-out forwards" }}><div style={{ fontFamily: PF, fontSize: "14px", color: C.wht, textShadow: `0 0 20px ${C.wht}, 0 0 40px ${mc}`, letterSpacing: "3px" }}>{sessionVm.overlays.spellName}!</div></div>}
 
