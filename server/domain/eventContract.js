@@ -2,6 +2,7 @@ const ALLOWED_EVENT_TYPES = new Set([
   'game.suggestion.created',
   'approval.request.created',
   'approval.request.updated',
+  'approval.request.apply.started',
   'approval.request.applied'
 ]);
 
