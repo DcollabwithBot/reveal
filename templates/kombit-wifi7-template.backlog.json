@@ -1,0 +1,754 @@
+{
+  "templateVersion": "1.2.0",
+  "templateKey": "kombit-wifi7-default",
+  "projectRef": "KOMBIT - Nyt WiFi (WiFi 7)",
+  "backlog": {
+    "items": [
+      {
+        "id": "KB-WIFI7-001",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp0",
+        "epicId": "EP-Discovery",
+        "title": "Kickoff + stakeholder alignment",
+        "description": "Confirm scope, governance, and decision cadence across IT/facilities/business.",
+        "assigneeId": "u-pm-001",
+        "assignee": "Project Manager",
+        "reporterId": "u-sponsor-001",
+        "team": "PMO",
+        "priority": "High",
+        "status": "Ready",
+        "estimatePoints": 3,
+        "remainingPoints": 3,
+        "deadline": "2026-04-03",
+        "startDate": "2026-04-01",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "alignment",
+          "scope-drift"
+        ],
+        "dependencies": [],
+        "slaHours": null,
+        "labels": [
+          "discovery",
+          "governance"
+        ],
+        "component": "Project",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "RACI approved",
+          "Weekly steering cadence confirmed",
+          "Decision log initiated"
+        ],
+        "xpValue": 35,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Momentum"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -10,
+        "difficultyTier": "B",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "B"
+        }
+      },
+      {
+        "id": "KB-WIFI7-002",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp0",
+        "epicId": "EP-Discovery",
+        "title": "Baseline RF and performance assessment",
+        "description": "Measure current coverage, throughput, roaming behavior, and client density baseline.",
+        "assigneeId": "u-net-001",
+        "assignee": "Network Engineer",
+        "reporterId": "u-pm-001",
+        "team": "NetworkOps",
+        "priority": "Critical",
+        "status": "Ready",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-04-10",
+        "startDate": "2026-04-02",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "rf-noise",
+          "glass-zones",
+          "capacity-risk"
+        ],
+        "dependencies": [
+          "KB-WIFI7-001"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "rf",
+          "assessment",
+          "baseline"
+        ],
+        "component": "Wireless",
+        "type": "Research",
+        "customerImpact": "External",
+        "acceptanceCriteria": [
+          "Heatmaps produced for all floors",
+          "Interference hotspots documented",
+          "Baseline report reviewed by PM + security"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "RF Pathfinder"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -25,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "KB-WIFI7-003",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Design",
+        "title": "WiFi 7 AP placement and channel plan",
+        "description": "Create predictive design with floor-by-floor AP placement and channel/power strategy.",
+        "assigneeId": "u-net-001",
+        "assignee": "Network Engineer",
+        "reporterId": "u-pm-001",
+        "team": "NetworkOps",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-04-22",
+        "startDate": "2026-04-14",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "rf-design",
+          "interference"
+        ],
+        "dependencies": [
+          "KB-WIFI7-002"
+        ],
+        "slaHours": 96,
+        "labels": [
+          "design",
+          "wifi7",
+          "capacity"
+        ],
+        "component": "Wireless",
+        "type": "Feature",
+        "customerImpact": "External",
+        "acceptanceCriteria": [
+          "AP map approved for all floors",
+          "Channel overlap within defined threshold",
+          "Coverage and capacity assumptions documented"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "RF Pathfinder"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -20,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "KB-WIFI7-004",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Design",
+        "title": "PoE++ budget and switch uplink validation",
+        "description": "Validate power and throughput capacity per switch domain and identify replacements.",
+        "assigneeId": "u-net-002",
+        "assignee": "Infrastructure Engineer",
+        "reporterId": "u-pm-001",
+        "team": "Infra",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-04-24",
+        "startDate": "2026-04-15",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "poe-capacity",
+          "uplink-bottleneck",
+          "budget"
+        ],
+        "dependencies": [
+          "KB-WIFI7-002"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "poe++",
+          "switching",
+          "capacity"
+        ],
+        "component": "LAN",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Power budget table complete",
+          "Uplink saturation risk assessed",
+          "Mitigation actions prioritized"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Power Guardian"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -25,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "KB-WIFI7-005",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp2",
+        "epicId": "EP-Pilot",
+        "title": "Pilot deployment in high-risk floor zone",
+        "description": "Deploy pilot in representative high-noise / high-glass area and validate roaming/client experience.",
+        "assigneeId": "u-net-001",
+        "assignee": "Network Engineer",
+        "reporterId": "u-pm-001",
+        "team": "NetworkOps",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-05-05",
+        "startDate": "2026-04-28",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "pilot-failure",
+          "user-impact",
+          "cutover-risk"
+        ],
+        "dependencies": [
+          "KB-WIFI7-003",
+          "KB-WIFI7-004"
+        ],
+        "slaHours": 48,
+        "labels": [
+          "pilot",
+          "deployment",
+          "validation"
+        ],
+        "component": "Wireless",
+        "type": "Feature",
+        "customerImpact": "External",
+        "acceptanceCriteria": [
+          "Pilot users stable for 3 working days",
+          "No P1 incidents",
+          "Pilot report and go/no-go recommendation published"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Change Window Samurai"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -30,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "KB-WIFI7-006",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp2",
+        "epicId": "EP-Security",
+        "title": "Fortigate policy + segmentation hardening",
+        "description": "Finalize VLAN segmentation, NAC constraints, and firewall policy for corp/guest/IoT zones.",
+        "assigneeId": "u-sec-001",
+        "assignee": "Security Engineer",
+        "reporterId": "u-pm-001",
+        "team": "Security",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-05-08",
+        "startDate": "2026-04-29",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "security-gap",
+          "policy-complexity"
+        ],
+        "dependencies": [
+          "KB-WIFI7-001"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "fortigate",
+          "security",
+          "segmentation"
+        ],
+        "component": "Security",
+        "type": "Ops",
+        "customerImpact": "External",
+        "acceptanceCriteria": [
+          "Policy set approved by security owner",
+          "Test clients mapped to correct segments",
+          "Audit logs verified"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Zero-Reopen Shield"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -20,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "KB-WIFI7-007",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp3",
+        "epicId": "EP-Rollout-A",
+        "title": "Building A phased rollout",
+        "description": "Execute floor-by-floor rollout for Building A with rollback-ready change windows.",
+        "assigneeId": "u-net-002",
+        "assignee": "Infrastructure Engineer",
+        "reporterId": "u-pm-001",
+        "team": "NetworkOps",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 13,
+        "remainingPoints": 13,
+        "deadline": "2026-05-29",
+        "startDate": "2026-05-12",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "change-window",
+          "rollback",
+          "service-disruption"
+        ],
+        "dependencies": [
+          "KB-WIFI7-005",
+          "KB-WIFI7-006"
+        ],
+        "slaHours": 24,
+        "labels": [
+          "rollout",
+          "building-a",
+          "operations"
+        ],
+        "component": "Deployment",
+        "type": "Feature",
+        "customerImpact": "External",
+        "acceptanceCriteria": [
+          "All Building A floors migrated",
+          "Rollback not required",
+          "Post-cutover validation passed"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Change Window Samurai"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -35,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "KB-WIFI7-008",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp4",
+        "epicId": "EP-Rollout-B",
+        "title": "Building B rollout + stabilization",
+        "description": "Rollout Building B and run hypercare stabilization with active issue triage.",
+        "assigneeId": "u-net-001",
+        "assignee": "Network Engineer",
+        "reporterId": "u-pm-001",
+        "team": "NetworkOps",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 13,
+        "remainingPoints": 13,
+        "deadline": "2026-06-20",
+        "startDate": "2026-06-03",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "stability",
+          "incident-volume",
+          "handover-delay"
+        ],
+        "dependencies": [
+          "KB-WIFI7-007"
+        ],
+        "slaHours": 24,
+        "labels": [
+          "rollout",
+          "building-b",
+          "hypercare"
+        ],
+        "component": "Deployment",
+        "type": "Feature",
+        "customerImpact": "External",
+        "acceptanceCriteria": [
+          "Building B floors migrated",
+          "No unresolved P1/P2 incidents",
+          "Hypercare report accepted"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Zero-Reopen Shield"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -35,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "KB-WIFI7-009",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp4",
+        "epicId": "EP-Handover",
+        "title": "As-built documentation + runbook handover",
+        "description": "Finalize and transfer complete as-built and operational runbook to support team.",
+        "assigneeId": "u-pm-001",
+        "assignee": "Project Manager",
+        "reporterId": "u-sponsor-001",
+        "team": "PMO",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-06-28",
+        "startDate": "2026-06-15",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "doc-gap",
+          "ownership-gap"
+        ],
+        "dependencies": [
+          "KB-WIFI7-008"
+        ],
+        "slaHours": null,
+        "labels": [
+          "handover",
+          "documentation",
+          "runbook"
+        ],
+        "component": "Operations",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "As-built pack complete for all floors",
+          "Runbook approved by operations",
+          "Ownership matrix signed"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Handover Complete"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -25,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "KB-WIFI7-010",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp4",
+        "epicId": "EP-Close",
+        "title": "Final acceptance and sprint/project close",
+        "description": "Run final KPI validation, close open actions, and execute formal close ceremony.",
+        "assigneeId": "u-pm-001",
+        "assignee": "Project Manager",
+        "reporterId": "u-sponsor-001",
+        "team": "PMO",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 3,
+        "remainingPoints": 3,
+        "deadline": "2026-06-30",
+        "startDate": "2026-06-24",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "acceptance-delay",
+          "open-defects"
+        ],
+        "dependencies": [
+          "KB-WIFI7-009"
+        ],
+        "slaHours": null,
+        "labels": [
+          "close",
+          "acceptance",
+          "governance"
+        ],
+        "component": "Project",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "All project-level acceptance criteria validated",
+          "No open P1/P2 defects",
+          "Final sign-off recorded"
+        ],
+        "xpValue": 35,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Boss Defeated"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -40,
+        "difficultyTier": "B",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "B"
+        }
+      },
+      {
+        "id": "KB-WIFI7-011",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Design",
+        "title": "Optics matrix validation (SFP/SFP+)",
+        "description": "Validate single-mode/multi-mode, SFP/SFP+ compatibility, wavelength and distance per uplink.",
+        "assigneeId": "u-net-002",
+        "assignee": "Infrastructure Engineer",
+        "reporterId": "u-pm-001",
+        "team": "Infra",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-04-23",
+        "startDate": "2026-04-16",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "optics-mismatch",
+          "vendor-compatibility"
+        ],
+        "dependencies": [
+          "KB-WIFI7-004"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "optics",
+          "sfp",
+          "uplink"
+        ],
+        "component": "LAN",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Decision documented",
+          "Lab validation passed",
+          "Rollback defined"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Risk Slayer"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -18,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "KB-WIFI7-012",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Design",
+        "title": "L3 routing target state decision",
+        "description": "Decide and document whether gateways remain in core or move to firewall with policy model.",
+        "assigneeId": "u-net-002",
+        "assignee": "Network Architect",
+        "reporterId": "u-pm-001",
+        "team": "Infra",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-04-25",
+        "startDate": "2026-04-16",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "asymmetric-routing",
+          "policy-complexity"
+        ],
+        "dependencies": [
+          "KB-WIFI7-004"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "routing",
+          "l3",
+          "firewall"
+        ],
+        "component": "LAN",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Decision documented",
+          "Lab validation passed",
+          "Rollback defined"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Risk Slayer"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -18,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "KB-WIFI7-013",
+        "projectId": "kombit-wifi7-default",
+        "sprintId": "sp2",
+        "epicId": "EP-Pilot",
+        "title": "DHCP migration design + pilot",
+        "description": "Assess migrating DHCP from Windows 2016 to NGFW, including reservations/options/failover and rollback.",
+        "assigneeId": "u-net-002",
+        "assignee": "Infrastructure Engineer",
+        "reporterId": "u-pm-001",
+        "team": "Infra",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-05-06",
+        "startDate": "2026-04-16",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "dhcp-outage",
+          "dns-dependency"
+        ],
+        "dependencies": [
+          "KB-WIFI7-012"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "dhcp",
+          "migration",
+          "ngfw"
+        ],
+        "component": "LAN",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Decision documented",
+          "Lab validation passed",
+          "Rollback defined"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Risk Slayer"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -18,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "infra-rollout-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      }
+    ]
+  }
+}

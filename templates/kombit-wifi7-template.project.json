@@ -1,0 +1,279 @@
+{
+  "templateVersion": "1.2.0",
+  "templateKey": "kombit-wifi7-default",
+  "name": "KOMBIT - Nyt WiFi (WiFi 7)",
+  "description": "Canonical Reveal template for enterprise WiFi 7 rollout across 2 buildings / 7 floors with Fortigate preference.",
+  "status": "Planning",
+  "priority": "High",
+  "riskLevel": "High",
+  "projectType": "Infrastructure",
+  "owner": {
+    "id": "u-pm-001",
+    "name": "Project Manager"
+  },
+  "team": "NetworkOps",
+  "constraints": {
+    "budgetDkkMax": 300000,
+    "buildings": 2,
+    "floorsTotal": 7,
+    "rfEnvironment": [
+      "glass",
+      "noise",
+      "interference-risk"
+    ],
+    "vendorPreference": [
+      "Fortigate",
+      "Fortinet"
+    ],
+    "technology": [
+      "WiFi7",
+      "PoE++"
+    ],
+    "opticsValidationRequired": true,
+    "routingRearchitecturePossible": true,
+    "dhcpMigrationOption": "windows2016-to-ngfw-consideration"
+  },
+  "timeline": {
+    "targetStart": "2026-04-01",
+    "targetEnd": "2026-06-30",
+    "milestones": [
+      {
+        "id": "m1",
+        "name": "Discovery complete",
+        "targetDate": "2026-04-12",
+        "status": "Planned"
+      },
+      {
+        "id": "m2",
+        "name": "RF design sign-off",
+        "targetDate": "2026-04-26",
+        "status": "Planned"
+      },
+      {
+        "id": "m3",
+        "name": "Pilot go/no-go",
+        "targetDate": "2026-05-10",
+        "status": "Planned"
+      },
+      {
+        "id": "m4",
+        "name": "Full rollout complete",
+        "targetDate": "2026-06-16",
+        "status": "Planned"
+      },
+      {
+        "id": "m5",
+        "name": "Handover sign-off",
+        "targetDate": "2026-06-30",
+        "status": "Planned"
+      }
+    ]
+  },
+  "sprints": [
+    {
+      "id": "sp0",
+      "name": "Sprint 0 - Discovery",
+      "status": "Planned",
+      "startDate": "2026-04-01",
+      "endDate": "2026-04-12",
+      "goal": "Baseline, scope, and risk foundation"
+    },
+    {
+      "id": "sp1",
+      "name": "Sprint 1 - RF Design",
+      "status": "Planned",
+      "startDate": "2026-04-13",
+      "endDate": "2026-04-26",
+      "goal": "Validated RF and network design"
+    },
+    {
+      "id": "sp2",
+      "name": "Sprint 2 - Pilot",
+      "status": "Planned",
+      "startDate": "2026-04-27",
+      "endDate": "2026-05-10",
+      "goal": "Pilot validation and go/no-go"
+    },
+    {
+      "id": "sp3",
+      "name": "Sprint 3 - Rollout A",
+      "status": "Planned",
+      "startDate": "2026-05-11",
+      "endDate": "2026-05-31",
+      "goal": "Building A rollout"
+    },
+    {
+      "id": "sp4",
+      "name": "Sprint 4 - Rollout B + Handover",
+      "status": "Planned",
+      "startDate": "2026-06-01",
+      "endDate": "2026-06-30",
+      "goal": "Building B rollout, stabilization, final handover"
+    }
+  ],
+  "acceptanceCriteria": [
+    "Coverage targets met across all agreed areas",
+    "Performance and roaming KPIs validated",
+    "PoE++ and uplink capacity validated",
+    "Security segmentation and policy enforcement approved",
+    "Runbook + as-built docs accepted by operations",
+    "No open P1/P2 defects at close"
+  ],
+  "definitionOfDone": [
+    "Task-level AC tested and passed",
+    "Assignee and reviewer sign-off completed",
+    "Status/labels/risk tags updated",
+    "Relevant documentation updated",
+    "Blockers closed or assigned with owner+deadline"
+  ],
+  "gamification": {
+    "boss": {
+      "name": "Legacy RF Chaos",
+      "hpMax": 1000,
+      "hpStart": 1000
+    },
+    "xpRules": {
+      "low": 20,
+      "medium": 35,
+      "high": 60,
+      "critical": 90,
+      "riskRetiredHigh": 40,
+      "commitment90PlusTeamBonus": 100
+    },
+    "achievements": [
+      "RF Pathfinder",
+      "Power Guardian",
+      "Change Window Samurai",
+      "Zero-Reopen Shield",
+      "Handover Complete"
+    ]
+  },
+  "labels": [
+    "template",
+    "wifi7",
+    "network-refresh",
+    "fortigate",
+    "poe++",
+    "reveal-default"
+  ],
+  "seedReady": true,
+  "technicalDecisionGates": [
+    {
+      "id": "gate-l3-placement",
+      "name": "L3 placement decision",
+      "requiredBefore": "procurement",
+      "options": [
+        "core-routing",
+        "firewall-routing"
+      ],
+      "ownerRole": "Network Architect"
+    },
+    {
+      "id": "gate-dhcp-owner",
+      "name": "DHCP ownership decision",
+      "requiredBefore": "pilot",
+      "options": [
+        "windows-server",
+        "fortigate-ngfw"
+      ],
+      "ownerRole": "Infra Lead"
+    },
+    {
+      "id": "gate-optics-bom",
+      "name": "Optics BOM validation",
+      "requiredBefore": "purchase-order",
+      "checks": [
+        "single-vs-multi-mode",
+        "sfp-sfpplus-compatibility",
+        "distance-wavelength"
+      ]
+    },
+    {
+      "id": "gate-uplink-baseline",
+      "name": "Uplink capacity baseline",
+      "requiredBefore": "ap-count-finalization",
+      "checks": [
+        "1g-vs-10g",
+        "oversubscription-threshold"
+      ]
+    }
+  ],
+  "gameProfile": {
+    "profileKey": "infra-rollout-boss-v1",
+    "enabledByDefault": false,
+    "sourceOfTruth": "pm_data_only",
+    "writeBackMode": "advisory_then_approved",
+    "boss": {
+      "name": "Legacy RF Chaos",
+      "hpMax": 1000
+    },
+    "eventRules": [
+      {
+        "event": "task.completed",
+        "when": "priority in ['High','Critical'] and dod=true",
+        "effects": {
+          "xp": 60,
+          "bossHpDelta": -18
+        }
+      },
+      {
+        "event": "risk.closed",
+        "when": "riskLevel='High'",
+        "effects": {
+          "xp": 40,
+          "bossHpDelta": -25,
+          "achievement": "Risk Slayer"
+        }
+      },
+      {
+        "event": "blocker.opened",
+        "when": "owner_missing=true",
+        "effects": {
+          "bossHpDelta": 20,
+          "pressureDelta": 8
+        }
+      },
+      {
+        "event": "deadline.missed",
+        "when": "priority in ['High','Critical']",
+        "effects": {
+          "bossHpDelta": 15,
+          "pressureDelta": 10
+        }
+      },
+      {
+        "event": "task.reopened",
+        "when": "priority='Critical'",
+        "effects": {
+          "bossHpDelta": 25,
+          "xp": -20
+        }
+      }
+    ],
+    "approvalActions": [
+      {
+        "signal": "rebalance_sprint",
+        "creates": "pm_recommendation",
+        "requiresApprovalBy": "Project Manager"
+      },
+      {
+        "signal": "open_risk_mitigation_task",
+        "creates": "task_draft",
+        "requiresApprovalBy": "Project Manager"
+      }
+    ]
+  },
+  "integrationContract": {
+    "pmToGame": "emit domain events from PM updates",
+    "gameToPm": "signals/recommendations only, never direct overwrite",
+    "requiredFields": [
+      "status",
+      "priority",
+      "riskLevel",
+      "assignee",
+      "deadline",
+      "estimatePoints",
+      "blocked"
+    ]
+  }
+}

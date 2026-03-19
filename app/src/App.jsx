@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { useSound } from "./shared/useSound.js";
 import Landing from "./screens/Landing.jsx";
 import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
-import Dashboard from "./screens/Dashboard.jsx";
-import AvatarCreator from "./screens/AvatarCreator.jsx";
-import WorldSelect from "./screens/WorldSelect.jsx";
-import Overworld from "./screens/Overworld.jsx";
-import Session from "./screens/Session.jsx";
 import "./shared/animations.css";
+
+const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
+const AvatarCreator = lazy(() => import("./screens/AvatarCreator.jsx"));
+const WorldSelect = lazy(() => import("./screens/WorldSelect.jsx"));
+const Overworld = lazy(() => import("./screens/Overworld.jsx"));
+const Session = lazy(() => import("./screens/Session.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -32,16 +33,13 @@ export default function App() {
     }
   }
 
-  // Handle Supabase OAuth callback (hash-based token exchange)
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && (hash.includes('access_token') || hash.includes('error'))) {
-      // Supabase JS auto-handles hash exchange; just clear the URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
-  // Auth state
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const nextUser = data?.user ?? null;
@@ -63,7 +61,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Provision org+team for new users
   useEffect(() => {
     if (!user) return;
     fetch('/api/auth/provision', {
@@ -73,65 +70,47 @@ export default function App() {
         user_id: user.id,
         display_name: user.user_metadata?.full_name || user.email
       })
-    }).catch(() => {}); // fire-and-forget
+    }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user) return;
-
     const onPopState = () => {
       syncAuthScreenFromPath(window.location.pathname, true);
     };
-
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (window.location.pathname === '/auth/callback' && user) {
+      window.history.replaceState({}, document.title, '/');
+      setAuthScreen('lobby');
+    }
+  }, [user]);
+
   if (loading) {
-    return (
-      <div style={loadingStyles.container}>
-        <div style={loadingStyles.scanlines} />
-        <div style={loadingStyles.content}>
-          <p style={loadingStyles.title}>⚔️ REVEAL</p>
-          <p style={loadingStyles.dots}>LOADING...</p>
-          <div style={loadingStyles.bar}>
-            <div style={loadingStyles.fill} />
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
-  // Auth callback path — Supabase hash is handled above, redirect to lobby
-  if (window.location.pathname === '/auth/callback') {
-    window.history.replaceState({}, document.title, '/');
-    if (user) setAuthScreen("lobby");
-    return null;
-  }
-
-  // Not logged in → landing (default) or login (if coming from /game path or "Start Playing")
   if (!user && authScreen !== "game") {
-    // Show login if explicitly navigated there or via /game path
     if (authScreen === "login" || window.location.pathname.startsWith('/game')) {
       return (
         <Login
-          onGuestPlay={(session) => {
-            // Guest joined a session by code — go straight to game
+          onGuestPlay={() => {
             setAuthScreen("game");
           }}
         />
       );
     }
-    // Default: show landing page
     return (
       <Landing
         onStartPlaying={() => setAuthScreen("login")}
-        onJoinSession={(session) => setAuthScreen("game")}
+        onJoinSession={() => setAuthScreen("game")}
       />
     );
   }
 
-  // Logged in, show lobby first
   if (user && authScreen === "lobby") {
     return (
       <Lobby
@@ -142,7 +121,6 @@ export default function App() {
           setAuthScreen("dashboard");
         }}
         onGuest={() => {
-          // Play as guest (logged in but skip personalization)
           setAuthScreen("game");
         }}
       />
@@ -151,20 +129,21 @@ export default function App() {
 
   if (user && authScreen === "dashboard") {
     return (
-      <Dashboard
-        user={user}
-        onBackToLobby={() => {
-          window.history.pushState({}, document.title, '/');
-          setAuthScreen("lobby");
-        }}
-        onContinue={() => setAuthScreen("game")}
-      />
+      <Suspense fallback={<LoadingScreen label="LOADING DASHBOARD..." />}>
+        <Dashboard
+          user={user}
+          onBackToLobby={() => {
+            window.history.pushState({}, document.title, '/');
+            setAuthScreen("lobby");
+          }}
+          onContinue={() => setAuthScreen("game")}
+        />
+      </Suspense>
     );
   }
 
-  // Game screens
   return (
-    <>
+    <Suspense fallback={<LoadingScreen label="LOADING GAME..." />}>
       {screen === "avatar" && (
         <AvatarCreator
           onDone={(av) => { setAvatar(av); setScreen("worlds"); }}
@@ -206,7 +185,22 @@ export default function App() {
           sound={sound}
         />
       )}
-    </>
+    </Suspense>
+  );
+}
+
+function LoadingScreen({ label = "LOADING..." }) {
+  return (
+    <div style={loadingStyles.container}>
+      <div style={loadingStyles.scanlines} />
+      <div style={loadingStyles.content}>
+        <p style={loadingStyles.title}>⚔️ REVEAL</p>
+        <p style={loadingStyles.dots}>{label}</p>
+        <div style={loadingStyles.bar}>
+          <div style={loadingStyles.fill} />
+        </div>
+      </div>
+    </div>
   );
 }
 
