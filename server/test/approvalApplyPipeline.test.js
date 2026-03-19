@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const {
   sanitizePatch,
+  normalizePatch,
+  sanitizeAndNormalizePatch,
   resolveTargetType,
   applyApprovedRequest
 } = require('../domain/approvalApplyPipeline');
@@ -21,6 +23,31 @@ test('sanitizePatch keeps only allowed fields per target', () => {
   assert.equal(patch.status, 'active');
   assert.equal(patch.sneaky, undefined);
   assert.ok(patch.updated_at);
+});
+
+test('normalizePatch enforces allowed values and derives item state/progress', () => {
+  const itemPatch = normalizePatch('session_item', { progress: 100 });
+  assert.equal(itemPatch.progress, 100);
+  assert.equal(itemPatch.item_status, 'done');
+
+  const itemStatusPatch = normalizePatch('session_item', { item_status: 'backlog' });
+  assert.equal(itemStatusPatch.progress, 0);
+
+  assert.throws(() => normalizePatch('project', { status: 'at_risk' }), /Invalid project.status/);
+  assert.throws(() => normalizePatch('session_item', { priority: 'urgent' }), /Invalid item.priority/);
+});
+
+test('sanitizeAndNormalizePatch applies whitelist before normalization', () => {
+  const patch = sanitizeAndNormalizePatch('session_item', {
+    progress: 42,
+    priority: 'high',
+    sneaky: 'ignored'
+  });
+
+  assert.equal(patch.progress, 42);
+  assert.equal(patch.priority, 'high');
+  assert.equal(patch.item_status, 'in_progress');
+  assert.equal(patch.sneaky, undefined);
 });
 
 function createSupabaseStub() {
@@ -68,7 +95,7 @@ test('applyApprovedRequest applies target patch + marks approval applied', async
       team_id: 'team_1',
       target_type: 'project',
       target_id: 'p_1',
-      requested_patch: { status: 'at_risk' }
+      requested_patch: { status: 'on_hold' }
     },
     appliedBy: 'user_1',
     actor: 'system',
@@ -78,7 +105,7 @@ test('applyApprovedRequest applies target patch + marks approval applied', async
 
   assert.equal(result.targetType, 'project');
   assert.equal(result.updatedApproval.state, 'applied');
-  assert.equal(result.appliedEntity.status, 'at_risk');
+  assert.equal(result.appliedEntity.status, 'on_hold');
   assert.equal(ledgerEvents.length, 2);
   assert.equal(ledgerEvents[0].eventType, 'approval.request.apply.started');
   assert.equal(ledgerEvents[1].eventType, 'approval.request.applied');

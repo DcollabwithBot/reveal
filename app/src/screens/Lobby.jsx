@@ -40,6 +40,11 @@ export default function Lobby({ user, onContinue, onGuest }) {
     [approvalRequests]
   );
 
+  const approvedReady = useMemo(
+    () => approvalRequests.filter((r) => r.state === 'approved').slice(0, 3),
+    [approvalRequests]
+  );
+
   async function handleAction(requestId, action) {
     setBusyId(requestId + action);
     setError(null);
@@ -85,7 +90,7 @@ export default function Lobby({ user, onContinue, onGuest }) {
 
         <div style={styles.govGrid}>
           <Widget title="Approval Queue" value={health.queue_depth} hint="Pending" />
-          <Widget title="Sync Health" value={`${health.duplicate_events}`} hint="Duplicate events" />
+          <Widget title="Ready to Apply" value={approvedReady.length} hint="Approved" />
           <Widget title="Conflict Center" value={health.blocked_writes} hint="Blocked writes" />
         </div>
 
@@ -127,10 +132,10 @@ export default function Lobby({ user, onContinue, onGuest }) {
             </div>
           ))}
 
-          {!loadingGov && approvalRequests.filter((r) => r.state === 'approved').slice(0, 2).map((req) => (
+          {!loadingGov && approvedReady.map((req) => (
             <div key={req.id} style={styles.queueItemApproved}>
               <div style={styles.queueMeta}>
-                <div style={styles.queueTarget}>{req.target_type} · klar til apply</div>
+                <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)} · klar til apply</div>
                 <div style={styles.queueState}>approved</div>
               </div>
               <button

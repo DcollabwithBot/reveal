@@ -26,6 +26,12 @@ export function getDashboardGovernance() {
   ]).then(([approvalRequests, health, conflicts]) => ({ approvalRequests, health, conflicts }));
 }
 
+export async function getLatestApprovalState(targetId) {
+  const rows = await getApprovalRequests();
+  const match = (rows || []).find((r) => String(r.target_id) === String(targetId));
+  return match?.state || null;
+}
+
 export function approveRequest(requestId) {
   return request(`/api/approval-requests/${requestId}/approve`, {
     method: 'POST',

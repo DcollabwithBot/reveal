@@ -4,7 +4,7 @@ import { dk, pick } from "../shared/utils.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
 import RetroEventCard from "../components/RetroEventCard.jsx";
 import RootCauseSelector from "../components/RootCauseSelector.jsx";
-import { getApprovalRequests, submitAdvisoryRequest } from "../lib/api";
+import { getLatestApprovalState, submitAdvisoryRequest } from "../lib/api";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -315,15 +315,17 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
 
   useEffect(() => {
     let active = true;
-    getApprovalRequests()
-      .then((rows) => {
+    const targetId = project?.id || node?.id;
+    if (!targetId) return () => { active = false; };
+
+    getLatestApprovalState(targetId)
+      .then((state) => {
         if (!active) return;
-        const latest = (rows || []).find((r) => String(r.target_id) === String(project?.id));
-        setApprovalState(latest?.state || null);
+        setApprovalState(state || null);
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [project?.id]);
+  }, [project?.id, node?.id]);
 
   function handleChallengeComplete(challenge) {
     setActiveChallenge(challenge);
@@ -407,14 +409,15 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     setAdvisoryError(null);
     try {
       const estimate = pv ?? clamp(Math.round(allV.reduce((s, v) => s + v.val, 0) / Math.max(allV.length, 1)));
+      const targetId = project?.id || node?.id;
       const payload = {
         target_type: 'project',
-        target_id: project?.id || node?.id,
+        target_id: targetId,
         requested_patch: {
-          status: estimate >= 8 ? 'at_risk' : 'active',
+          status: estimate >= 8 ? 'on_hold' : 'active',
           description: `Advisory fra game: est=${estimate}, spread=${spread}, confidence=${cv || 'na'}`
         },
-        idempotency_key: `game:${project?.id || node?.id}:${Date.now()}`
+        idempotency_key: `game:${targetId}:${Date.now()}`
       };
       const created = await submitAdvisoryRequest(payload);
       setApprovalState(created?.state || 'pending_approval');

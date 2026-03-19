@@ -18,5 +18,5 @@ Apply:
 
 ## Notes
 - Game-origin writes to PM endpoints are blocked unless an approved request is provided.
-- Approval apply endpoint currently records lifecycle + audit; patch application to domain entities remains explicit TODO by target type.
+- Approval apply endpoint now enforces target-specific patch normalization/validation for supported target types (project/sprint/item/session_item), including allowed status/priority values and progress↔item_state derivation.
 - Event idempotency is enforced by unique keys in `event_ledger`.
