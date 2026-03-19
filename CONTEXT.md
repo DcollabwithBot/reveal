@@ -1,6 +1,6 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-19 (sprint 6 merged + migration kørt)
+Last updated: 2026-03-19 (governance sprint merge-prep complete)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
@@ -83,6 +83,23 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - Integration readiness: `external_id` + `external_source` tilføjet på `projects`, `sprints`, `session_items`
 - Oprydning: `reveal-session.jsx` fjernet, duplikat challenge-array ryddet, `avatar_class` render i ActiveSession
 
+## Governance sprint status (2026-03-19)
+
+**Landed på branch `feature/reveal-sprint1-contract-approval-guards`:**
+- Approval request lifecycle: create / approve / reject / apply
+- PM mutation guard på runtime endpoints
+- Event ledger + audit log v1
+- Sync health + conflict feed endpoints
+- Advisory overlay i game/session UI
+- Apply pipeline med target-specifik whitelist + normalisering/validering
+- Lobby/dashboard viser nu governance-sektioner for PM actions, conflicts, active projects og recent activity
+
+**Stadig TODO i governance-sporet:**
+- Conflict Center er stadig feed/overblik — ikke fuld resolution workflow
+- PM actions lever i lobby/dashboard, men ikke som dedikeret dashboard-rute/komponenthierarki endnu
+- Apply pipeline er strammet, men ikke fuldt domænespecifik pr. target/business rule
+- Docs/review/hardening mangler før merge til main
+
 ## Hvad mangler (Sprint 7+)
 
 - Perspektiv-Poker
@@ -132,6 +149,13 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 ## Design-principper (rør ikke)
 - Pixel art æstetik
 - Alt lever — ingen statiske elementer
+- Lyd på alt
+- Boss battle = opgaven der skal estimeres
+- Tavern hub = world select
+
+## Lokation
+`/root/.openclaw/workspace/projects/reveal/`
+er — ingen statiske elementer
 - Lyd på alt
 - Boss battle = opgaven der skal estimeres
 - Tavern hub = world select
