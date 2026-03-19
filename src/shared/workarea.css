@@ -196,6 +196,72 @@
 .wa-badge-active { background: #e9f5ec; color: #137547; }
 .wa-badge-on_hold { background: var(--wa-warning-bg); color: var(--wa-warning); }
 .wa-badge-completed { background: #eef2ff; color: #3947a9; }
+.wa-badge-on_track { background: #e9f5ec; color: #137547; }
+.wa-badge-at_risk { background: #fff4db; color: #9a6700; }
+.wa-badge-off_track { background: #fdecec; color: #b42318; }
+
+.wa-progress {
+  width: 120px;
+  height: 8px;
+  background: var(--wa-surface-muted);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.wa-progress > div {
+  height: 100%;
+  background: var(--wa-primary);
+}
+
+.wa-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--wa-border);
+  margin-bottom: 12px;
+}
+
+.wa-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  cursor: pointer;
+}
+
+.wa-tab.is-active {
+  color: var(--wa-text);
+  border-bottom-color: var(--wa-primary);
+}
+
+.wa-work-grid {
+  display: grid;
+  grid-template-columns: 2fr repeat(5, minmax(100px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.wa-activity-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--wa-border);
+}
+
+.wa-form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.wa-form-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
 
 .wa-focus:focus-visible,
 .wa-btn:focus-visible,
@@ -227,5 +293,14 @@
   .wa-input,
   .wa-select {
     min-width: 100%;
+  }
+
+  .wa-work-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wa-activity-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

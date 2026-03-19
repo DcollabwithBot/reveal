@@ -219,6 +219,130 @@ async function resolveMembership(userId) {
   return { team_id: team.id, organization_id: team.organization_id, role: member.role };
 }
 
+async function resolveOrProvisionMembership(user) {
+  let membership = await resolveMembership(user.id);
+  if (membership) return membership;
+
+  const slug = `team-${user.id.slice(0, 8)}`;
+  const { data: org } = await supabase
+    .from('organizations')
+    .insert({ name: 'My Team', slug, plan: 'free', language: 'da', data_retention_months: 12 })
+    .select()
+    .single();
+
+  if (!org) return null;
+
+  const { data: team } = await supabase
+    .from('teams')
+    .insert({ organization_id: org.id, name: 'Default Team', created_by: user.id })
+    .select()
+    .single();
+
+  if (!team) return null;
+
+  await supabase.from('team_members').insert({ team_id: team.id, user_id: user.id, role: 'admin' });
+  membership = { team_id: team.id, organization_id: org.id, role: 'admin' };
+
+  return membership;
+}
+
+function computeHealth({ status, progress, hasOverdueSprint, nearDeadline }) {
+  if (status === 'completed') return 'on_track';
+  if (status === 'on_hold') return 'at_risk';
+  if (hasOverdueSprint) return 'off_track';
+  if (nearDeadline && progress < 35) return 'at_risk';
+  return 'on_track';
+}
+
+async function buildProjectInsights({ organizationId, projects }) {
+  const projectIds = (projects || []).map((p) => p.id);
+  if (!projectIds.length) return new Map();
+
+  const [{ data: sprints }, { data: profiles }] = await Promise.all([
+    supabase
+      .from('sprints')
+      .select('id,project_id,name,status,start_date,end_date,created_at,updated_at')
+      .eq('organization_id', organizationId),
+    supabase
+      .from('profiles')
+      .select('id,display_name')
+      .in('id', [...new Set((projects || []).map((p) => p.created_by).filter(Boolean))])
+  ]);
+
+  const sprintIds = (sprints || []).map((s) => s.id);
+  const { data: items } = sprintIds.length
+    ? await supabase
+      .from('session_items')
+      .select('id,sprint_id,item_status,progress')
+      .in('sprint_id', sprintIds)
+    : { data: [] };
+
+  const sprintsByProject = (sprints || []).reduce((acc, sprint) => {
+    if (!acc[sprint.project_id]) acc[sprint.project_id] = [];
+    acc[sprint.project_id].push(sprint);
+    return acc;
+  }, {});
+
+  const itemsBySprint = (items || []).reduce((acc, item) => {
+    if (!acc[item.sprint_id]) acc[item.sprint_id] = [];
+    acc[item.sprint_id].push(item);
+    return acc;
+  }, {});
+
+  const ownerById = new Map((profiles || []).map((p) => [p.id, p.display_name]));
+  const today = new Date();
+
+  const insights = new Map();
+
+  for (const project of projects || []) {
+    const projectSprints = sprintsByProject[project.id] || [];
+    const projectItems = projectSprints.flatMap((s) => itemsBySprint[s.id] || []);
+
+    const totalItems = projectItems.length;
+    const doneItems = projectItems.filter((item) => item.item_status === 'done').length;
+    const openItems = Math.max(totalItems - doneItems, 0);
+    const progress = totalItems
+      ? Math.round(projectItems.reduce((sum, item) => sum + (Number(item.progress) || (item.item_status === 'done' ? 100 : 0)), 0) / totalItems)
+      : 0;
+
+    const datedSprints = projectSprints
+      .filter((s) => s.end_date)
+      .map((s) => ({ ...s, endDate: new Date(s.end_date) }));
+
+    const activeTimed = datedSprints.filter((s) => s.status !== 'completed' && s.status !== 'archived');
+    const hasOverdueSprint = activeTimed.some((s) => s.endDate < today);
+    const nearDeadline = activeTimed.some((s) => {
+      const days = Math.ceil((s.endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return days >= 0 && days <= 7;
+    });
+
+    const nextMilestone = activeTimed
+      .sort((a, b) => a.endDate.getTime() - b.endDate.getTime())[0];
+
+    const health = computeHealth({
+      status: project.status,
+      progress,
+      hasOverdueSprint,
+      nearDeadline
+    });
+
+    insights.set(project.id, {
+      owner_name: ownerById.get(project.created_by) || (project.created_by ? project.created_by.slice(0, 8) : 'Unassigned'),
+      total_items: totalItems,
+      done_items: doneItems,
+      open_items: openItems,
+      progress,
+      sprint_count: projectSprints.length,
+      health,
+      next_milestone: nextMilestone
+        ? { name: nextMilestone.name, end_date: nextMilestone.end_date }
+        : null
+    });
+  }
+
+  return insights;
+}
+
 app.get('/api/health', async (_req, res) => {
   try {
     const { error } = await supabase.from('organizations').select('id').limit(1);
@@ -485,7 +609,7 @@ app.get('/api/dashboard', async (req, res) => {
   if (!user) return;
 
   const membership = await resolveMembership(user.id);
-  if (!membership?.organization_id) return res.json({ active: [], upcoming: [], finished: [], projects: [] });
+  if (!membership?.organization_id) return res.json({ active: [], upcoming: [], finished: [], projects: [], activity: [] });
 
   const { data: sessions, error: sessionsErr } = await supabase
     .from('sessions')
@@ -498,11 +622,13 @@ app.get('/api/dashboard', async (req, res) => {
 
   const { data: projects, error: projectsErr } = await supabase
     .from('projects')
-    .select('id,name,status,color,icon,updated_at')
+    .select('id,name,description,status,color,icon,created_by,created_at,updated_at')
     .eq('organization_id', membership.organization_id)
     .order('updated_at', { ascending: false });
 
   if (projectsErr) return res.status(500).json({ error: projectsErr.message });
+
+  const insights = await buildProjectInsights({ organizationId: membership.organization_id, projects: projects || [] });
 
   const byStatus = { active: [], upcoming: [], finished: [] };
   for (const s of sessions || []) {
@@ -516,7 +642,34 @@ app.get('/api/dashboard', async (req, res) => {
     else byStatus.upcoming.push(shaped);
   }
 
-  res.json({ ...byStatus, projects: projects || [] });
+  const enrichedProjects = (projects || []).map((project) => ({
+    ...project,
+    ...(insights.get(project.id) || {})
+  }));
+
+  const activity = [
+    ...(sessions || []).slice(0, 20).map((session) => ({
+      id: `session-${session.id}`,
+      type: 'session',
+      title: `${session.name}`,
+      description: session.status === 'completed' ? 'Session completed' : session.status === 'active' ? 'Session active' : 'Session updated',
+      created_at: session.ended_at || session.started_at || session.created_at,
+      href: `/sessions/${session.id}/results`
+    })),
+    ...(enrichedProjects || []).slice(0, 20).map((project) => ({
+      id: `project-${project.id}`,
+      type: 'project',
+      title: `${project.name}`,
+      description: `Project ${project.status.replace('_', ' ')}`,
+      created_at: project.updated_at || project.created_at,
+      href: `/projects/${project.id}`
+    }))
+  ]
+    .filter((item) => item.created_at)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 12);
+
+  res.json({ ...byStatus, projects: enrichedProjects, activity });
 });
 
 app.get('/api/projects', async (req, res) => {
@@ -527,12 +680,16 @@ app.get('/api/projects', async (req, res) => {
 
   const { data, error } = await supabase
     .from('projects')
-    .select('id,name,description,status,color,icon,created_at,updated_at')
+    .select('id,name,description,status,color,icon,created_by,created_at,updated_at')
     .eq('organization_id', membership.organization_id)
     .order('updated_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data || []);
+
+  const insights = await buildProjectInsights({ organizationId: membership.organization_id, projects: data || [] });
+  const enriched = (data || []).map((project) => ({ ...project, ...(insights.get(project.id) || {}) }));
+
+  res.json(enriched);
 });
 
 app.get('/api/team/assignees', async (req, res) => {
@@ -575,7 +732,7 @@ app.get('/api/team/assignees', async (req, res) => {
 app.post('/api/projects', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
-  const membership = await resolveMembership(user.id);
+  const membership = await resolveOrProvisionMembership(user);
   if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
 
   const { name, description, color, icon, status } = req.body;
@@ -586,26 +743,32 @@ app.post('/api/projects', async (req, res) => {
     .insert({
       organization_id: membership.organization_id,
       name: name.trim(),
-      description: description || null,
+      description: description?.trim() || null,
       color: color || '#4488dd',
       icon: icon || '📋',
       status: status || 'active',
       created_by: user.id
     })
-    .select().single();
+    .select()
+    .single();
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  const insights = await buildProjectInsights({ organizationId: membership.organization_id, projects: [data] });
+  res.json({ ...data, ...(insights.get(data.id) || {}) });
 });
 
 app.patch('/api/projects/:id', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
 
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
   const { id } = req.params;
   const { name, description, status, color, icon } = req.body;
   const update = { updated_at: new Date().toISOString() };
-  if (name !== undefined) update.name = name;
+  if (name !== undefined) update.name = String(name).trim();
   if (description !== undefined) update.description = description;
   if (status !== undefined) update.status = status;
   if (color !== undefined) update.color = color;
@@ -615,36 +778,50 @@ app.patch('/api/projects/:id', async (req, res) => {
     .from('projects')
     .update(update)
     .eq('id', id)
-    .select().single();
+    .eq('organization_id', membership.organization_id)
+    .select('*')
+    .single();
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  const insights = await buildProjectInsights({ organizationId: membership.organization_id, projects: [data] });
+  res.json({ ...data, ...(insights.get(data.id) || {}) });
 });
 
 app.get('/api/projects/:id', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
 
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
   const { id } = req.params;
   const { data, error } = await supabase
     .from('projects')
     .select('*')
     .eq('id', id)
+    .eq('organization_id', membership.organization_id)
     .single();
 
   if (error) return res.status(404).json({ error: 'Project not found' });
-  res.json(data);
+
+  const insights = await buildProjectInsights({ organizationId: membership.organization_id, projects: [data] });
+  res.json({ ...data, ...(insights.get(data.id) || {}) });
 });
 
 app.get('/api/projects/:id/sprints', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
 
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
   const { id } = req.params;
   const { data: sprints, error } = await supabase
     .from('sprints')
     .select('*')
     .eq('project_id', id)
+    .eq('organization_id', membership.organization_id)
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });

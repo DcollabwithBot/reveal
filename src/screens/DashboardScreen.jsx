@@ -2,52 +2,47 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api'
 import { Button, Card, WorkAreaShell } from '../components/WorkAreaUI'
 
-const statusLabel = {
-  active: 'Active',
-  on_hold: 'On hold',
-  completed: 'Completed'
+const healthLabel = {
+  on_track: 'On track',
+  at_risk: 'At risk',
+  off_track: 'Off track'
 }
 
-export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup, onOpenResults, onOpenProject }) {
-  const [data, setData] = useState({ active: [], upcoming: [], finished: [], projects: [] })
-  const [showAllProjects, setShowAllProjects] = useState(false)
+function healthClass(health) {
+  if (health === 'off_track') return 'wa-badge-off_track'
+  if (health === 'at_risk') return 'wa-badge-at_risk'
+  return 'wa-badge-on_track'
+}
+
+export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup, onOpenResults, onOpenProject, onCreateProject }) {
+  const [data, setData] = useState({ active: [], upcoming: [], finished: [], projects: [], activity: [] })
   const [error, setError] = useState('')
 
   useEffect(() => {
     apiFetch('/api/dashboard').then(setData).catch((e) => setError(e?.message || 'Could not load dashboard'))
   }, [])
 
-  const projects = useMemo(
-    () => (showAllProjects ? data.projects : data.projects.filter(p => p.status === 'active')),
-    [data.projects, showAllProjects]
-  )
-
   const kpis = useMemo(() => {
-    const atRisk = data.projects.filter(p => p.status === 'on_hold').length
+    const atRisk = data.projects.filter(p => p.health === 'at_risk' || p.health === 'off_track').length
+    const completedWeek = data.finished.filter((s) => {
+      if (!s.ended_at) return false
+      const ageDays = (Date.now() - new Date(s.ended_at).getTime()) / (1000 * 60 * 60 * 24)
+      return ageDays <= 7
+    }).length
+
     return [
       { label: 'Active projects', value: data.projects.filter(p => p.status === 'active').length },
-      { label: 'At risk projects', value: atRisk },
+      { label: 'At-risk projects', value: atRisk },
       { label: 'Upcoming sessions', value: data.upcoming.length },
-      { label: 'Completed sessions', value: data.finished.length }
+      { label: 'Completed this week', value: completedWeek }
     ]
   }, [data])
-
-  const moveProject = async (projectId, status) => {
-    await apiFetch(`/api/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify({ status }) })
-    setData(d => ({ ...d, projects: d.projects.map(p => (p.id === projectId ? { ...p, status } : p)) }))
-  }
-
-  const onDrop = (status, ev) => {
-    ev.preventDefault()
-    const id = ev.dataTransfer.getData('text/project-id')
-    if (id) moveProject(id, status)
-  }
 
   const SessionList = ({ title, list }) => (
     <Card>
       <div className='wa-section-title'>{title} ({list.length})</div>
       {list.length === 0 && <div className='wa-subtitle'>No sessions in this section yet.</div>}
-      {list.map(s => (
+      {list.slice(0, 5).map(s => (
         <div key={s.id} className='wa-card' style={{ marginBottom: 8, padding: 10, background: 'var(--wa-surface-muted)' }}>
           <div style={{ fontWeight: 600 }}>{s.name}</div>
           <div className='wa-subtitle'>{s.item_count} items · {s.participant_count} players</div>
@@ -66,10 +61,11 @@ export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup
       <div className='wa-topbar'>
         <div>
           <div className='wa-title'>Dashboard</div>
-          <div className='wa-subtitle'>Professional overview of sessions and project health.</div>
+          <div className='wa-subtitle'>Professional overview of delivery, project health, and activity.</div>
         </div>
         <div className='wa-actions'>
           <Button variant='primary' onClick={onSetup}>New session</Button>
+          <Button onClick={onCreateProject}>New project</Button>
           <Button onClick={onOpenProjects}>Browse projects</Button>
         </div>
       </div>
@@ -85,6 +81,44 @@ export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup
         ))}
       </div>
 
+      <Card style={{ marginBottom: 16 }}>
+        <div className='wa-section-title'>Project health</div>
+        {data.projects.length === 0 && <div className='wa-subtitle'>No projects yet. Create one to start tracking health and delivery progress.</div>}
+        {data.projects.length > 0 && (
+          <div className='wa-table-wrap'>
+            <table className='wa-table'>
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Owner</th>
+                  <th>Status</th>
+                  <th>Health</th>
+                  <th>Progress</th>
+                  <th>Updated</th>
+                  <th>Next milestone</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.projects.slice(0, 8).map((project) => (
+                  <tr key={project.id} onClick={() => onOpenProject(project.id)} style={{ cursor: 'pointer' }}>
+                    <td><strong>{project.name}</strong></td>
+                    <td>{project.owner_name || 'Unassigned'}</td>
+                    <td><span className={`wa-badge wa-badge-${project.status || 'active'}`}>{project.status || 'active'}</span></td>
+                    <td><span className={`wa-badge ${healthClass(project.health)}`}>{healthLabel[project.health] || 'On track'}</span></td>
+                    <td>
+                      {project.progress || 0}%
+                      <div className='wa-progress'><div style={{ width: `${project.progress || 0}%` }} /></div>
+                    </td>
+                    <td>{project.updated_at ? new Date(project.updated_at).toLocaleDateString() : '—'}</td>
+                    <td>{project.next_milestone ? `${project.next_milestone.name} (${new Date(project.next_milestone.end_date).toLocaleDateString()})` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12, marginBottom: 16 }}>
         <SessionList title='Active sessions' list={data.active} />
         <SessionList title='Upcoming sessions' list={data.upcoming} />
@@ -92,41 +126,17 @@ export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup
       </div>
 
       <Card>
-        <div className='wa-topbar' style={{ marginBottom: 8 }}>
-          <div className='wa-section-title' style={{ marginBottom: 0 }}>Projects board</div>
-          <Button onClick={() => setShowAllProjects(v => !v)}>{showAllProjects ? 'Show active only' : 'Show all statuses'}</Button>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: showAllProjects ? 'repeat(3, minmax(0, 1fr))' : '1fr', gap: 10 }}>
-          {['active', 'on_hold', 'completed'].filter(s => showAllProjects || s === 'active').map(status => (
-            <div
-              key={status}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => onDrop(status, e)}
-              className='wa-card'
-              style={{ background: 'var(--wa-surface-muted)' }}
-            >
-              <div className={`wa-badge wa-badge-${status}`}>{statusLabel[status]}</div>
-              <div style={{ marginTop: 10 }}>
-                {projects.filter(p => p.status === status).map(p => (
-                  <div
-                    key={p.id}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData('text/project-id', p.id)}
-                    className='wa-card'
-                    style={{ marginBottom: 8, borderLeft: `4px solid ${p.color || '#4457ff'}` }}
-                  >
-                    <div style={{ fontWeight: 600 }}>{p.icon || '📋'} {p.name}</div>
-                    <div style={{ marginTop: 8 }}>
-                      <Button onClick={() => onOpenProject(p.id)}>Open project</Button>
-                    </div>
-                  </div>
-                ))}
-                {projects.filter(p => p.status === status).length === 0 && <div className='wa-subtitle'>No projects</div>}
-              </div>
+        <div className='wa-section-title'>Recent activity</div>
+        {(!data.activity || data.activity.length === 0) && <div className='wa-subtitle'>Activity will appear as sessions and projects change.</div>}
+        {(data.activity || []).map((event) => (
+          <div key={event.id} className='wa-activity-row'>
+            <div>
+              <strong>{event.title}</strong>
+              <div className='wa-subtitle'>{event.description}</div>
             </div>
-          ))}
-        </div>
+            <div className='wa-subtitle'>{new Date(event.created_at).toLocaleString()}</div>
+          </div>
+        ))}
       </Card>
     </WorkAreaShell>
   )

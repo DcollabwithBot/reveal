@@ -6,6 +6,7 @@ import AuthScreen from './screens/AuthScreen.jsx'
 import SessionSetup from './screens/SessionSetup.jsx'
 import DashboardScreen from './screens/DashboardScreen.jsx'
 import ProjectsScreen from './screens/ProjectsScreen.jsx'
+import ProjectCreateScreen from './screens/ProjectCreateScreen.jsx'
 import SessionResultsScreen from './screens/SessionResultsScreen.jsx'
 import './shared/animations.css'
 import './shared/workarea.css'
@@ -20,6 +21,7 @@ function parseRoute(pathname) {
   if (pathname === '/setup') return { name: 'setup' }
   if (pathname === '/dashboard') return { name: 'dashboard' }
   if (pathname === '/projects') return { name: 'projects' }
+  if (pathname === '/projects/new') return { name: 'project-new' }
   if (pathname.startsWith('/projects/')) return { name: 'project', projectId: pathname.split('/')[2] }
   if (pathname.startsWith('/sessions/') && pathname.endsWith('/results')) return { name: 'results', sessionId: pathname.split('/')[2] }
   return { name: 'dashboard' }
@@ -79,7 +81,11 @@ export default function App() {
   }
 
   if (route.name === 'projects') {
-    return <ProjectsScreen onBack={() => push('/dashboard')} onOpenProject={(id) => push(`/projects/${id}`)} />
+    return <ProjectsScreen onBack={() => push('/dashboard')} onOpenProject={(id) => push(`/projects/${id}`)} onCreateProject={() => push('/projects/new')} />
+  }
+
+  if (route.name === 'project-new') {
+    return <ProjectCreateScreen onBack={() => push('/projects')} onCreated={(project) => push(`/projects/${project.id}`)} />
   }
 
   if (route.name === 'project') {
@@ -95,6 +101,7 @@ export default function App() {
       onOpenSession={(id) => setActiveSessionId(id)}
       onSetup={() => push('/setup')}
       onOpenProjects={() => push('/projects')}
+      onCreateProject={() => push('/projects/new')}
       onOpenProject={(id) => push(`/projects/${id}`)}
       onOpenResults={(id) => push(`/sessions/${id}/results`)}
     />
