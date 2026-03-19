@@ -4,6 +4,9 @@ const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { APPROVAL_STATES, transitionApprovalState } = require('./domain/approvalStateMachine');
+const { assertPmMutationAllowed } = require('./domain/pmMutationPolicy');
+const { SupabaseEventLedger } = require('./domain/eventLedger');
 
 const app = express();
 app.use(express.json());
@@ -17,6 +20,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+const eventLedger = new SupabaseEventLedger({ supabase });
 
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_BACKOFF_MS = [1000, 3000];
@@ -95,6 +99,25 @@ async function attemptWebhookDelivery({ deliveryId, config, payload, eventType, 
 async function queueWebhookEvent({ teamId, sessionId, eventType, payload, oncePerSessionEvent = false }) {
   const config = await getWebhookConfigForTeam(teamId);
   if (!config?.url) return;
+
+  const emitIdempotencyKey = `emit:${eventType}:${sessionId || 'none'}:${payload?.timestamp || 'na'}`;
+  try {
+    await appendLedgerEvent({
+      eventType: 'approval.request.applied',
+      source: 'system',
+      idempotencyKey: emitIdempotencyKey,
+      payload: {
+        kind: 'webhook_emit',
+        upstream_event_type: eventType,
+        team_id: teamId,
+        session_id: sessionId || null
+      },
+      direction: 'emit'
+    });
+  } catch (err) {
+    if (err.code === 'DUPLICATE_EVENT') return;
+    throw err;
+  }
 
   if (oncePerSessionEvent && sessionId) {
     const { data: existing } = await supabase
@@ -244,6 +267,102 @@ async function resolveOrProvisionMembership(user) {
   membership = { team_id: team.id, organization_id: org.id, role: 'admin' };
 
   return membership;
+}
+
+async function appendAuditLog({
+  eventType,
+  actor,
+  sourceLayer,
+  organizationId,
+  teamId,
+  targetType,
+  targetId,
+  approvalRequestId,
+  payload,
+  outcome = 'accepted'
+}) {
+  const { error } = await supabase
+    .from('audit_log')
+    .insert({
+      event_type: eventType,
+      actor,
+      source_layer: sourceLayer || null,
+      organization_id: organizationId || null,
+      team_id: teamId || null,
+      target_type: targetType || null,
+      target_id: targetId || null,
+      approval_request_id: approvalRequestId || null,
+      outcome,
+      payload: payload || {}
+    });
+
+  if (error) {
+    console.error('audit_log insert failed:', error.message);
+  }
+}
+
+async function appendLedgerEvent({ eventType, source, idempotencyKey, payload, direction = 'ingest' }) {
+  try {
+    await eventLedger.register({
+      direction,
+      event: {
+        eventId: crypto.randomUUID(),
+        eventType,
+        occurredAt: new Date().toISOString(),
+        source,
+        idempotencyKey,
+        payload
+      }
+    });
+  } catch (err) {
+    if (err.code === 'DUPLICATE_EVENT') {
+      throw err;
+    }
+    console.error('event ledger error:', err.message);
+    throw err;
+  }
+}
+
+function resolveActor(req, fallback = 'pm') {
+  const actor = String(req.headers['x-reveal-actor'] || fallback).toLowerCase();
+  return ['game', 'pm', 'system'].includes(actor) ? actor : fallback;
+}
+
+async function resolveApprovalRequestState(approvalRequestId) {
+  if (!approvalRequestId) return null;
+  const { data } = await supabase
+    .from('approval_requests')
+    .select('id,state,target_type,target_id')
+    .eq('id', approvalRequestId)
+    .maybeSingle();
+  return data || null;
+}
+
+async function enforcePmMutationGuard({ req, membership, targetType, targetId }) {
+  const sourceLayer = req.body?.source_layer || 'pm';
+  const actor = resolveActor(req, 'pm');
+  const approvalRequestId = req.body?.approval_request_id || null;
+  const approval = await resolveApprovalRequestState(approvalRequestId);
+
+  try {
+    assertPmMutationAllowed({ actor, sourceLayer, approvalState: approval?.state });
+  } catch (err) {
+    await appendAuditLog({
+      eventType: 'pm.mutation.blocked',
+      actor,
+      sourceLayer,
+      organizationId: membership?.organization_id,
+      teamId: membership?.team_id,
+      targetType,
+      targetId,
+      approvalRequestId,
+      payload: { reason: err.message },
+      outcome: 'blocked'
+    });
+    throw err;
+  }
+
+  return { actor, sourceLayer, approvalRequestId, approval };
 }
 
 function computeHealth({ status, progress, hasOverdueSprint, nearDeadline }) {
@@ -735,6 +854,12 @@ app.post('/api/projects', async (req, res) => {
   const membership = await resolveOrProvisionMembership(user);
   if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
 
+  try {
+    await enforcePmMutationGuard({ req, membership, targetType: 'project', targetId: null });
+  } catch (err) {
+    return res.status(403).json({ error: err.message });
+  }
+
   const { name, description, color, icon, status } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
 
@@ -766,6 +891,12 @@ app.patch('/api/projects/:id', async (req, res) => {
   if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
 
   const { id } = req.params;
+  try {
+    await enforcePmMutationGuard({ req, membership, targetType: 'project', targetId: id });
+  } catch (err) {
+    return res.status(403).json({ error: err.message });
+  }
+
   const { name, description, status, color, icon } = req.body;
   const update = { updated_at: new Date().toISOString() };
   if (name !== undefined) update.name = String(name).trim();
@@ -849,6 +980,13 @@ app.post('/api/projects/:id/sprints', async (req, res) => {
   if (!user) return;
 
   const { id } = req.params;
+  const membership = await resolveMembership(user.id);
+  try {
+    await enforcePmMutationGuard({ req, membership, targetType: 'sprint', targetId: id });
+  } catch (err) {
+    return res.status(403).json({ error: err.message });
+  }
+
   const { name, goal, start_date, end_date, status } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
 
@@ -877,6 +1015,13 @@ app.post('/api/sprints/:id/items', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
   const { id } = req.params;
+  const membership = await resolveMembership(user.id);
+  try {
+    await enforcePmMutationGuard({ req, membership, targetType: 'session_item', targetId: id });
+  } catch (err) {
+    return res.status(403).json({ error: err.message });
+  }
+
   const { title, description, priority, assigned_to, estimated_hours, actual_hours, progress, item_status, items } = req.body;
 
   if (Array.isArray(items) && items.length) {
@@ -920,10 +1065,18 @@ app.patch('/api/items/:id', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
   const { id } = req.params;
+  const membership = await resolveMembership(user.id);
+  try {
+    await enforcePmMutationGuard({ req, membership, targetType: 'session_item', targetId: id });
+  } catch (err) {
+    return res.status(403).json({ error: err.message });
+  }
+
+  const { id: _ignored, source_layer, approval_request_id, ...bodyPatch } = req.body || {};
   const allowed = ['assigned_to', 'estimated_hours', 'actual_hours', 'progress', 'item_status', 'title', 'description', 'priority'];
   const patch = {};
   for (const key of allowed) {
-    if (Object.prototype.hasOwnProperty.call(req.body, key)) patch[key] = req.body[key];
+    if (Object.prototype.hasOwnProperty.call(bodyPatch, key)) patch[key] = bodyPatch[key];
   }
 
   const { data, error } = await supabase
@@ -1098,6 +1251,308 @@ app.post('/api/sessions/:id/share-token', async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+app.post('/api/approval-requests', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const actor = resolveActor(req, 'game');
+  const { target_type, target_id, requested_patch, idempotency_key } = req.body || {};
+
+  if (!target_type || !target_id || !requested_patch || !idempotency_key) {
+    return res.status(400).json({ error: 'target_type,target_id,requested_patch,idempotency_key required' });
+  }
+
+  try {
+    transitionApprovalState({
+      currentState: APPROVAL_STATES.ADVISORY,
+      nextState: APPROVAL_STATES.PENDING_APPROVAL,
+      actor: 'game'
+    });
+
+    await appendLedgerEvent({
+      eventType: 'approval.request.created',
+      source: actor,
+      idempotencyKey: idempotency_key,
+      payload: { target_type, target_id, requested_patch }
+    });
+
+    const { data, error } = await supabase
+      .from('approval_requests')
+      .insert({
+        organization_id: membership.organization_id,
+        team_id: membership.team_id,
+        target_type,
+        target_id,
+        requested_patch,
+        requested_by: user.id,
+        state: APPROVAL_STATES.PENDING_APPROVAL,
+        idempotency_key
+      })
+      .select('*')
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    await appendAuditLog({
+      eventType: 'approval.request.created',
+      actor,
+      sourceLayer: 'game',
+      organizationId: membership.organization_id,
+      teamId: membership.team_id,
+      targetType: target_type,
+      targetId: target_id,
+      approvalRequestId: data.id,
+      payload: { state: data.state }
+    });
+
+    return res.status(201).json(data);
+  } catch (err) {
+    if (err.code === 'DUPLICATE_EVENT') {
+      return res.status(409).json({ error: 'Duplicate idempotency key' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/approval-requests/:id/approve', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+  const actor = resolveActor(req, 'pm');
+  if (actor !== 'pm') return res.status(403).json({ error: 'Only PM can approve' });
+
+  const { data: current } = await supabase
+    .from('approval_requests')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!current) return res.status(404).json({ error: 'Approval request not found' });
+
+  try {
+    const nextState = transitionApprovalState({
+      currentState: current.state,
+      nextState: APPROVAL_STATES.APPROVED,
+      actor: 'pm'
+    });
+
+    const { data, error } = await supabase
+      .from('approval_requests')
+      .update({
+        state: nextState,
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    await appendLedgerEvent({
+      eventType: 'approval.request.updated',
+      source: 'pm',
+      idempotencyKey: `approval:${id}:approved`,
+      payload: { from: current.state, to: nextState }
+    });
+
+    await appendAuditLog({
+      eventType: 'approval.request.state_transition',
+      actor,
+      sourceLayer: 'pm',
+      organizationId: data.organization_id,
+      teamId: data.team_id,
+      targetType: data.target_type,
+      targetId: data.target_id,
+      approvalRequestId: data.id,
+      payload: { from: current.state, to: nextState }
+    });
+
+    return res.json(data);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/approval-requests/:id/reject', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+  const actor = resolveActor(req, 'pm');
+  if (actor !== 'pm') return res.status(403).json({ error: 'Only PM can reject' });
+
+  const { data: current } = await supabase
+    .from('approval_requests')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!current) return res.status(404).json({ error: 'Approval request not found' });
+
+  try {
+    const nextState = transitionApprovalState({
+      currentState: current.state,
+      nextState: APPROVAL_STATES.REJECTED,
+      actor: 'pm'
+    });
+
+    const { data, error } = await supabase
+      .from('approval_requests')
+      .update({
+        state: nextState,
+        rejected_by: user.id,
+        rejected_at: new Date().toISOString(),
+        rejection_reason: req.body?.reason || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    await appendLedgerEvent({
+      eventType: 'approval.request.updated',
+      source: 'pm',
+      idempotencyKey: `approval:${id}:rejected`,
+      payload: { from: current.state, to: nextState }
+    });
+
+    await appendAuditLog({
+      eventType: 'approval.request.state_transition',
+      actor,
+      sourceLayer: 'pm',
+      organizationId: data.organization_id,
+      teamId: data.team_id,
+      targetType: data.target_type,
+      targetId: data.target_id,
+      approvalRequestId: data.id,
+      payload: { from: current.state, to: nextState, reason: data.rejection_reason }
+    });
+
+    return res.json(data);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/approval-requests/:id/apply', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+  const actor = resolveActor(req, 'system');
+  if (actor !== 'system') return res.status(403).json({ error: 'Only system can apply' });
+
+  const { data: current } = await supabase
+    .from('approval_requests')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!current) return res.status(404).json({ error: 'Approval request not found' });
+
+  try {
+    const nextState = transitionApprovalState({
+      currentState: current.state,
+      nextState: APPROVAL_STATES.APPLIED,
+      actor: 'system'
+    });
+
+    const { data, error } = await supabase
+      .from('approval_requests')
+      .update({
+        state: nextState,
+        applied_at: new Date().toISOString(),
+        applied_by: user.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    await appendLedgerEvent({
+      eventType: 'approval.request.applied',
+      source: 'system',
+      idempotencyKey: `approval:${id}:applied`,
+      payload: { from: current.state, to: nextState }
+    });
+
+    await appendAuditLog({
+      eventType: 'approval.request.state_transition',
+      actor,
+      sourceLayer: 'system',
+      organizationId: data.organization_id,
+      teamId: data.team_id,
+      targetType: data.target_type,
+      targetId: data.target_id,
+      approvalRequestId: data.id,
+      payload: { from: current.state, to: nextState }
+    });
+
+    return res.json(data);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/approval-requests', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.json([]);
+
+  const { data, error } = await supabase
+    .from('approval_requests')
+    .select('*')
+    .eq('organization_id', membership.organization_id)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json(data || []);
+});
+
+app.get('/api/sync/health', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.json({ queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
+
+  const [{ count: pendingApprovals }, { count: blockedWrites }, { count: duplicateEvents }] = await Promise.all([
+    supabase
+      .from('approval_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', membership.organization_id)
+      .eq('state', APPROVAL_STATES.PENDING_APPROVAL),
+    supabase
+      .from('audit_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', membership.organization_id)
+      .eq('event_type', 'pm.mutation.blocked'),
+    supabase
+      .from('event_ledger')
+      .select('id', { count: 'exact', head: true })
+      .eq('direction', 'ingest')
+  ]);
+
+  return res.json({
+    queue_depth: pendingApprovals || 0,
+    blocked_writes: blockedWrites || 0,
+    duplicate_events: duplicateEvents || 0
+  });
 });
 
 app.get('/api/templates', async (req, res) => {

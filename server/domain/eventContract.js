@@ -45,26 +45,7 @@ function validateEventEnvelope(event) {
   };
 }
 
-/**
- * In-memory replay detector baseline for contract tests.
- * TODO: replace with persistent idempotency store in Sprint 1 runtime wiring.
- */
-class EventReplayGuard {
-  constructor() {
-    this.seen = new Set();
-  }
-
-  register(idempotencyKey) {
-    if (this.seen.has(idempotencyKey)) {
-      throw new Error('Duplicate event replay detected');
-    }
-    this.seen.add(idempotencyKey);
-    return true;
-  }
-}
-
 module.exports = {
   ALLOWED_EVENT_TYPES,
-  EventReplayGuard,
   validateEventEnvelope
 };

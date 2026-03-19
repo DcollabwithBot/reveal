@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { EventReplayGuard, validateEventEnvelope } = require('../domain/eventContract');
+const { validateEventEnvelope } = require('../domain/eventContract');
 
 function validEvent(overrides = {}) {
   return {
@@ -26,8 +26,3 @@ test('event contract: rejects malformed schema', () => {
   assert.throws(() => validateEventEnvelope(validEvent({ idempotencyKey: '' })), /idempotencyKey/);
 });
 
-test('event contract: replay guard blocks duplicate idempotency key', () => {
-  const guard = new EventReplayGuard();
-  assert.equal(guard.register('idem_001'), true);
-  assert.throws(() => guard.register('idem_001'), /Duplicate event replay detected/);
-});
