@@ -6,36 +6,78 @@ Last updated: 2026-03-19
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.4 (Sprint 4b komplet)
+- Fase: Aktiv udvikling — v0.5 (Sprint 5 implementeret, afventer DB migration)
 - Live: https://reveal.blichert.net
 - GitHub: https://github.com/DcollabwithBot/reveal
-- App: `app/` — Vite + React, bygget og deployet på Nordicway
+- Branch: `james/sprint-5-db-driven`
+- App: `app/` — Vite + React
 
 ## Hvad er bygget
 
 ### Sprint 1-3 ✅
 - Alle 4 skærme koblet: Avatar Creator → World Select → Overworld → Session
 - Shared infrastruktur: constants.js, useSound.js, utils.js, animations.css
-- Bug fixes (8 stk.)
-- Scope Roulette: slot animation, 18 challenge-cards (human/tech/extern), boss HP modifier, re-vote + delta
-- Planning Poker: fuldt fungerende med confidence vote, achievements, loot
-- Sprint Boss Battle: retrospective game mode med event voting, root cause, oracle mechanic
-- RPG Landing page
+- Scope Roulette: 18 challenge-cards, boss HP modifier, re-vote
+- Planning Poker: confidence vote, achievements, loot
+- Sprint Boss Battle: retrospective game mode
 
 ### Sprint 4 ✅ (Supabase + Auth)
-- Supabase projekt oprettet: `swyfcathwcdpgkirwihh` (reveal.ai)
-- Komplet DB schema (organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes) — RLS aktiveret
-- Google OAuth + login screen (Login.jsx)
-- Supabase client: `app/src/lib/supabase.js`
+- Supabase projekt: `swyfcathwcdpgkirwihh`
+- Komplet DB schema (organizations, teams, sessions, session_items, votes, profiles)
+- Google OAuth + login screen
 
 ### Sprint 4b ✅ (Multiplayer Realtime)
-- Lobby screen (Lobby.jsx) — spiller joiner via join_code, presence tracking
-- Active session screen (Session.jsx) — realtime stemmer, GM view
-- Supabase Realtime channel: `session:{session_id}`
-- Screens: Landing, Login, AvatarCreator, WorldSelect, Overworld, Lobby, Session
+- SessionLobby + ActiveSession med Supabase Realtime
+- Presence tracking, GM controls, join_code flow
 
-## Næste sprint
-- Sprint 5: XP/achievements logik, overworld node-completion, team velocity, custom challenges UI, co-GM/observer roller
+### Sprint 5 ✅ (Admin UI + DB-driven content + Voting Modes)
+
+**Arkitektur-beslutning (Danny, 2026-03-19):**
+DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
+
+**Hvad er lavet:**
+
+1. **DB Migrations (afventer manuelt run)**
+   - `supabase/migrations/sprint5.sql` — kør i Supabase SQL editor
+   - `supabase/seed/sprint5-defaults.sql` — kør efter migration
+   - Tilføjer: `sessions.voting_mode`, `retro_events` tabel, `challenges` tabel
+
+2. **SessionSetup.jsx** (ny fil)
+   - Route: `/setup`
+   - GM opretter session med: navn, backlog items (titel + beskrivelse), voting mode
+   - Voting mode: Fibonacci (1,2,3,5,8,13,21) eller T-shirt (XS,S,M,L,XL,XXL)
+   - INSERT til sessions + session_items via API
+   - Viser join link + kode efter oprettelse
+
+3. **ActiveSession.jsx — voting_mode**
+   - Læser `session.voting_mode` fra DB
+   - Fibonacci: viser [1,2,3,5,8,13,21,?] kort
+   - T-shirt: viser [XS,S,M,L,XL,XXL,?] kort
+   - T-shirt reveal viser MODE (hyppigst), ikke gennemsnit
+   - Skriver `final_estimate` + `status='completed'` til `session_items` ved reveal
+
+4. **ActiveSession.jsx — DB-driven content**
+   - Challenges: hentes fra `challenges` tabel (global defaults). Fallback til constants.js
+   - Retro events: hentes fra `retro_events` tabel (global defaults). Fallback til constants.js
+
+5. **Session.jsx — DB writes**
+   - Skriver node completion til `node_completions` (silently skips hvis ingen dbId)
+   - Skriver final estimate til `session_items` (silently skips hvis ingen sessionItemId)
+
+6. **App.jsx — routing**
+   - `/setup` route → SessionSetup
+   - SessionLobby har "Advanced Session Setup →" knap
+
+7. **server/app.js**
+   - POST /api/sessions accepterer nu `voting_mode` parameter
+
+## Hvad mangler (næste sprint)
+
+- Danny skal køre `supabase/migrations/sprint5.sql` + `supabase/seed/sprint5-defaults.sql` manuelt
+- Verifikation: `session_items.description` kolonne skal eksistere i schema
+- Verifikation: `node_completions` tabel skal eksistere for den del at virke
+- `/setup` → `/lobby` flow: Regler om hvem der er GM (team_members.role check er best-effort)
+- Ingen design polish (intentionelt — functional er nok)
 
 ## Roadmap
 | Sprint | Indhold | Status |
@@ -43,7 +85,7 @@ Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint R
 | 1-3 | MVP modes (Poker, Roulette, Boss Battle) | ✅ |
 | 4 | Supabase schema + Auth (Google OAuth) | ✅ |
 | 4b | Realtime multiplayer + Lobby + Session UI | ✅ |
-| 5 | XP/achievements, velocity, observer rolle, co-GM | 🔜 |
+| 5 | Admin UI, DB-driven content, voting modes | ✅ (kræver DB migration) |
 | 6 | Perspektiv-Poker + session templates + Slack/Teams webhooks | |
 | 7 | Spec Wars | |
 | 8 | Russian Nesting Scope | |
@@ -51,41 +93,30 @@ Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint R
 | 10 | Jira/Azure DevOps integration | |
 | 11 | AI Lifelines + mønstergenkendelse | |
 
-## Game modes status
-| Mode | Node type | Status |
-|------|-----------|--------|
-| Planning Poker | p | ✅ Komplet |
-| Scope Roulette | r | ✅ Komplet |
-| Sprint Boss Battle | b | ✅ Komplet |
-| Bluff Poker | bf | 🔜 Sprint 5 |
-| Perspektiv-Poker | pp | 🔜 Sprint 6 |
-| Spec Wars | sw | 🔜 Sprint 7 |
-| Russian Nesting Scope | rn | 🔜 Sprint 8 |
-| Speed Scope | ss | 🔜 Sprint 9 |
-
 ## Supabase
 - Projekt ID: `swyfcathwcdpgkirwihh`
-- Migrerede tabeller: organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes
-- Ikke migreret (sprint 5+): achievements, user_achievements, worlds, world_nodes, node_completions, custom_challenges, custom_events, session_templates, audit_log, rooms
+- Eksisterende tabeller: organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes
+- Sprint 5 tilføjer: `sessions.voting_mode`, `retro_events`, `challenges`
+- **Kræver manuelt run:** `supabase/migrations/sprint5.sql` + `supabase/seed/sprint5-defaults.sql`
 
 ## Tech stack
 - React (hooks only) + Vite
 - Supabase (Auth + DB + Realtime)
 - Web Audio API (lyd — ingen filer)
-- SVG (overworld)
 - CSS animations inline
 - Press Start 2P + VT323 (Google Fonts)
-- Hosting: Nordicway (statiske filer)
-- Backend: Express skeleton i `server/`
+- Hosting: Nordicway
+- Backend: Express i `server/`
 
 ## Filer
-- `app/src/screens/` — Landing, Login, AvatarCreator, WorldSelect, Overworld, Lobby, Session
-- `app/src/components/` — RetroEventCard, RootCauseSelector, RouletteOverlay
-- `app/src/lib/supabase.js` — Supabase client
-- `SPRINT4-PLAN.md` — Komplet teknisk blueprint Sprint 4
-- `SPRINT4-SUMMARY.md` — Arkitekturbeslutninger + MVP scope
-- `REVEAL-HANDOFF.md` — Fuld teknisk brief til udvikler
-- `Reveal-Koncept-v3.1.docx` — Original konceptdokument
+- `src/screens/SessionSetup.jsx` — NY: Admin UI til session oprettelse
+- `src/screens/ActiveSession.jsx` — Opdateret: voting_mode, DB challenges/retro
+- `src/screens/Session.jsx` — Opdateret: DB writes på completion
+- `src/screens/SessionLobby.jsx` — Opdateret: Setup button
+- `src/App.jsx` — Opdateret: /setup route
+- `server/app.js` — Opdateret: voting_mode i session INSERT
+- `supabase/migrations/sprint5.sql` — NY: Schema changes
+- `supabase/seed/sprint5-defaults.sql` — NY: Default data
 
 ## Design-principper (rør ikke)
 - Pixel art æstetik
