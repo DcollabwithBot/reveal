@@ -11,6 +11,7 @@ export default function Lobby({ user, onContinue, onGuest }) {
   const avatarUrl = user?.user_metadata?.avatar_url;
   const [loadingGov, setLoadingGov] = useState(true);
   const [error, setError] = useState(null);
+  const [dashboard, setDashboard] = useState({ active: [], upcoming: [], finished: [], projects: [], activity: [] });
   const [approvalRequests, setApprovalRequests] = useState([]);
   const [health, setHealth] = useState({ queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
   const [conflicts, setConflicts] = useState([]);
@@ -21,6 +22,7 @@ export default function Lobby({ user, onContinue, onGuest }) {
     setError(null);
     try {
       const data = await getDashboardGovernance();
+      setDashboard(data.dashboard || { active: [], upcoming: [], finished: [], projects: [], activity: [] });
       setApprovalRequests(data.approvalRequests || []);
       setHealth(data.health || { queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
       setConflicts(data.conflicts || []);
@@ -43,6 +45,16 @@ export default function Lobby({ user, onContinue, onGuest }) {
   const approvedReady = useMemo(
     () => approvalRequests.filter((r) => r.state === 'approved').slice(0, 3),
     [approvalRequests]
+  );
+
+  const activeProjects = useMemo(
+    () => (dashboard.projects || []).filter((p) => p.status === 'active').slice(0, 4),
+    [dashboard.projects]
+  );
+
+  const recentActivity = useMemo(
+    () => (dashboard.activity || []).slice(0, 5),
+    [dashboard.activity]
   );
 
   async function handleAction(requestId, action) {
@@ -94,70 +106,74 @@ export default function Lobby({ user, onContinue, onGuest }) {
           <Widget title="Conflict Center" value={health.blocked_writes} hint="Blocked writes" />
         </div>
 
-        <div style={styles.queueBox}>
-          <div style={styles.queueHeader}>
-            <span>PM Approval Actions</span>
-            <button style={styles.refreshBtn} onClick={refreshGovernance} disabled={loadingGov}>↻</button>
-          </div>
+        <div style={styles.dashboardGrid}>
+          <SectionBox title="PM Actions">
+            {error && <div style={styles.error}>{error}</div>}
+            {loadingGov && <div style={styles.muted}>Henter governance data…</div>}
 
-          {error && <div style={styles.error}>{error}</div>}
-          {loadingGov && <div style={styles.muted}>Henter governance data…</div>}
+            {!loadingGov && pending.length === 0 && approvedReady.length === 0 && (
+              <div style={styles.muted}>Ingen governance-actions lige nu.</div>
+            )}
 
-          {!loadingGov && pending.length === 0 && (
-            <div style={styles.muted}>Ingen pending approvals 🎉</div>
-          )}
+            {!loadingGov && pending.map((req) => (
+              <ActionRow
+                key={req.id}
+                req={req}
+                busyId={busyId}
+                onApprove={() => handleAction(req.id, 'approve')}
+                onReject={() => handleAction(req.id, 'reject')}
+              />
+            ))}
 
-          {!loadingGov && pending.map((req) => (
-            <div key={req.id} style={styles.queueItem}>
-              <div style={styles.queueMeta}>
-                <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)}</div>
-                <div style={styles.queueState}>{req.state}</div>
+            {!loadingGov && approvedReady.map((req) => (
+              <ApplyRow
+                key={req.id}
+                req={req}
+                busyId={busyId}
+                onApply={() => handleAction(req.id, 'apply')}
+              />
+            ))}
+          </SectionBox>
+
+          <SectionBox title="Conflict Center">
+            {(conflicts || []).slice(0, 5).map((c) => (
+              <div key={c.id} style={styles.conflictRow}>
+                <div style={styles.conflictMain}>
+                  <span style={styles.conflictTarget}>{c.target_type || 'unknown'} · {String(c.target_id || 'n/a').slice(0, 8)}</span>
+                  <span style={styles.conflictReason}>{c.payload?.reason || 'blocked write'}</span>
+                </div>
+                <div style={styles.conflictMeta}>
+                  {c.source_layer || 'unknown'} · {formatShortDate(c.created_at)}
+                </div>
               </div>
-              <div style={styles.queueActions}>
-                <button
-                  style={{ ...styles.actionBtn, ...styles.approveBtn }}
-                  onClick={() => handleAction(req.id, 'approve')}
-                  disabled={Boolean(busyId)}
-                >
-                  ✅
-                </button>
-                <button
-                  style={{ ...styles.actionBtn, ...styles.rejectBtn }}
-                  onClick={() => handleAction(req.id, 'reject')}
-                  disabled={Boolean(busyId)}
-                >
-                  ✖
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {!loadingGov && approvedReady.map((req) => (
-            <div key={req.id} style={styles.queueItemApproved}>
-              <div style={styles.queueMeta}>
-                <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)} · klar til apply</div>
-                <div style={styles.queueState}>approved</div>
-              </div>
-              <button
-                style={{ ...styles.actionBtn, ...styles.applyBtn }}
-                onClick={() => handleAction(req.id, 'apply')}
-                disabled={Boolean(busyId)}
-              >
-                Apply
-              </button>
-            </div>
-          ))}
+            ))}
+            {!conflicts?.length && <div style={styles.muted}>Ingen konflikter registreret.</div>}
+          </SectionBox>
         </div>
 
-        <div style={styles.conflictBox}>
-          <div style={styles.conflictTitle}>Conflict Center v1 (blocked writes)</div>
-          {(conflicts || []).slice(0, 3).map((c) => (
-            <div key={c.id} style={styles.conflictItem}>
-              <span>{c.target_type || 'unknown'}:{String(c.target_id || 'n/a').slice(0, 8)}</span>
-              <span>{c.payload?.reason || 'blocked'}</span>
-            </div>
-          ))}
-          {!conflicts?.length && <div style={styles.muted}>Ingen konflikter registreret.</div>}
+        <div style={styles.dashboardGrid}>
+          <SectionBox title="Active Projects">
+            {activeProjects.map((project) => (
+              <div key={project.id} style={styles.projectRow}>
+                <div>
+                  <div style={styles.projectName}>{project.icon || '📋'} {project.name}</div>
+                  <div style={styles.projectMeta}>status: {project.status} · progress: {project.progress ?? 0}%</div>
+                </div>
+                <div style={styles.projectStats}>{project.total_items || 0} items</div>
+              </div>
+            ))}
+            {!activeProjects.length && <div style={styles.muted}>Ingen aktive projekter endnu.</div>}
+          </SectionBox>
+
+          <SectionBox title="Recent Activity">
+            {recentActivity.map((item) => (
+              <div key={item.id} style={styles.activityRow}>
+                <div style={styles.activityTitle}>{item.title}</div>
+                <div style={styles.activityMeta}>{item.description} · {formatShortDate(item.created_at)}</div>
+              </div>
+            ))}
+            {!recentActivity.length && <div style={styles.muted}>Ingen aktivitet endnu.</div>}
+          </SectionBox>
         </div>
 
         <button style={styles.continueBtn} onClick={onContinue}>▶ FORTSÆT SOM {displayName.split(' ')[0].toUpperCase()}</button>
@@ -185,13 +201,79 @@ function Widget({ title, value, hint }) {
   );
 }
 
+function SectionBox({ title, children }) {
+  return (
+    <div style={styles.sectionBox}>
+      <div style={styles.sectionTitle}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function ActionRow({ req, busyId, onApprove, onReject }) {
+  return (
+    <div style={styles.queueItem}>
+      <div style={styles.queueMeta}>
+        <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)}</div>
+        <div style={styles.queueState}>{req.state}</div>
+      </div>
+      <div style={styles.queueActions}>
+        <button
+          style={{ ...styles.actionBtn, ...styles.approveBtn }}
+          onClick={onApprove}
+          disabled={Boolean(busyId)}
+        >
+          ✅
+        </button>
+        <button
+          style={{ ...styles.actionBtn, ...styles.rejectBtn }}
+          onClick={onReject}
+          disabled={Boolean(busyId)}
+        >
+          ✖
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ApplyRow({ req, busyId, onApply }) {
+  return (
+    <div style={styles.queueItemApproved}>
+      <div style={styles.queueMeta}>
+        <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)} · klar til apply</div>
+        <div style={styles.queueState}>approved</div>
+      </div>
+      <button
+        style={{ ...styles.actionBtn, ...styles.applyBtn }}
+        onClick={onApply}
+        disabled={Boolean(busyId)}
+      >
+        Apply
+      </button>
+    </div>
+  );
+}
+
+function formatShortDate(value) {
+  if (!value) return 'ukendt';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'ukendt';
+  return new Intl.DateTimeFormat('da-DK', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
 const styles = {
   container: {
     minHeight: '100vh', backgroundColor: '#0e1019', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: "'Press Start 2P', monospace", position: 'relative', overflow: 'auto', padding: '24px 0'
   },
   scanlines: { position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px)', pointerEvents: 'none', zIndex: 1 },
-  panel: { position: 'relative', zIndex: 2, width: '100%', maxWidth: '760px', padding: '28px', background: 'rgba(14, 16, 25, 0.95)', border: '2px solid #7c3aed', boxShadow: '0 0 0 1px #4c1d95, 0 0 30px rgba(124,58,237,0.3)' },
+  panel: { position: 'relative', zIndex: 2, width: '100%', maxWidth: '980px', padding: '28px', background: 'rgba(14, 16, 25, 0.95)', border: '2px solid #7c3aed', boxShadow: '0 0 0 1px #4c1d95, 0 0 30px rgba(124,58,237,0.3)' },
   titleBlock: { textAlign: 'center', marginBottom: '24px' },
   title: { margin: 0, fontSize: '28px', color: '#a78bfa', textShadow: '0 0 10px rgba(167,139,250,0.8), 2px 2px 0 #4c1d95', letterSpacing: '4px' },
   subtitle: { margin: '8px 0 0', fontSize: '8px', color: '#6b7280', letterSpacing: '2px' },
@@ -205,13 +287,13 @@ const styles = {
   playerLabel: { margin: '0 0 4px', fontSize: '7px', color: '#6b7280', letterSpacing: '2px' },
   playerName: { margin: 0, fontSize: '11px', color: '#e5e7eb' },
   govGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: '8px', marginBottom: '12px' },
+  dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: '12px', marginBottom: '12px' },
   widget: { background: '#131629', border: '1px solid #374151', padding: '10px' },
   widgetTitle: { fontSize: '7px', color: '#9ca3af', marginBottom: '6px' },
   widgetValue: { fontSize: '16px', color: '#a78bfa', marginBottom: '4px' },
   widgetHint: { fontSize: '6px', color: '#6b7280' },
-  queueBox: { background: '#101425', border: '1px solid #374151', padding: '10px', marginBottom: '10px' },
-  queueHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '8px', color: '#d1d5db', marginBottom: '8px' },
-  refreshBtn: { background: '#1f2937', color: '#d1d5db', border: '1px solid #4b5563', fontFamily: "'Press Start 2P', monospace", fontSize: '8px', cursor: 'pointer' },
+  sectionBox: { background: '#101425', border: '1px solid #374151', padding: '10px', minHeight: '170px' },
+  sectionTitle: { fontSize: '8px', color: '#d1d5db', marginBottom: '10px' },
   queueItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #2e364a', background: '#0f1220', padding: '8px', marginBottom: '6px' },
   queueItemApproved: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #2f5040', background: '#0f1a15', padding: '8px', marginBottom: '6px' },
   queueMeta: { display: 'flex', flexDirection: 'column', gap: '4px' },
@@ -222,9 +304,18 @@ const styles = {
   approveBtn: { background: '#065f46', color: '#ecfeff' },
   rejectBtn: { background: '#7f1d1d', color: '#fef2f2' },
   applyBtn: { background: '#1d4ed8', color: '#eff6ff' },
-  conflictBox: { background: '#120f1f', border: '1px solid #4c1d95', padding: '10px', marginBottom: '16px' },
-  conflictTitle: { fontSize: '7px', color: '#c4b5fd', marginBottom: '8px' },
-  conflictItem: { display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '6px', color: '#d1d5db', padding: '4px 0', borderBottom: '1px solid #2d1d4d' },
+  conflictRow: { border: '1px solid #2d1d4d', background: '#120f1f', padding: '8px', marginBottom: '6px' },
+  conflictMain: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  conflictTarget: { fontSize: '7px', color: '#e9d5ff' },
+  conflictReason: { fontSize: '6px', color: '#d1d5db' },
+  conflictMeta: { fontSize: '6px', color: '#8b5cf6', marginTop: '4px' },
+  projectRow: { display: 'flex', justifyContent: 'space-between', gap: '8px', border: '1px solid #27324a', background: '#0f1220', padding: '8px', marginBottom: '6px' },
+  projectName: { fontSize: '7px', color: '#e5e7eb', marginBottom: '4px' },
+  projectMeta: { fontSize: '6px', color: '#9ca3af' },
+  projectStats: { fontSize: '6px', color: '#a78bfa', whiteSpace: 'nowrap' },
+  activityRow: { borderBottom: '1px solid #253046', padding: '6px 0' },
+  activityTitle: { fontSize: '7px', color: '#e5e7eb', marginBottom: '4px' },
+  activityMeta: { fontSize: '6px', color: '#9ca3af' },
   muted: { fontSize: '7px', color: '#6b7280' },
   error: { fontSize: '7px', color: '#fda4af', marginBottom: '8px' },
   continueBtn: { width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #7c3aed 100%)', border: '2px solid #a78bfa', color: '#fff', fontFamily: "'Press Start 2P', monospace", fontSize: '9px', cursor: 'pointer', letterSpacing: '1px' },

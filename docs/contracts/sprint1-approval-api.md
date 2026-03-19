@@ -10,7 +10,7 @@ Request body:
 {
   "target_type": "project|sprint|item|session_item",
   "target_id": "<entity-id>",
-  "requested_patch": {"status":"at_risk"},
+  "requested_patch": {"status":"on_hold"},
   "idempotency_key": "game:<target>:<nonce>"
 }
 ```
@@ -48,6 +48,14 @@ Guarantees:
 - audit log persisted for state transition
 
 ### Dashboard support
+- `GET /api/dashboard`
 - `GET /api/approval-requests`
 - `GET /api/sync/health`
 - `GET /api/sync/conflicts` (blocked writes from audit_log)
+
+### Normalization rules
+- project `status` must be one of: `active|on_hold|completed`
+- sprint `status` must be one of: `upcoming|active|completed`
+- item/session_item `priority` must be one of: `low|medium|high|critical`
+- item/session_item `item_status` must be one of: `backlog|todo|in_progress|blocked|done`
+- `progress` is normalized to `0..100` and can derive `item_status`

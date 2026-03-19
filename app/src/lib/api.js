@@ -18,12 +18,22 @@ async function request(path, options = {}) {
   return body;
 }
 
+export function getDashboard() {
+  return request('/api/dashboard');
+}
+
 export function getDashboardGovernance() {
   return Promise.all([
+    getDashboard(),
     request('/api/approval-requests'),
     request('/api/sync/health'),
     request('/api/sync/conflicts')
-  ]).then(([approvalRequests, health, conflicts]) => ({ approvalRequests, health, conflicts }));
+  ]).then(([dashboard, approvalRequests, health, conflicts]) => ({
+    dashboard,
+    approvalRequests,
+    health,
+    conflicts
+  }));
 }
 
 export async function getLatestApprovalState(targetId) {
