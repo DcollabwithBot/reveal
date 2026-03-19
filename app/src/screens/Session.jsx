@@ -4,8 +4,10 @@ import { dk, pick } from "../shared/utils.js";
 import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
 import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/session/rewards/achievements.js";
 import { getChallengeBonusHp, projectBossEncounter } from "../domain/session/boss/bossProjection.js";
-import { approvalStateLabel, approvalStateColor, projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
+import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
 import { buildRootState } from "../domain/session/root/selectors.js";
+import { projectWorld } from "../domain/session/world/projectWorld.js";
+import { buildChallenge } from "../domain/session/challenge/buildChallenge.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
 import RetroEventCard from "../components/RetroEventCard.jsx";
 import RootCauseSelector from "../components/RootCauseSelector.jsx";
@@ -278,8 +280,16 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     projectionConfig,
     node,
     project,
+    step,
+    combo,
+    ready: rdy,
+    activeChallenge,
+    rootCauseCount: rc.length,
+    lifelineUsed: Boolean(ll),
   });
   const approvalOverlay = projectApprovalOverlay(approvalState, { yel: C.yel, blu: C.blu, red: C.red, grn: C.grn, dim: C.dim });
+  const world = projectWorld(rootState, projectionConfig, { xp: C.xp, acc: C.acc, org: C.org, pur: C.pur, gld: C.gld, yel: C.yel, blu: C.blu, red: C.red, grn: C.grn, dim: C.dim });
+  const currentChallenge = buildChallenge(rootState, world);
 
   function addDmg(val, x, critical = false) { setDmgNums(p => [...p, { id: Date.now() + Math.random(), val, x, critical }]); setTimeout(() => setDmgNums(p => p.slice(1)), 1200); }
   function addAchieve(a) {
@@ -685,21 +695,21 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             <div style={{ fontFamily: PF, fontSize: "6px", padding: "3px 6px", background: mc, color: C.bg }}>{isR ? "🎰 ROULETTE" : "🃏 POKER"}</div>
             <div style={{ fontFamily: PF, fontSize: "5px", color: mc }}>{bossName}</div>
             <div style={{ flex: 1 }} />
-            <div style={{ fontFamily: PF, fontSize: "5px", color: approvalOverlay.color, marginRight: "8px", padding: "2px 5px", background: C.bgL, border: `1px solid ${approvalOverlay.color}` }}>
-              {approvalOverlay.label}
+            <div style={{ fontFamily: PF, fontSize: "5px", color: world.governance.approvalColor, marginRight: "8px", padding: "2px 5px", background: C.bgL, border: `1px solid ${world.governance.approvalColor}` }}>
+              {world.governance.approvalLabel}
             </div>
             <div style={{ fontFamily: PF, fontSize: "5px", color: C.org, marginRight: "4px" }}>🔥{combo}</div>
             {["ESTIMÉR", "REVEAL", "DISK.", "CONF.", "VICTORY"].map((s, i) => <div key={i} style={{ height: "9px", padding: "0 3px", background: i < step ? C.grn : i === step ? C.acc : C.bgL, fontFamily: PF, fontSize: "4px", color: C.wht, display: "flex", alignItems: "center" }}>{i === step ? s : i < step ? "✓" : ""}</div>)}
           </div>
 
-          <div style={{ marginBottom: "8px", border: `2px solid ${approvalOverlay.color}`, background: C.bgC + "dd", padding: "6px" }}>
+          <div style={{ marginBottom: "8px", border: `2px solid ${world.governance.approvalColor}`, background: C.bgC + "dd", padding: "6px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-              <div style={{ fontFamily: PF, fontSize: "5px", color: approvalOverlay.color }}>
-                Advisory Overlay · Outcome: {approvalOverlay.label}
+              <div style={{ fontFamily: PF, fontSize: "5px", color: world.governance.approvalColor }}>
+                Advisory Overlay · Outcome: {world.governance.approvalLabel}
               </div>
               <button
                 onClick={sendToApprovalQueue}
-                disabled={advisoryBusy || !approvalOverlay.canSubmitAdvisory}
+                disabled={advisoryBusy || !world.governance.canSubmitAdvisory}
                 style={{
                   fontFamily: PF,
                   fontSize: "5px",
@@ -758,7 +768,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
                   </div>
                 ))}
               </div>
-              {rdy && isR && !activeChallenge && (
+              {world.ui.showChallengePrompt && (
                 <button onClick={() => setShowRoulette(true)}
                   style={{
                     fontFamily: PF, fontSize: 9, color: C.bg, background: C.yel,
@@ -766,19 +776,19 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
                     borderRight: `5px solid ${C.bg}`, padding: "12px 24px",
                     cursor: "pointer", letterSpacing: 1, animation: "pulse 1.5s ease-in-out infinite"
                   }}>
-                  🎰 TRÆK CHALLENGE!
+                  {currentChallenge?.actions?.primaryLabel || '🎰 TRÆK CHALLENGE!'}
                 </button>
               )}
               {rdy && isR && activeChallenge && !rev && (
                 <div style={{ textAlign: "center", padding: 16 }}>
                   <div style={{ fontFamily: PF, fontSize: 7, color: C.yel, marginBottom: 8 }}>
-                    AKTIV CHALLENGE: {activeChallenge.title}
+                    AKTIV CHALLENGE: {currentChallenge?.objective?.title || activeChallenge.title}
                   </div>
                   <div style={{ fontFamily: PF, fontSize: 7, color: C.dim, marginBottom: 12 }}>
-                    RE-ESTIMER OG ANGRIB!
+                    {currentChallenge?.actions?.primaryLabel || 'RE-ESTIMER OG ANGRIB!'}
                   </div>
                   {revoting && pv !== null && (
-                    <Btn large color={C.acc} onClick={doReveal} style={{ fontSize: "11px", animation: "pulse 0.8s infinite" }}>⚔️ REVEAL ATTACK!</Btn>
+                    <Btn large color={C.acc} onClick={doReveal} style={{ fontSize: "11px", animation: "pulse 0.8s infinite" }}>{currentChallenge?.actions?.completeLabel || '⚔️ REVEAL ATTACK!'}</Btn>
                   )}
                 </div>
               )}

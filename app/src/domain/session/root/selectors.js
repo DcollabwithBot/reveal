@@ -27,6 +27,12 @@ export function buildRootState({
   projectionConfig = null,
   node = null,
   project = null,
+  step = 0,
+  combo = 0,
+  ready = false,
+  activeChallenge = null,
+  rootCauseCount = 0,
+  lifelineUsed = false,
 }) {
   const voting = buildVotingSummary(selectedVote, votes);
 
@@ -36,6 +42,14 @@ export function buildRootState({
     projectId: project?.id || null,
     approvalState,
     projectionConfig,
+    node,
+    project,
+    step,
+    combo,
+    ready,
+    activeChallenge,
+    rootCauseCount,
+    lifelineUsed,
     voting,
   };
 }
