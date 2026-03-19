@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../hooks/useSession'
+import { ROULETTE_CHALLENGES, SPRINT_EVENTS } from '../shared/constants'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -23,6 +24,15 @@ const C = {
 }
 
 const FIBONACCI = [1, 2, 3, 5, 8, 13, 21, '?']
+const TSHIRT    = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '?']
+
+// Calculate mode (most common value) for T-shirt reveal
+function calcMode(values) {
+  if (!values.length) return null
+  const freq = {}
+  values.forEach(v => { freq[v] = (freq[v] || 0) + 1 })
+  return Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
+}
 
 function copyText(text) {
   navigator.clipboard?.writeText(text).catch(() => {
@@ -106,9 +116,57 @@ export default function ActiveSession({ sessionId, onBack }) {
   const [copied, setCopied] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [updating, setUpdating] = useState(false)
+  const [challenges, setChallenges] = useState([])
+  const [retroEvents, setRetroEvents] = useState([])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user))
+  }, [])
+
+  // Load challenges from DB (with fallback to constants)
+  useEffect(() => {
+    async function loadChallenges() {
+      try {
+        const { data, error } = await supabase
+          .from('challenges')
+          .select('*')
+          .is('organization_id', null) // global defaults
+          .eq('is_active', true)
+          .order('created_at')
+        if (!error && data && data.length > 0) {
+          setChallenges(data)
+        } else {
+          // Fallback to constants
+          setChallenges(ROULETTE_CHALLENGES)
+        }
+      } catch {
+        setChallenges(ROULETTE_CHALLENGES)
+      }
+    }
+    loadChallenges()
+  }, [])
+
+  // Load retro events from DB (with fallback to constants)
+  useEffect(() => {
+    async function loadRetroEvents() {
+      try {
+        const { data, error } = await supabase
+          .from('retro_events')
+          .select('*')
+          .is('organization_id', null) // global defaults
+          .eq('is_active', true)
+          .order('created_at')
+        if (!error && data && data.length > 0) {
+          setRetroEvents(data)
+        } else {
+          // Fallback to constants
+          setRetroEvents(SPRINT_EVENTS)
+        }
+      } catch {
+        setRetroEvents(SPRINT_EVENTS)
+      }
+    }
+    loadRetroEvents()
   }, [])
 
   // Reset reveal when item changes
@@ -126,6 +184,10 @@ export default function ActiveSession({ sessionId, onBack }) {
   const currentItem = items[currentItemIndex] || null
   const currentItemVotes = votes.filter(v => v.session_item_id === currentItem?.id)
   const myCurrentVote = currentItemVotes.find(v => v.user_id === currentUser?.id)
+
+  // Determine card values based on voting_mode from DB
+  const isTshirt = session?.voting_mode === 'tshirt'
+  const cardValues = isTshirt ? TSHIRT : FIBONACCI
 
   const handleVote = async (value) => {
     if (!currentItem) return
@@ -191,10 +253,33 @@ export default function ActiveSession({ sessionId, onBack }) {
 
   const sessionDone = session.status === 'completed'
   const numericVotes = currentItemVotes.map(v => Number(v.value)).filter(n => !isNaN(n))
+  const stringVotes = currentItemVotes.map(v => v.value).filter(Boolean)
   const avgVote = numericVotes.length ? (numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length) : null
+  const modeVote = stringVotes.length ? calcMode(stringVotes) : null
   const minVote = numericVotes.length ? Math.min(...numericVotes) : null
   const maxVote = numericVotes.length ? Math.max(...numericVotes) : null
   const hpPct = Math.max(10, 100 - (currentItemIndex / Math.max(items.length, 1)) * 100)
+
+  // Write final estimate to DB when GM reveals
+  const handleRevealAndSave = async () => {
+    setRevealed(true)
+    // Write final estimate to session_items
+    if (currentItem?.id && currentItemVotes.length > 0) {
+      const finalEstimate = isTshirt
+        ? modeVote
+        : (avgVote !== null ? String(Math.round(avgVote)) : null)
+      if (finalEstimate) {
+        try {
+          await supabase
+            .from('session_items')
+            .update({ final_estimate: finalEstimate, status: 'completed' })
+            .eq('id', currentItem.id)
+        } catch (err) {
+          console.warn('Could not save final estimate:', err)
+        }
+      }
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: C.bgDark, padding: '16px', fontFamily: VT, color: C.text }}>
@@ -283,7 +368,7 @@ export default function ActiveSession({ sessionId, onBack }) {
               🎴 CAST YOUR SPELL
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {FIBONACCI.map(val => (
+              {cardValues.map(val => (
                 <VoteCard
                   key={val}
                   value={val}
@@ -337,23 +422,40 @@ export default function ActiveSession({ sessionId, onBack }) {
               </div>
             )}
 
-            {revealed && numericVotes.length > 0 && (
+            {revealed && currentItemVotes.length > 0 && (
               <div style={{
                 marginTop: '16px', display: 'flex', gap: '16px', justifyContent: 'center',
                 background: '#0a0a1a', borderRadius: '8px', padding: '12px'
               }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '13px', color: C.dim }}>AVG</div>
-                  <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.gold }}>{avgVote?.toFixed(1)}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '13px', color: C.dim }}>MIN</div>
-                  <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.green }}>{minVote}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '13px', color: C.dim }}>MAX</div>
-                  <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.red }}>{maxVote}</div>
-                </div>
+                {isTshirt ? (
+                  // T-shirt mode: show mode (most common) + distribution
+                  <>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>CONSENSUS</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '18px', color: C.gold }}>{modeVote}</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>VOTES</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.text }}>{currentItemVotes.length}</div>
+                    </div>
+                  </>
+                ) : (
+                  // Fibonacci mode: show avg/min/max
+                  <>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>AVG</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.gold }}>{avgVote?.toFixed(1)}</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>MIN</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.green }}>{minVote}</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>MAX</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.red }}>{maxVote}</div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -369,7 +471,7 @@ export default function ActiveSession({ sessionId, onBack }) {
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {!revealed && currentItemVotes.length > 0 && (
-                  <button onClick={() => setRevealed(true)} style={{
+                  <button onClick={handleRevealAndSave} style={{
                     flex: 1, background: C.gold, border: 'none', borderRadius: '6px',
                     color: '#1a1000', padding: '12px', fontFamily: PIXEL, fontSize: '9px', cursor: 'pointer'
                   }}>

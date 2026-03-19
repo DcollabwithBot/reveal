@@ -56,7 +56,7 @@ const SESSION_TYPES = [
 const STATUS_COLORS = { draft: C.gold, waiting: C.gold, active: C.green, completed: C.dim }
 const STATUS_LABELS = { draft: '⏳ Lobby', waiting: '⏳ Waiting', active: '⚔️ Active', completed: '✅ Done' }
 
-export default function SessionLobby({ onJoin, onCreate }) {
+export default function SessionLobby({ onJoin, onCreate, onSetup }) {
   const [user, setUser] = useState(null)
   const [name, setName] = useState('')
   const [sessionType, setSessionType] = useState('poker')
@@ -161,6 +161,16 @@ export default function SessionLobby({ onJoin, onCreate }) {
         {user && (
           <div style={{ marginTop: '8px', fontSize: '16px', color: C.accent }}>
             🧙 {user.email?.split('@')[0] || 'Adventurer'}
+          </div>
+        )}
+        {onSetup && (
+          <div style={{ marginTop: '12px' }}>
+            <button onClick={onSetup} style={{
+              background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '4px',
+              color: C.dim, padding: '6px 14px', fontFamily: FONTS.pixel, fontSize: '8px', cursor: 'pointer'
+            }}>
+              🏰 ADVANCED SESSION SETUP →
+            </button>
           </div>
         )}
       </div>
