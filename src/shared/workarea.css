@@ -263,6 +263,127 @@
   font-weight: 600;
 }
 
+.wa-segmented {
+  display: inline-flex;
+  border: 1px solid var(--wa-border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.wa-segment {
+  border: 0;
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  cursor: pointer;
+}
+
+.wa-segment.is-active {
+  background: var(--wa-primary);
+  color: #fff;
+}
+
+.wa-kanban-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.wa-kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wa-kanban-column {
+  border: 1px solid var(--wa-border);
+  border-radius: 10px;
+  background: var(--wa-surface-muted);
+  padding: 10px;
+}
+
+.wa-kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.wa-kanban-column-header span {
+  min-width: 24px;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--wa-border);
+}
+
+.wa-kanban-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.wa-kanban-card {
+  background: #fff;
+  border: 1px solid var(--wa-border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: var(--wa-shadow-sm);
+}
+
+.wa-kanban-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wa-kanban-meta {
+  color: var(--wa-text-muted);
+  font-size: 13px;
+  display: grid;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+
+.wa-kanban-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.wa-kanban-controls {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.wa-kanban-controls label {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-kanban-column-empty,
+.wa-kanban-empty {
+  border: 1px dashed var(--wa-border-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--wa-text-muted);
+  font-size: 13px;
+  padding: 12px;
+  text-align: center;
+}
+
+.wa-kanban-empty {
+  display: grid;
+  gap: 4px;
+}
+
 .wa-focus:focus-visible,
 .wa-btn:focus-visible,
 .wa-input:focus-visible,
@@ -274,6 +395,10 @@
 @media (max-width: 1024px) {
   .wa-grid-kpi {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wa-kanban-grid {
+    grid-template-columns: 1fr;
   }
 }
 

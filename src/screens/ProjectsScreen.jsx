@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch, fetchAssignees } from '../lib/api'
 import ImportModal from '../components/ImportModal'
+import KanbanBoard from '../components/KanbanBoard'
 import { Banner, Button, Card, Input, Select, WorkAreaShell } from '../components/WorkAreaUI'
 
 const STATUS_OPTIONS = ['all', 'active', 'on_hold', 'completed']
@@ -36,6 +37,7 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack, onCre
   const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [listViewMode, setListViewMode] = useState('kanban')
   const [activeTab, setActiveTab] = useState('overview')
   const [savingProject, setSavingProject] = useState(false)
 
@@ -148,6 +150,10 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack, onCre
               <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label='Filter by status'>
                 {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status}</option>)}
               </Select>
+              <div className='wa-segmented'>
+                <button className={`wa-segment ${listViewMode === 'kanban' ? 'is-active' : ''}`} onClick={() => setListViewMode('kanban')}>Kanban</button>
+                <button className={`wa-segment ${listViewMode === 'table' ? 'is-active' : ''}`} onClick={() => setListViewMode('table')}>Table</button>
+              </div>
             </div>
           </div>
 
@@ -155,7 +161,17 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack, onCre
 
           {filteredProjects.length === 0 && !loadError && <div className='wa-subtitle'>No projects match your filter yet.</div>}
 
-          {filteredProjects.length > 0 && (
+          {filteredProjects.length > 0 && listViewMode === 'kanban' && (
+            <KanbanBoard
+              projects={filteredProjects}
+              onOpenProject={onOpenProject}
+              onUpdateStatus={(id, status) => updateProjectFromList(id, { status })}
+              emptyTitle='No projects in this board view'
+              emptySubtitle='Adjust filters or create a new project.'
+            />
+          )}
+
+          {filteredProjects.length > 0 && listViewMode === 'table' && (
             <div className='wa-table-wrap'>
               <table className='wa-table'>
                 <thead>

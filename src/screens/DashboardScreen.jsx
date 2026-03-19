@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api'
 import { Button, Card, WorkAreaShell } from '../components/WorkAreaUI'
+import KanbanBoard from '../components/KanbanBoard'
 
 const healthLabel = {
   on_track: 'On track',
@@ -37,6 +38,18 @@ export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup
       { label: 'Completed this week', value: completedWeek }
     ]
   }, [data])
+
+  const updateProjectStatus = async (id, status) => {
+    try {
+      const updated = await apiFetch(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+      setData((prev) => ({
+        ...prev,
+        projects: prev.projects.map((p) => (p.id === id ? { ...p, ...updated } : p))
+      }))
+    } catch (e) {
+      setError(e?.message || 'Could not update project status')
+    }
+  }
 
   const SessionList = ({ title, list }) => (
     <Card>
@@ -80,6 +93,18 @@ export default function DashboardScreen({ onOpenSession, onOpenProjects, onSetup
           </Card>
         ))}
       </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div className='wa-section-title'>Project Kanban board</div>
+        <div className='wa-subtitle' style={{ marginBottom: 12 }}>Track delivery state and move projects instantly.</div>
+        <KanbanBoard
+          projects={data.projects}
+          onOpenProject={onOpenProject}
+          onUpdateStatus={updateProjectStatus}
+          emptyTitle='No projects to show on the board yet'
+          emptySubtitle='Create a project and it will appear here with status controls.'
+        />
+      </Card>
 
       <Card style={{ marginBottom: 16 }}>
         <div className='wa-section-title'>Project health</div>
