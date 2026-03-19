@@ -21,6 +21,17 @@ export default function App() {
   const [node, setNode] = useState(null);
   const sound = useSound();
 
+  function syncAuthScreenFromPath(pathname, hasUser) {
+    if (!hasUser) return;
+    if (pathname === '/dashboard') {
+      setAuthScreen('dashboard');
+      return;
+    }
+    if (pathname === '/' || pathname === '/login' || pathname === '/auth/callback') {
+      setAuthScreen('lobby');
+    }
+  }
+
   // Handle Supabase OAuth callback (hash-based token exchange)
   useEffect(() => {
     const hash = window.location.hash;
@@ -33,17 +44,18 @@ export default function App() {
   // Auth state
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      setUser(data?.user ?? null);
+      const nextUser = data?.user ?? null;
+      setUser(nextUser);
+      if (nextUser) syncAuthScreenFromPath(window.location.pathname, true);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u && authScreen === "login") {
-        setAuthScreen(window.location.pathname === '/dashboard' ? "dashboard" : "lobby");
-      }
-      if (!u) {
+      if (u) {
+        syncAuthScreenFromPath(window.location.pathname, true);
+      } else {
         setAuthScreen("landing");
       }
     });
@@ -63,6 +75,17 @@ export default function App() {
       })
     }).catch(() => {}); // fire-and-forget
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user) return;
+
+    const onPopState = () => {
+      syncAuthScreenFromPath(window.location.pathname, true);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -84,10 +107,6 @@ export default function App() {
     window.history.replaceState({}, document.title, '/');
     if (user) setAuthScreen("lobby");
     return null;
-  }
-
-  if (user && window.location.pathname === '/dashboard' && authScreen !== 'dashboard') {
-    setAuthScreen('dashboard');
   }
 
   // Not logged in → landing (default) or login (if coming from /game path or "Start Playing")
