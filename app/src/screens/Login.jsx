@@ -1,267 +1,298 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { C, PF, BF } from '../shared/constants'
 
-export default function Login({ onGuestPlay }) {
-  const [joinCode, setJoinCode] = useState('')
-  const [joining, setJoining] = useState(false)
+export default function Login({ onNavigate }) {
+  const [email, setEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const [tick, setTick] = useState(true)
 
-  const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: 'https://reveal.blichert.net/auth/callback'
-      }
+  useEffect(() => {
+    const t = setInterval(() => setTick(v => !v), 530)
+    return () => clearInterval(t)
+  }, [])
+
+  // Redirect if already logged in
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && onNavigate) onNavigate('dashboard')
     })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      if (session && onNavigate) onNavigate('dashboard')
+    })
+    return () => subscription.unsubscribe()
+  }, [onNavigate])
+
+  const handleGoogle = async () => {
+    setError('')
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/dashboard' }
+    })
+    if (error) setError(error.message)
   }
 
-  const handleJoinByCode = async (e) => {
+  const handleMagicLink = async (e) => {
     e.preventDefault()
-    if (!joinCode.trim()) return
-    setJoining(true)
+    if (!email.trim()) return
+    setSending(true)
     setError('')
-    try {
-      const res = await fetch(`/api/sessions/join/${joinCode.trim().toUpperCase()}`)
-      if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Session ikke fundet')
-        return
-      }
-      const session = await res.json()
-      // Guest join — pass session info up
-      if (onGuestPlay) onGuestPlay(session)
-    } catch (err) {
-      setError('Kunne ikke forbinde til serveren')
-    } finally {
-      setJoining(false)
-    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin + '/dashboard' }
+    })
+    setSending(false)
+    if (error) setError(error.message)
+    else setSent(true)
   }
 
   return (
-    <div style={styles.container}>
-      {/* Scanlines overlay */}
-      <div style={styles.scanlines} />
+    <div style={s.root}>
+      <div style={s.scanlines} />
 
-      {/* Stars background */}
-      <div style={styles.stars} />
-
-      <div style={styles.panel}>
+      <div style={s.panel}>
         {/* Title */}
-        <div style={styles.titleBlock}>
-          <div style={styles.sword}>⚔️</div>
-          <h1 style={styles.title}>REVEAL</h1>
-          <p style={styles.subtitle}>Planning Poker RPG</p>
+        <div style={s.titleRow}>
+          <span style={s.sword}>⚔️</span>
+          <span style={s.logo}>REVEAL</span>
+          <span style={s.cursor}>{tick ? '█' : ' '}</span>
+        </div>
+        <p style={s.sub}>SIGN IN TO CONTINUE YOUR ADVENTURE</p>
+
+        <div style={s.divider}>
+          <div style={s.line} />
         </div>
 
-        {/* Divider */}
-        <div style={styles.divider}>
-          <span style={styles.dividerLine} />
-          <span style={styles.dividerText}>LOGIN</span>
-          <span style={styles.dividerLine} />
-        </div>
-
-        {/* Google login */}
-        <button style={styles.googleBtn} onClick={handleGoogleLogin}>
-          <span style={styles.googleIcon}>G</span>
-          <span>Login med Google</span>
+        {/* Google */}
+        <button
+          style={s.googleBtn}
+          onClick={handleGoogle}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translate(2px,2px)'; e.currentTarget.style.boxShadow = '2px 2px 0 #000' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '4px 4px 0 #000' }}
+        >
+          <span style={s.gIcon}>G</span>
+          SIGN IN WITH GOOGLE
         </button>
 
-        {/* Guest join */}
-        <div style={styles.divider}>
-          <span style={styles.dividerLine} />
-          <span style={styles.dividerText}>ELLER</span>
-          <span style={styles.dividerLine} />
+        {/* OR divider */}
+        <div style={s.orRow}>
+          <div style={s.orLine} />
+          <span style={s.orText}>─── OR ───</span>
+          <div style={s.orLine} />
         </div>
 
-        <p style={styles.guestLabel}>Join session som gæst</p>
+        {/* Magic link */}
+        {sent ? (
+          <div style={s.sentBox}>
+            <div style={s.sentIcon}>✉️</div>
+            <div style={s.sentText}>CHECK YOUR EMAIL</div>
+            <div style={s.sentSub}>Magic link sent to {email}</div>
+          </div>
+        ) : (
+          <form onSubmit={handleMagicLink} style={s.form}>
+            <input
+              style={s.input}
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              disabled={sending}
+            />
+            <button
+              type="submit"
+              style={{ ...s.magicBtn, opacity: sending ? 0.6 : 1 }}
+              disabled={sending}
+              onMouseEnter={e => { if (!sending) { e.currentTarget.style.transform = 'translate(2px,2px)'; e.currentTarget.style.boxShadow = '2px 2px 0 #000' } }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '4px 4px 0 #000' }}
+            >
+              {sending ? '...' : 'SEND LINK'}
+            </button>
+          </form>
+        )}
 
-        <form onSubmit={handleJoinByCode} style={styles.form}>
-          <input
-            style={styles.codeInput}
-            type="text"
-            placeholder="KODE"
-            value={joinCode}
-            onChange={e => setJoinCode(e.target.value.toUpperCase())}
-            maxLength={8}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button
-            type="submit"
-            style={styles.joinBtn}
-            disabled={joining || !joinCode.trim()}
-          >
-            {joining ? '...' : '▶ JOIN'}
-          </button>
-        </form>
+        {error && <div style={s.error}>{error}</div>}
 
-        {error && <p style={styles.error}>⚠️ {error}</p>}
-
-        {/* Flavor text */}
-        <p style={styles.flavor}>
-          Gem din XP og stats — log ind med Google
-        </p>
+        <div style={s.flavor}>
+          <span style={{ color: C.dim }}>FIRST TIME? CREATE YOUR AVATAR AFTER SIGNING IN</span>
+        </div>
       </div>
     </div>
   )
 }
 
-const styles = {
-  container: {
+const s = {
+  root: {
     minHeight: '100vh',
-    backgroundColor: '#0e1019',
+    background: C.bg,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontFamily: "'Press Start 2P', monospace",
+    fontFamily: PF,
     position: 'relative',
     overflow: 'hidden',
   },
   scanlines: {
-    position: 'absolute',
+    position: 'fixed',
     inset: 0,
-    background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px)',
+    background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px)',
     pointerEvents: 'none',
-    zIndex: 1,
-  },
-  stars: {
-    position: 'absolute',
-    inset: 0,
-    background: 'radial-gradient(ellipse at 20% 20%, rgba(120,40,200,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(40,120,200,0.12) 0%, transparent 50%)',
-    pointerEvents: 'none',
+    zIndex: 0,
   },
   panel: {
     position: 'relative',
-    zIndex: 2,
+    zIndex: 1,
+    background: C.bgC,
+    border: `3px solid ${C.grn}`,
+    boxShadow: `4px 4px 0 #000, 0 0 24px rgba(56,183,100,0.2)`,
+    padding: '40px 36px',
     width: '100%',
-    maxWidth: '380px',
-    padding: '32px 28px',
-    background: 'rgba(14, 16, 25, 0.95)',
-    border: '2px solid #7c3aed',
-    boxShadow: '0 0 0 1px #4c1d95, 0 0 30px rgba(124,58,237,0.3), inset 0 0 30px rgba(0,0,0,0.5)',
-    imageRendering: 'pixelated',
+    maxWidth: '420px',
+    boxSizing: 'border-box',
   },
-  titleBlock: {
-    textAlign: 'center',
-    marginBottom: '24px',
-  },
-  sword: {
-    fontSize: '32px',
-    display: 'block',
-    marginBottom: '8px',
-    filter: 'drop-shadow(0 0 8px rgba(167,139,250,0.8))',
-  },
-  title: {
-    margin: 0,
-    fontSize: '28px',
-    color: '#a78bfa',
-    textShadow: '0 0 10px rgba(167,139,250,0.8), 2px 2px 0 #4c1d95',
-    letterSpacing: '4px',
-    fontFamily: "'Press Start 2P', monospace",
-  },
-  subtitle: {
-    margin: '8px 0 0',
-    fontSize: '8px',
-    color: '#6b7280',
-    letterSpacing: '2px',
-  },
-  divider: {
+  titleRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    margin: '20px 0',
+    justifyContent: 'center',
+    gap: '10px',
+    marginBottom: '10px',
   },
-  dividerLine: {
-    flex: 1,
-    height: '1px',
-    background: 'linear-gradient(90deg, transparent, #4c1d95, transparent)',
+  sword: { fontSize: '20px' },
+  logo: {
+    fontFamily: PF,
+    fontSize: '28px',
+    color: C.grn,
+    textShadow: `0 0 12px ${C.grn}, 2px 2px 0 #000`,
+    letterSpacing: '4px',
   },
-  dividerText: {
-    fontSize: '8px',
-    color: '#6b7280',
-    letterSpacing: '2px',
-    whiteSpace: 'nowrap',
+  cursor: {
+    fontFamily: PF,
+    fontSize: '24px',
+    color: C.grn,
   },
+  sub: {
+    fontFamily: PF,
+    fontSize: '7px',
+    color: C.dim,
+    textAlign: 'center',
+    letterSpacing: '1px',
+    margin: '0 0 24px',
+  },
+  divider: {
+    borderTop: `1px solid ${C.brd}`,
+    marginBottom: '24px',
+  },
+  line: { flex: 1 },
   googleBtn: {
     width: '100%',
-    padding: '14px 20px',
-    background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #7c3aed 100%)',
-    border: '2px solid #a78bfa',
-    boxShadow: '0 0 0 1px #4c1d95, 4px 4px 0 #1e1b4b, 0 0 20px rgba(124,58,237,0.4)',
-    color: '#fff',
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '10px',
+    padding: '14px 16px',
+    background: C.bgL,
+    border: `3px solid ${C.grn}`,
+    boxShadow: '4px 4px 0 #000',
+    color: C.wht,
+    fontFamily: PF,
+    fontSize: '9px',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '12px',
     letterSpacing: '1px',
-    transition: 'transform 0.1s, box-shadow 0.1s',
-    imageRendering: 'pixelated',
+    transition: 'transform 0.08s, box-shadow 0.08s',
+    boxSizing: 'border-box',
   },
-  googleIcon: {
+  gIcon: {
     display: 'inline-flex',
-    width: '18px',
-    height: '18px',
-    background: '#fff',
-    color: '#4f46e5',
-    borderRadius: '2px',
+    width: '20px',
+    height: '20px',
+    background: C.wht,
+    color: '#4285F4',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '11px',
+    fontSize: '13px',
     fontWeight: 'bold',
     fontFamily: 'Arial, sans-serif',
+    flexShrink: 0,
   },
-  guestLabel: {
-    fontSize: '8px',
-    color: '#9ca3af',
-    textAlign: 'center',
-    margin: '0 0 12px',
-    letterSpacing: '1px',
+  orRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    margin: '20px 0',
+  },
+  orLine: {
+    flex: 1,
+    height: '1px',
+    background: C.brd,
+  },
+  orText: {
+    fontFamily: BF,
+    fontSize: '14px',
+    color: C.dim,
+    whiteSpace: 'nowrap',
+    letterSpacing: '2px',
   },
   form: {
     display: 'flex',
     gap: '8px',
   },
-  codeInput: {
+  input: {
     flex: 1,
     padding: '12px 10px',
-    background: '#1a1c2e',
-    border: '2px solid #374151',
-    color: '#e5e7eb',
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '12px',
-    letterSpacing: '4px',
-    textAlign: 'center',
+    background: C.bg,
+    border: `3px solid ${C.brd}`,
+    color: C.wht,
+    fontFamily: BF,
+    fontSize: '16px',
     outline: 'none',
-    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+    boxSizing: 'border-box',
   },
-  joinBtn: {
+  magicBtn: {
     padding: '12px 14px',
-    background: '#1a1c2e',
-    border: '2px solid #374151',
-    color: '#a78bfa',
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '9px',
+    background: C.yel,
+    border: '3px solid #000',
+    boxShadow: '4px 4px 0 #000',
+    color: '#000',
+    fontFamily: PF,
+    fontSize: '7px',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     letterSpacing: '1px',
-    transition: 'background 0.1s, border-color 0.1s',
+    transition: 'transform 0.08s, box-shadow 0.08s',
+  },
+  sentBox: {
+    textAlign: 'center',
+    padding: '20px',
+    border: `2px solid ${C.grn}`,
+    background: C.bg,
+  },
+  sentIcon: { fontSize: '32px', marginBottom: '10px' },
+  sentText: {
+    fontFamily: PF,
+    fontSize: '10px',
+    color: C.grn,
+    marginBottom: '8px',
+  },
+  sentSub: {
+    fontFamily: BF,
+    fontSize: '14px',
+    color: C.dim,
   },
   error: {
-    fontSize: '8px',
-    color: '#f87171',
+    fontFamily: PF,
+    fontSize: '7px',
+    color: C.red,
     textAlign: 'center',
-    margin: '10px 0 0',
+    marginTop: '12px',
     letterSpacing: '1px',
   },
   flavor: {
-    fontSize: '7px',
-    color: '#4b5563',
+    fontFamily: PF,
+    fontSize: '6px',
     textAlign: 'center',
-    margin: '20px 0 0',
+    marginTop: '24px',
     letterSpacing: '1px',
-    lineHeight: '1.6',
+    lineHeight: 1.8,
   },
 }

@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 
 export default function Landing({ onStartPlaying, onJoinSession }) {
+  // "Sign In" navigates to /login
+  const handleSignIn = () => {
+    window.location.href = '/login'
+  }
+
   const [joinCode, setJoinCode] = useState('')
   const [showJoin, setShowJoin] = useState(false)
   const [joining, setJoining] = useState(false)
@@ -73,6 +78,10 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
             >
               🎮 Join a Session
             </button>
+
+            <button style={s.ctaSignIn} onClick={handleSignIn}>
+              🔑 Sign In
+            </button>
           </div>
 
           {showJoin && (
@@ -112,7 +121,7 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
             tag="PLANNING POKER"
             title="Story Estimation"
             desc="Pick your cards. Fight the estimate. Reveal the truth."
-            accent="#9b59b6"
+            accent="#feae34"
             glow="rgba(155,89,182,0.4)"
           />
           <GameModeCard
@@ -120,7 +129,7 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
             tag="SCOPE ROULETTE"
             title="Scope Roulette"
             desc="Draw a challenge card. Watch the scope creep. Survive the sprint."
-            accent="#2ecc71"
+            accent="#38b764"
             glow="rgba(46,204,113,0.4)"
           />
           <GameModeCard
@@ -186,7 +195,9 @@ function GameModeCard({ icon, tag, title, desc, accent, glow }) {
 
 const BASE_FONT = "'Press Start 2P', monospace"
 const BODY_FONT = "'VT323', monospace"
+// Match game constants: C.bg = '#0e1019'
 const BG = '#0e1019'
+// Accent from constants: C.acc = '#f04f78', purple: #38b764, amber: C.yel = '#feae34'
 
 const s = {
   root: {
@@ -246,14 +257,14 @@ const s = {
   logoText: {
     fontFamily: BASE_FONT,
     fontSize: 'clamp(18px, 5vw, 28px)',
-    color: '#a78bfa',
+    color: '#38b764',
     letterSpacing: '6px',
     textShadow: '0 0 14px rgba(167,139,250,0.8), 2px 2px 0 #4c1d95',
   },
   cursor: {
     fontFamily: BASE_FONT,
     fontSize: 'clamp(14px, 4vw, 22px)',
-    color: '#a78bfa',
+    color: '#38b764',
     width: '1ch',
     display: 'inline-block',
   },
@@ -266,7 +277,7 @@ const s = {
     textShadow: '2px 2px 0 #1a1c2e',
   },
   headlineAccent: {
-    color: '#9b59b6',
+    color: '#feae34',
     textShadow: '0 0 20px rgba(155,89,182,0.7), 2px 2px 0 #4c1d95',
   },
   subheadline: {
@@ -288,25 +299,37 @@ const s = {
     fontFamily: BASE_FONT,
     fontSize: 'clamp(9px, 2.5vw, 12px)',
     padding: '16px 28px',
-    background: 'linear-gradient(135deg, #7c3aed 0%, #9b59b6 100%)',
-    border: '2px solid #a78bfa',
-    boxShadow: '0 0 0 1px #4c1d95, 4px 4px 0 #1e1b4b, 0 0 20px rgba(124,58,237,0.5)',
+    background: '#38b764',
+    border: '3px solid #38b764',
+    boxShadow: '4px 4px 0 #000',
     color: '#fff',
     cursor: 'pointer',
     letterSpacing: '1px',
-    transition: 'transform 0.1s, box-shadow 0.1s',
+    transition: 'transform 0.08s, box-shadow 0.08s',
   },
   ctaSecondary: {
     fontFamily: BASE_FONT,
     fontSize: 'clamp(9px, 2.5vw, 12px)',
     padding: '16px 28px',
     background: 'transparent',
-    border: '2px solid #2ecc71',
-    boxShadow: '4px 4px 0 #0d3320',
-    color: '#2ecc71',
+    border: '3px solid #38b764',
+    boxShadow: '4px 4px 0 #000',
+    color: '#38b764',
     cursor: 'pointer',
     letterSpacing: '1px',
-    transition: 'transform 0.1s, box-shadow 0.1s',
+    transition: 'transform 0.08s, box-shadow 0.08s',
+  },
+  ctaSignIn: {
+    fontFamily: BASE_FONT,
+    fontSize: 'clamp(9px, 2.5vw, 12px)',
+    padding: '16px 28px',
+    background: 'transparent',
+    border: '3px solid #feae34',
+    boxShadow: '4px 4px 0 #000',
+    color: '#feae34',
+    cursor: 'pointer',
+    letterSpacing: '1px',
+    transition: 'transform 0.08s, box-shadow 0.08s',
   },
   joinForm: {
     display: 'flex',
@@ -332,8 +355,8 @@ const s = {
   joinSubmit: {
     padding: '14px 18px',
     background: '#1a1c2e',
-    border: '2px solid #2ecc71',
-    color: '#2ecc71',
+    border: '2px solid #38b764',
+    color: '#38b764',
     fontFamily: BASE_FONT,
     fontSize: '10px',
     cursor: 'pointer',
@@ -390,7 +413,7 @@ const s = {
     maxWidth: '640px',
     textAlign: 'center',
     padding: '40px 32px',
-    border: '2px solid #9b59b6',
+    border: '2px solid #feae34',
     boxShadow: '0 0 0 1px #4c1d95, 0 0 40px rgba(155,89,182,0.3), 4px 4px 0 #1e1b4b',
     position: 'relative',
     background: 'rgba(14,16,25,0.8)',
@@ -403,16 +426,16 @@ const s = {
     margin: '0 0 32px',
   },
   pitchAccent: {
-    color: '#9b59b6',
+    color: '#feae34',
     textShadow: '0 0 14px rgba(155,89,182,0.6)',
   },
   pitchCta: {
     fontFamily: BASE_FONT,
     fontSize: 'clamp(9px, 2.5vw, 12px)',
     padding: '16px 32px',
-    background: 'linear-gradient(135deg, #7c3aed 0%, #9b59b6 100%)',
-    border: '2px solid #a78bfa',
-    boxShadow: '0 0 0 1px #4c1d95, 4px 4px 0 #1e1b4b, 0 0 20px rgba(124,58,237,0.5)',
+    background: '#38b764',
+    border: '3px solid #38b764',
+    boxShadow: '4px 4px 0 #000',
     color: '#fff',
     cursor: 'pointer',
     letterSpacing: '1px',
