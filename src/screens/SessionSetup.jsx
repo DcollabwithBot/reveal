@@ -124,7 +124,7 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
         method: 'POST',
         body: JSON.stringify({
           name: name.trim(),
-          session_type: 'poker',
+          session_type: 'estimation',
           voting_mode: votingMode,
           items: validItems.map(it => it.title.trim())
         })
@@ -267,6 +267,18 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
           }}>← BACK</button>
           <div style={{ fontFamily: PIXEL, fontSize: '12px', color: C.gold }}>🏰 SESSION SETUP</div>
           <div style={{ width: '80px' }} />
+        </div>
+
+        <div style={{
+          marginBottom: '16px',
+          background: '#0b0b22',
+          border: `1px solid ${C.border}`,
+          borderRadius: '6px',
+          padding: '10px 12px',
+          color: C.dim,
+          fontSize: '16px'
+        }}>
+          ℹ️ Sessionen oprettes uden projekt-link her. Brug Projects-flowet hvis sessionen skal kobles direkte til et projekt/sprint.
         </div>
 
         <form onSubmit={handleSubmit}>

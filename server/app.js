@@ -161,6 +161,23 @@ function normalizeVote(val) {
   return n;
 }
 
+function normalizeSessionType(rawType) {
+  const val = String(rawType || '').toLowerCase().trim();
+  if (!val) return 'estimation';
+
+  if (['poker', 'planning_poker', 'story_estimation', 'estimation'].includes(val)) {
+    return 'estimation';
+  }
+  if (['roulette', 'scope_roulette'].includes(val)) {
+    return 'roulette';
+  }
+  if (['retro', 'retrospective', 'sprint_retro'].includes(val)) {
+    return 'retro';
+  }
+
+  return 'estimation';
+}
+
 function median(values) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -347,7 +364,7 @@ app.post('/api/sessions', async (req, res) => {
     .from('sessions')
     .insert({
       name,
-      session_type: session_type || 'estimation',
+      session_type: normalizeSessionType(session_type),
       voting_mode: voting_mode || 'fibonacci',
       team_id: membership.team_id,
       organization_id: membership.organization_id,

@@ -12,6 +12,8 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
   const [newSprint, setNewSprint] = useState({ name: '', goal: '' })
   const [itemTitle, setItemTitle] = useState({})
   const [assignees, setAssignees] = useState([])
+  const [projectCreateError, setProjectCreateError] = useState('')
+  const [creatingProject, setCreatingProject] = useState(false)
 
   useEffect(() => {
     if (!projectId) {
@@ -24,9 +26,18 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
   }, [projectId])
 
   const createProject = async () => {
-    const p = await apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(newProject) })
-    setProjects(prev => [p, ...prev])
-    setNewProject({ name: '', description: '' })
+    if (creatingProject) return
+    setProjectCreateError('')
+    setCreatingProject(true)
+    try {
+      const p = await apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(newProject) })
+      setProjects(prev => [p, ...prev])
+      setNewProject({ name: '', description: '' })
+    } catch (e) {
+      setProjectCreateError(e?.message || 'Could not create project')
+    } finally {
+      setCreatingProject(false)
+    }
   }
 
   const createSprint = async () => {
@@ -62,8 +73,13 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input placeholder='Project name' value={newProject.name} onChange={e => setNewProject({ ...newProject, name: e.target.value })} />
         <input placeholder='Description' value={newProject.description} onChange={e => setNewProject({ ...newProject, description: e.target.value })} />
-        <button onClick={createProject}>Create</button>
+        <button onClick={createProject} disabled={creatingProject} style={{ opacity: creatingProject ? 0.7 : 1, cursor: creatingProject ? 'wait' : 'pointer' }}>
+          {creatingProject ? 'Creating...' : 'Create'}
+        </button>
       </div>
+      {projectCreateError && (
+        <div style={{ marginBottom: 10, color: '#f87171', fontSize: 14 }}>⚠️ {projectCreateError}</div>
+      )}
       {projects.map(p => <div key={p.id} style={{ border: '1px solid #2a2a5a', padding: 8, marginBottom: 8 }}>
         <strong>{p.name}</strong>
         <div>{p.description}</div>

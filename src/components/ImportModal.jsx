@@ -20,7 +20,26 @@ export default function ImportModal({ onClose, onConfirm }) {
         {step === 1 && (
           <>
             <textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={10} style={{ width: '100%', background: '#050510', color: '#e0d8f0' }} placeholder={'Title\tDescription\tPriority\nTask A\tFix login\thigh'} />
-            <button disabled={!parsed.rows.length} onClick={() => setStep(2)} style={{ marginTop: 10 }}>Next: map columns</button>
+            <div style={{ marginTop: 8, color: '#9ea0d8', fontSize: 13 }}>
+              Paste tab-separated rows from Excel/Sheets to continue.
+            </div>
+            <button
+              disabled={!parsed.rows.length}
+              onClick={() => setStep(2)}
+              style={{
+                marginTop: 10,
+                background: parsed.rows.length ? '#7c5cbf' : '#2b2b45',
+                color: parsed.rows.length ? '#ffffff' : '#8f90ad',
+                border: `1px solid ${parsed.rows.length ? '#9e84d7' : '#3b3b5f'}`,
+                borderRadius: 6,
+                padding: '8px 12px',
+                cursor: parsed.rows.length ? 'pointer' : 'not-allowed',
+                opacity: parsed.rows.length ? 1 : 0.9,
+                fontWeight: 600
+              }}
+            >
+              Next: map columns
+            </button>
           </>
         )}
 

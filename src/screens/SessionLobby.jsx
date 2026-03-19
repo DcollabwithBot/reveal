@@ -48,10 +48,15 @@ async function apiFetch(path, options = {}) {
 }
 
 const SESSION_TYPES = [
-  { id: 'poker', label: '⚔️ Boss Battle', desc: 'Planning Poker' },
+  { id: 'estimation', label: '⚔️ Boss Battle', desc: 'Planning Poker' },
   { id: 'roulette', label: '🎰 Scope Roulette', desc: 'Scope Review' },
   { id: 'retro', label: '🏰 Dungeon Raid', desc: 'Retrospective' },
 ]
+
+function sessionTypeLabel(type) {
+  if (type === 'poker') return SESSION_TYPES.find(t => t.id === 'estimation')?.label
+  return SESSION_TYPES.find(t => t.id === type)?.label || type
+}
 
 const STATUS_COLORS = { draft: C.gold, waiting: C.gold, active: C.green, completed: C.dim }
 const STATUS_LABELS = { draft: '⏳ Lobby', waiting: '⏳ Waiting', active: '⚔️ Active', completed: '✅ Done' }
@@ -59,7 +64,7 @@ const STATUS_LABELS = { draft: '⏳ Lobby', waiting: '⏳ Waiting', active: '⚔
 export default function SessionLobby({ onJoin, onCreate, onSetup }) {
   const [user, setUser] = useState(null)
   const [name, setName] = useState('')
-  const [sessionType, setSessionType] = useState('poker')
+  const [sessionType, setSessionType] = useState('estimation')
   const [itemsText, setItemsText] = useState('')
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(false)
@@ -313,7 +318,7 @@ export default function SessionLobby({ onJoin, onCreate, onSetup }) {
                   {session.name}
                 </div>
                 <div style={{ fontFamily: FONTS.vt, fontSize: '16px', color: C.dim }}>
-                  {SESSION_TYPES.find(t => t.id === session.session_type)?.label || session.session_type}
+                  {sessionTypeLabel(session.session_type)}
                 </div>
               </div>
               <div style={{ color: STATUS_COLORS[session.status] || C.dim, fontFamily: FONTS.vt, fontSize: '16px' }}>
