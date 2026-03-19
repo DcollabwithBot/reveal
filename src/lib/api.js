@@ -21,3 +21,7 @@ export async function apiFetch(path, options = {}) {
   }
   return res.json()
 }
+
+export function fetchAssignees() {
+  return apiFetch('/api/team/assignees')
+}

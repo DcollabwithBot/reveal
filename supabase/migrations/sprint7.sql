@@ -67,3 +67,8 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status_next_attempt
 
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_session_event
   ON webhook_deliveries(session_id, event_type);
+
+-- Sprint 7 - Task C (Assigned-to picker UX support)
+CREATE INDEX IF NOT EXISTS idx_session_items_assigned_to
+  ON session_items(assigned_to)
+  WHERE assigned_to IS NOT NULL;

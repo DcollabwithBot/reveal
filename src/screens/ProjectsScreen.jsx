@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { apiFetch } from '../lib/api'
+import { apiFetch, fetchAssignees } from '../lib/api'
 import ImportModal from '../components/ImportModal'
 
 export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
@@ -11,6 +11,7 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
   const [newProject, setNewProject] = useState({ name: '', description: '' })
   const [newSprint, setNewSprint] = useState({ name: '', goal: '' })
   const [itemTitle, setItemTitle] = useState({})
+  const [assignees, setAssignees] = useState([])
 
   useEffect(() => {
     if (!projectId) {
@@ -18,6 +19,7 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
     } else {
       apiFetch(`/api/projects/${projectId}`).then(setProject).catch(() => {})
       apiFetch(`/api/projects/${projectId}/sprints`).then(setSprints).catch(() => {})
+      fetchAssignees().then(setAssignees).catch(() => {})
     }
   }, [projectId])
 
@@ -89,7 +91,13 @@ export default function ProjectsScreen({ projectId, onOpenProject, onBack }) {
       </div>
       {(s.items || []).map(it => <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5,1fr)', gap: 6, marginTop: 8 }}>
         <input value={it.title || ''} onChange={e => patchItem(it.id, { title: e.target.value })} />
-        <input value={it.assigned_to || ''} placeholder='assigned_to' onChange={e => patchItem(it.id, { assigned_to: e.target.value || null })} />
+        <select value={it.assigned_to || ''} onChange={e => patchItem(it.id, { assigned_to: e.target.value || null })}>
+          <option value=''>Unassigned</option>
+          {assignees.map(person => <option key={person.id} value={person.id}>{person.display_name}</option>)}
+          {it.assigned_to && !assignees.some(person => person.id === it.assigned_to) && (
+            <option value={it.assigned_to}>{it.assigned_to.slice(0, 8)}</option>
+          )}
+        </select>
         <input type='number' value={it.estimated_hours || ''} placeholder='est.h' onChange={e => patchItem(it.id, { estimated_hours: e.target.value ? Number(e.target.value) : null })} />
         <input type='number' value={it.actual_hours || ''} placeholder='act.h' onChange={e => patchItem(it.id, { actual_hours: e.target.value ? Number(e.target.value) : null })} />
         <input type='number' min='0' max='100' value={it.progress ?? 0} onChange={e => patchItem(it.id, { progress: Number(e.target.value) })} />

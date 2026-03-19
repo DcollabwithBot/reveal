@@ -518,6 +518,43 @@ app.get('/api/projects', async (req, res) => {
   res.json(data || []);
 });
 
+app.get('/api/team/assignees', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.json([]);
+
+  const { data: members, error: membersErr } = await supabase
+    .from('team_members')
+    .select('user_id')
+    .eq('team_id', membership.team_id);
+
+  if (membersErr) return res.status(500).json({ error: membersErr.message });
+
+  const userIds = [...new Set((members || []).map((m) => m.user_id).filter(Boolean))];
+  if (!userIds.length) return res.json([]);
+
+  const { data: profiles, error: profilesErr } = await supabase
+    .from('profiles')
+    .select('id,display_name,avatar_class')
+    .in('id', userIds);
+
+  if (profilesErr) return res.status(500).json({ error: profilesErr.message });
+
+  const profileById = new Map((profiles || []).map((p) => [p.id, p]));
+  const assignees = userIds.map((id) => {
+    const profile = profileById.get(id);
+    return {
+      id,
+      display_name: profile?.display_name || id.slice(0, 8),
+      avatar_class: profile?.avatar_class || null
+    };
+  });
+
+  res.json(assignees);
+});
+
 app.post('/api/projects', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
