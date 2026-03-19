@@ -1,15 +1,15 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-19 (sprint 5 merge + migration)
+Last updated: 2026-03-19 (sprint 6 merged + migration kørt)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.5 (Sprint 5 komplet ✅)
+- Fase: Aktiv udvikling — v0.6 (Sprint 6 foundation komplet ✅)
 - Live: https://reveal.blichert.net
 - GitHub: https://github.com/DcollabwithBot/reveal
-- Branch: `main` (sprint 5 merged 2026-03-19)
+- Branch: `main` (sprint 6 merged 2026-03-19)
 - App: `app/` — Vite + React
 
 ## Hvad er bygget
@@ -71,15 +71,23 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 7. **server/app.js**
    - POST /api/sessions accepterer nu `voting_mode` parameter
 
-## Hvad mangler (Sprint 6)
+### Sprint 6 ✅ (Dashboard foundation + project hierarchy)
 
-- Perspektiv-Poker (næste sprint)
-- Session templates
+**Bygget i sprint 6:**
+- `/dashboard`: aktive/kommende/afsluttede sessions, quick actions, kanban (active/on_hold/completed), drag-drop status update
+- `/projects` + `/projects/:id`: projekt → sprint → items med CRUD og inline felter (`assigned_to`, `estimated_hours`, `actual_hours`, `progress`, `item_status`)
+- `/sessions/:id/results`: per-item votes, consensus/median/confidence, outlier flag (>2x median), CSV export og share-link
+- Excel onboarding via paste (tab-separeret): paste → kolonnemapping → preview → confirm
+- Session templates: save/load i setup flow
+- Migration `supabase/migrations/sprint6.sql` kørt via Supabase Management API
+- Integration readiness: `external_id` + `external_source` tilføjet på `projects`, `sprints`, `session_items`
+- Oprydning: `reveal-session.jsx` fjernet, duplikat challenge-array ryddet, `avatar_class` render i ActiveSession
+
+## Hvad mangler (Sprint 7+)
+
+- Perspektiv-Poker
 - Slack/Teams webhooks
-- Verifikation: `session_items.description` kolonne skal eksistere i schema
-- Verifikation: `node_completions` tabel skal eksistere for den del at virke
-- `/setup` → `/lobby` flow: Regler om hvem der er GM (team_members.role check er best-effort)
-- Ingen design polish (intentionelt — functional er nok)
+- Eksterne integrationer (Jira/Azure DevOps/TopDesk/Planner)
 
 ## Roadmap
 | Sprint | Indhold | Status |
@@ -88,18 +96,19 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 | 4 | Supabase schema + Auth (Google OAuth) | ✅ |
 | 4b | Realtime multiplayer + Lobby + Session UI | ✅ |
 | 5 | Admin UI, DB-driven content, voting modes | ✅ |
-| 6 | Perspektiv-Poker + session templates + Slack/Teams webhooks | 🎯 næste |
-| 7 | Spec Wars | |
-| 8 | Russian Nesting Scope | |
-| 9 | Speed Scope | |
-| 10 | Jira/Azure DevOps integration | |
+| 6 | Dashboard foundation + projects/sprints/items + results + templates + velocity | ✅ |
+| 7 | Perspektiv-Poker + Slack/Teams webhooks | 🎯 næste |
+| 8 | Spec Wars | |
+| 9 | Russian Nesting Scope | |
+| 10 | Speed Scope + Jira/Azure DevOps integration | |
 | 11 | AI Lifelines + mønstergenkendelse | |
 
 ## Supabase
 - Projekt ID: `swyfcathwcdpgkirwihh`
 - Eksisterende tabeller: organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes
 - Sprint 5 tilføjede: `sessions.voting_mode`, `retro_events` (12 rows), `challenges` (18 rows)
-- Migration kørt: 2026-03-19 via Supabase Management API
+- Sprint 6 tilføjede: `projects`, `sprints`, `session_templates`, `node_completions`, nye felter på `sessions` og `session_items`
+- Migration kørt: 2026-03-19 via Supabase Management API (`sprint5.sql` + `sprint6.sql`)
 
 ## Tech stack
 - React (hooks only) + Vite
