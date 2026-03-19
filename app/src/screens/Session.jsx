@@ -6,11 +6,14 @@ import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/sess
 import { projectBossEncounter } from "../domain/session/boss/bossProjection.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
 import { buildRootState } from "../domain/session/root/selectors.js";
+import { buildSessionViewModel } from "../domain/session/root/viewModel.js";
 import { projectWorld } from "../domain/session/world/projectWorld.js";
 import { buildChallenge } from "../domain/session/challenge/buildChallenge.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
 import BossRetroStage from "../components/session/BossRetroStage.jsx";
 import PokerRouletteSteps from "../components/session/PokerRouletteSteps.jsx";
+import SessionChrome from "../components/session/SessionChrome.jsx";
+import SessionCombatStage from "../components/session/SessionCombatStage.jsx";
 import { applyOracleDecision, applyRetroEventVote, applyRootCauseDecision, buildBossRetroViewModel } from "../domain/session/challenge/retroDecisions.js";
 import { createChallengeCompletionResult, createConfidenceResult, createLifelineResult, createVictoryResult, createVoteResult } from "../domain/session/challenge/sessionTransitions.js";
 import { getLatestApprovalState, getProjectionConfig, submitAdvisoryRequest } from "../lib/api";
@@ -556,6 +559,22 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     oracleEvents,
     bossHp,
   });
+  const sessionVm = buildSessionViewModel({
+    root: rootState,
+    world,
+    bossName,
+    bossHp,
+    maxHp,
+    bossHit,
+    bossDead,
+    advisoryBusy,
+    advisoryError,
+    showRoulette,
+    showAchieve,
+    spellName,
+    shake,
+    dmgNums,
+  });
 
   return (
     <>
@@ -593,75 +612,49 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
         <div style={{ fontFamily: PF, fontSize: cd > 0 ? "80px" : "60px", color: cd > 0 ? C.acc : C.grn, textShadow: `0 0 50px ${cd > 0 ? C.acc : C.grn}`, animation: "pop 0.4s" }}>{cd > 0 ? cd : "⚔️ REVEAL!"}</div>
         {cd > 0 && <div style={{ fontFamily: PF, fontSize: "8px", color: C.dim, marginTop: "16px", animation: "pulse 0.75s infinite" }}>ALLE KORT VENDES...</div>}
       </div>}
-      {showRoulette && <RouletteOverlay onComplete={handleChallengeComplete} />}
-      {showAchieve && <AchievePopup achieve={showAchieve} onDone={() => setShowAchieve(null)} />}
+      {sessionVm.overlays.showRoulette && <RouletteOverlay onComplete={handleChallengeComplete} />}
+      {sessionVm.overlays.showAchieve && <AchievePopup achieve={showAchieve} onDone={() => setShowAchieve(null)} />}
       <ComboDisplay count={combo} />
-      {spellName && <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, pointerEvents: "none", animation: "spellFlash 0.6s ease-out forwards" }}><div style={{ fontFamily: PF, fontSize: "14px", color: C.wht, textShadow: `0 0 20px ${C.wht}, 0 0 40px ${mc}`, letterSpacing: "3px" }}>{spellName}!</div></div>}
+      {sessionVm.overlays.spellName && <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, pointerEvents: "none", animation: "spellFlash 0.6s ease-out forwards" }}><div style={{ fontFamily: PF, fontSize: "14px", color: C.wht, textShadow: `0 0 20px ${C.wht}, 0 0 40px ${mc}`, letterSpacing: "3px" }}>{sessionVm.overlays.spellName}!</div></div>}
 
-      <div style={{ animation: shake ? "screenShake 0.4s" : "none" }}>
+      <div style={{ animation: sessionVm.overlays.shake ? "screenShake 0.4s" : "none" }}>
         <div style={{ padding: "10px 14px" }}>
-          {/* Top bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
-            <button onClick={() => { sound("click"); if (onBack) onBack(); }} style={{ fontFamily: PF, fontSize: "6px", color: C.wht, background: C.bgL, border: `3px solid ${C.bgL}`, borderBottom: `5px solid ${C.bg}`, padding: "4px 8px", cursor: "pointer" }}>←</button>
-            <div style={{ fontFamily: PF, fontSize: "6px", padding: "3px 6px", background: mc, color: C.bg }}>{isR ? "🎰 ROULETTE" : "🃏 POKER"}</div>
-            <div style={{ fontFamily: PF, fontSize: "5px", color: mc }}>{bossName}</div>
-            <div style={{ flex: 1 }} />
-            <div style={{ fontFamily: PF, fontSize: "5px", color: world.governance.approvalColor, marginRight: "8px", padding: "2px 5px", background: C.bgL, border: `1px solid ${world.governance.approvalColor}` }}>
-              {world.governance.approvalLabel}
-            </div>
-            <div style={{ fontFamily: PF, fontSize: "5px", color: C.org, marginRight: "4px" }}>🔥{combo}</div>
-            {["ESTIMÉR", "REVEAL", "DISK.", "CONF.", "VICTORY"].map((s, i) => <div key={i} style={{ height: "9px", padding: "0 3px", background: i < step ? C.grn : i === step ? C.acc : C.bgL, fontFamily: PF, fontSize: "4px", color: C.wht, display: "flex", alignItems: "center" }}>{i === step ? s : i < step ? "✓" : ""}</div>)}
-          </div>
+          <SessionChrome
+            C={C}
+            PF={PF}
+            combo={sessionVm.chrome.combo}
+            step={sessionVm.chrome.step}
+            modeLabel={sessionVm.chrome.modeLabel}
+            modeColor={sessionVm.chrome.modeColor}
+            title={sessionVm.chrome.title}
+            approvalLabel={sessionVm.chrome.approvalLabel}
+            approvalColor={sessionVm.chrome.approvalColor}
+            advisoryBusy={sessionVm.chrome.advisoryBusy}
+            canSubmitAdvisory={sessionVm.chrome.canSubmitAdvisory}
+            advisoryError={sessionVm.chrome.advisoryError}
+            onBack={() => { sound("click"); if (onBack) onBack(); }}
+            onSendToApprovalQueue={sendToApprovalQueue}
+          />
 
-          <div style={{ marginBottom: "8px", border: `2px solid ${world.governance.approvalColor}`, background: C.bgC + "dd", padding: "6px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-              <div style={{ fontFamily: PF, fontSize: "5px", color: world.governance.approvalColor }}>
-                Advisory Overlay · Outcome: {world.governance.approvalLabel}
-              </div>
-              <button
-                onClick={sendToApprovalQueue}
-                disabled={advisoryBusy || !world.governance.canSubmitAdvisory}
-                style={{
-                  fontFamily: PF,
-                  fontSize: "5px",
-                  color: C.wht,
-                  background: C.pur,
-                  border: `2px solid ${C.pur}`,
-                  padding: "4px 6px",
-                  cursor: advisoryBusy ? "wait" : "pointer",
-                  opacity: advisoryBusy || approvalState === 'pending_approval' ? 0.5 : 1
-                }}
-              >
-                Send til approval queue
-              </button>
-            </div>
-            {advisoryError && <div style={{ fontFamily: BF, fontSize: "13px", color: C.red, marginTop: "4px" }}>{advisoryError}</div>}
-          </div>
-
-          {/* BOSS */}
-          <div style={{ position: "relative", marginBottom: "8px" }}>
-            <Boss hp={bossHp} maxHp={maxHp} name={bossName} hit={bossHit} defeated={bossDead} />
-            {dmgNums.map(d => <DmgNum key={d.id} value={d.val} x={d.x} critical={d.critical} color={d.critical ? C.gld : C.acc} />)}
-          </div>
-
-          {/* Characters */}
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: "14px", marginBottom: "10px", minHeight: "130px" }}>
-            {TEAM.map((m, i) => {
-              const hasV = m.isP ? pv !== null : votes.some(v => v.mid === m.id);
-              const vv = m.isP ? pv : votes.find(v => v.mid === m.id)?.val;
-              const isAtk = m.isP ? atk : npcAtk.includes(m.id);
-              const isHit = npcHits.includes(m.id);
-              const isVic = step === 4;
-              const anim = isVic ? "celebrate 0.4s ease-in-out infinite" : isAtk ? "atkLunge 0.4s ease-out" : hasV && !rev ? "charBounce 0.8s ease-in-out infinite" : "none";
-              return (
-                <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  {hasV && <div style={{ marginBottom: "4px", animation: "cardDrop 0.4s ease-out" }}><FlipCard value={vv} member={m} revealed={rev} delay={i * 0.12} mc={mc} /></div>}
-                  {!hasV && <div style={{ height: "66px", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>{!m.isP && <div style={{ fontFamily: PF, fontSize: "6px", color: m.hat || C.dim, animation: "pulse 1s infinite" }}>💭</div>}</div>}
-                  <Sprite m={m} size={1.7} anim={anim} attacking={isAtk} hit={isHit} />
-                </div>
-              );
-            })}
-          </div>
+          <SessionCombatStage
+            C={C}
+            PF={PF}
+            boss={sessionVm.combat.boss}
+            dmgNums={sessionVm.combat.dmgNums}
+            Boss={Boss}
+            DmgNum={DmgNum}
+            TEAM={TEAM}
+            pv={pv}
+            votes={votes}
+            npcAtk={npcAtk}
+            npcHits={npcHits}
+            atk={atk}
+            rev={rev}
+            step={step}
+            Sprite={Sprite}
+            FlipCard={FlipCard}
+            mc={mc}
+          />
 
           {/* Game UI */}
           <div style={{ maxWidth: "660px", margin: "0 auto" }}>
