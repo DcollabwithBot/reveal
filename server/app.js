@@ -18,6 +18,124 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const WEBHOOK_MAX_ATTEMPTS = 3;
+const WEBHOOK_BACKOFF_MS = [1000, 3000];
+
+function signPayload(secret, body) {
+  if (!secret) return null;
+  return crypto.createHmac('sha256', secret).update(body).digest('hex');
+}
+
+async function getWebhookConfigForTeam(teamId) {
+  if (!teamId) return null;
+  const { data } = await supabase
+    .from('webhook_configs')
+    .select('id, team_id, url, secret, enabled')
+    .eq('team_id', teamId)
+    .eq('enabled', true)
+    .maybeSingle();
+  return data || null;
+}
+
+async function markWebhookDelivery(deliveryId, patch) {
+  await supabase
+    .from('webhook_deliveries')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', deliveryId);
+}
+
+async function attemptWebhookDelivery({ deliveryId, config, payload, eventType, attempt = 1 }) {
+  const body = JSON.stringify(payload);
+
+  try {
+    const signature = signPayload(config.secret, body);
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Reveal-Event': eventType,
+        ...(signature ? { 'X-Reveal-Signature': signature } : {})
+      },
+      body
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    await markWebhookDelivery(deliveryId, {
+      status: 'delivered',
+      attempts: attempt,
+      last_error: null,
+      delivered_at: new Date().toISOString(),
+      next_attempt_at: null
+    });
+  } catch (err) {
+    const lastError = String(err?.message || err);
+    const hasRetry = attempt < WEBHOOK_MAX_ATTEMPTS;
+
+    await markWebhookDelivery(deliveryId, {
+      status: hasRetry ? 'retrying' : 'failed',
+      attempts: attempt,
+      last_error: lastError,
+      next_attempt_at: hasRetry
+        ? new Date(Date.now() + WEBHOOK_BACKOFF_MS[attempt - 1]).toISOString()
+        : null
+    });
+
+    if (hasRetry) {
+      setTimeout(() => {
+        attemptWebhookDelivery({ deliveryId, config, payload, eventType, attempt: attempt + 1 })
+          .catch((error) => console.error('Webhook retry failed:', error));
+      }, WEBHOOK_BACKOFF_MS[attempt - 1]);
+    }
+  }
+}
+
+async function queueWebhookEvent({ teamId, sessionId, eventType, payload, oncePerSessionEvent = false }) {
+  const config = await getWebhookConfigForTeam(teamId);
+  if (!config?.url) return;
+
+  if (oncePerSessionEvent && sessionId) {
+    const { data: existing } = await supabase
+      .from('webhook_deliveries')
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('event_type', eventType)
+      .limit(1)
+      .maybeSingle();
+    if (existing) return;
+  }
+
+  const { data: delivery, error } = await supabase
+    .from('webhook_deliveries')
+    .insert({
+      team_id: teamId,
+      session_id: sessionId || null,
+      webhook_config_id: config.id,
+      event_type: eventType,
+      payload,
+      status: 'queued',
+      attempts: 0,
+      last_error: null
+    })
+    .select('id')
+    .single();
+
+  if (error || !delivery?.id) {
+    console.error('Failed to queue webhook:', error?.message || error);
+    return;
+  }
+
+  attemptWebhookDelivery({
+    deliveryId: delivery.id,
+    config,
+    payload,
+    eventType,
+    attempt: 1
+  }).catch((err) => console.error('Webhook attempt error:', err));
+}
+
 async function getUserFromAuth(req, res) {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -148,6 +266,55 @@ app.post('/api/auth/provision', async (req, res) => {
   }
 });
 
+app.get('/api/webhooks/config', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.status(400).json({ error: 'No team' });
+
+  const { data } = await supabase
+    .from('webhook_configs')
+    .select('id, team_id, url, enabled, created_at, updated_at')
+    .eq('team_id', membership.team_id)
+    .maybeSingle();
+
+  res.json(data || { team_id: membership.team_id, url: null, enabled: false });
+});
+
+app.put('/api/webhooks/config', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.status(400).json({ error: 'No team' });
+
+  const { url, secret, enabled } = req.body;
+  const trimmedUrl = typeof url === 'string' ? url.trim() : '';
+
+  if (trimmedUrl && !/^https?:\/\//i.test(trimmedUrl)) {
+    return res.status(400).json({ error: 'url must start with http:// or https://' });
+  }
+
+  const payload = {
+    team_id: membership.team_id,
+    url: trimmedUrl || null,
+    enabled: Boolean(enabled) && Boolean(trimmedUrl),
+    updated_at: new Date().toISOString()
+  };
+
+  if (typeof secret === 'string') payload.secret = secret;
+
+  const { data, error } = await supabase
+    .from('webhook_configs')
+    .upsert(payload, { onConflict: 'team_id' })
+    .select('id, team_id, url, enabled, created_at, updated_at')
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 app.post('/api/sessions', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
@@ -214,6 +381,13 @@ app.post('/api/sessions', async (req, res) => {
 app.patch('/api/sessions/:id', async (req, res) => {
   const { id } = req.params;
   const { status, current_item_index, current_item_id } = req.body;
+
+  const { data: before } = await supabase
+    .from('sessions')
+    .select('id, status, team_id, name, started_at, ended_at')
+    .eq('id', id)
+    .maybeSingle();
+
   const updateObj = {};
   if (status !== undefined) {
     updateObj.status = status;
@@ -230,6 +404,47 @@ app.patch('/api/sessions/:id', async (req, res) => {
     .select().single();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  if (before?.team_id && before.status !== data.status) {
+    if (data.status === 'active') {
+      queueWebhookEvent({
+        teamId: before.team_id,
+        sessionId: data.id,
+        eventType: 'session.started',
+        payload: {
+          event: 'session.started',
+          timestamp: new Date().toISOString(),
+          session: {
+            id: data.id,
+            name: data.name,
+            status: data.status,
+            started_at: data.started_at
+          }
+        },
+        oncePerSessionEvent: true
+      }).catch((err) => console.error('Failed to queue session.started webhook:', err));
+    }
+
+    if (data.status === 'completed') {
+      queueWebhookEvent({
+        teamId: before.team_id,
+        sessionId: data.id,
+        eventType: 'session.ended',
+        payload: {
+          event: 'session.ended',
+          timestamp: new Date().toISOString(),
+          session: {
+            id: data.id,
+            name: data.name,
+            status: data.status,
+            ended_at: data.ended_at
+          }
+        },
+        oncePerSessionEvent: true
+      }).catch((err) => console.error('Failed to queue session.ended webhook:', err));
+    }
+  }
+
   res.json(data);
 });
 
@@ -587,6 +802,39 @@ app.get('/api/sessions/:id/results', async (req, res) => {
   const avgConfidence = rows.length
     ? rows.reduce((sum, r) => sum + (Number(r.avg_confidence) || 0), 0) / rows.length
     : 0;
+
+  if (session.status === 'completed') {
+    const { data: sessionMeta } = await supabase
+      .from('sessions')
+      .select('id, team_id, name, ended_at')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (sessionMeta?.team_id) {
+      queueWebhookEvent({
+        teamId: sessionMeta.team_id,
+        sessionId: sessionMeta.id,
+        eventType: 'session.results_ready',
+        payload: {
+          event: 'session.results_ready',
+          timestamp: new Date().toISOString(),
+          session: {
+            id: sessionMeta.id,
+            name: sessionMeta.name,
+            status: session.status,
+            ended_at: sessionMeta.ended_at
+          },
+          summary: {
+            total_items: rows.length,
+            estimated_items: estimatedRows.length,
+            total_points: Number(points.toFixed(2)),
+            avg_confidence: Number(avgConfidence.toFixed(2))
+          }
+        },
+        oncePerSessionEvent: true
+      }).catch((err) => console.error('Failed to queue session.results_ready webhook:', err));
+    }
+  }
 
   res.json({
     session: {
