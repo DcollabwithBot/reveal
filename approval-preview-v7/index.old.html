@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reveal V6 Holistic Mockup</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">Reveal <span>V6</span></div>
+        <p class="side-sub">Professional PM UX with integrated progression</p>
+
+        <nav class="main-nav">
+          <button class="nav-btn active" data-screen="portfolio">Portfolio</button>
+          <button class="nav-btn" data-screen="workspace">Project Workspace</button>
+          <button class="nav-btn" data-screen="execution">Sprint Execution</button>
+          <button class="nav-btn" data-screen="close">Sprint Close</button>
+        </nav>
+
+        <div class="side-card">
+          <div class="label">Current Sprint</div>
+          <div class="value">Sprint 26</div>
+          <div class="sub">Reveal Platform · Delivery window 8 days</div>
+        </div>
+
+        <button id="toggle-overlay" class="ghost-btn">Gamification Overlay: Off</button>
+      </aside>
+
+      <main class="content">
+        <header class="topbar card-lite">
+          <div>
+            <h1 id="screen-title">Portfolio Overview</h1>
+            <p class="subtitle" id="screen-subtitle">Cross-project status and risk control</p>
+          </div>
+          <div class="top-actions">
+            <span class="pill">Delivery Pressure: Controlled</span>
+            <span class="pill muted">XP This Sprint: +420</span>
+          </div>
+        </header>
+
+        <section class="screen active" id="screen-portfolio">
+          <div class="kpi-grid">
+            <article class="card kpi"><h3>Active Projects</h3><p>6</p><small>2 in release phase</small></article>
+            <article class="card kpi"><h3>At Risk</h3><p>2</p><small>API + Staffing</small></article>
+            <article class="card kpi"><h3>Total Blocked</h3><p>11</p><small>avg MTTR 7.2h</small></article>
+            <article class="card kpi"><h3>Portfolio Confidence</h3><p>78%</p><small>+4% vs last sprint</small></article>
+          </div>
+
+          <article class="card">
+            <div class="card-head">
+              <h3>Project Portfolio</h3>
+              <div class="chip-row">
+                <span class="chip active">All teams</span>
+                <span class="chip">At risk</span>
+                <span class="chip">This quarter</span>
+              </div>
+            </div>
+            <div class="project-grid">
+              <button class="project-card" data-screen-target="workspace">
+                <strong>Reveal Platform</strong>
+                <span>Health 82 · Risk Medium</span>
+                <span>Owner: PM Core · Milestone: Sprint Ops v2</span>
+              </button>
+              <button class="project-card" data-screen-target="workspace">
+                <strong>Agent Ops Board</strong>
+                <span>Health 75 · Risk High</span>
+                <span>Owner: Infra Team · Milestone: Alerts hardening</span>
+              </button>
+              <button class="project-card" data-screen-target="workspace">
+                <strong>Madro.ai Fase 2</strong>
+                <span>Health 88 · Risk Low</span>
+                <span>Owner: Product Squad · Milestone: Deploy + OAuth prod</span>
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <section class="screen" id="screen-workspace">
+          <article class="card workspace-shell">
+            <div class="workspace-top">
+              <h3>Reveal Platform Workspace</h3>
+              <div class="chip-row">
+                <span class="chip active">Sprint 26</span>
+                <span class="chip">Team Core</span>
+                <span class="chip">Delivery Week</span>
+              </div>
+            </div>
+
+            <div class="tab-row">
+              <button class="tab-btn active" data-tab="overview">Overview</button>
+              <button class="tab-btn" data-tab="backlog">Backlog</button>
+              <button class="tab-btn" data-tab="board">Sprint Board</button>
+              <button class="tab-btn" data-tab="timeline">Timeline</button>
+              <button class="tab-btn" data-tab="people">People</button>
+              <button class="tab-btn" data-tab="reports">Reports</button>
+            </div>
+
+            <div class="tab-panel active" id="tab-overview">
+              <div class="split two-thirds">
+                <article class="card nested">
+                  <h3>Sprint Health</h3>
+                  <ul class="list">
+                    <li>Velocity: <strong>86 pts</strong></li>
+                    <li>Scope change: <strong>+3%</strong></li>
+                    <li>Load balance: <strong>79%</strong></li>
+                    <li>Blocked cards: <strong>4</strong></li>
+                  </ul>
+                </article>
+                <article class="card nested">
+                  <h3>Delivery Pressure</h3>
+                  <div class="meter"><span style="width: 44%"></span></div>
+                  <p class="small">Controlled — under threshold</p>
+                </article>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="tab-backlog">
+              <article class="card nested">
+                <h3>Backlog Planning</h3>
+                <table>
+                  <thead>
+                    <tr><th>Story</th><th>Priority</th><th>Estimate</th><th>Owner</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>OAuth fallback flow</td><td>High</td><td>5</td><td>Mia</td><td>Ready</td></tr>
+                    <tr><td>Board keyboard nav</td><td>Med</td><td>3</td><td>Noah</td><td>Backlog</td></tr>
+                    <tr><td>Risk scoring adjustment</td><td>High</td><td>2</td><td>Jonas</td><td>Ready</td></tr>
+                  </tbody>
+                </table>
+              </article>
+            </div>
+
+            <div class="tab-panel" id="tab-board">
+              <div class="kanban-grid">
+                <article class="card col"><h3>Backlog <span>7</span></h3><button class="ticket" data-task="task1">OAuth edge states <small>5 pts · +20XP</small></button></article>
+                <article class="card col"><h3>In Progress <span>5</span></h3><button class="ticket blocked" data-task="task2">Metrics sync timeout <small>Blocked · SLA 3h</small></button></article>
+                <article class="card col"><h3>Review <span>3</span></h3><button class="ticket" data-task="task3">Timeline dependency links <small>PR #332</small></button></article>
+                <article class="card col"><h3>Done <span>12</span></h3><button class="ticket done" data-task="task4">People load balancing <small>Shipped</small></button></article>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="tab-timeline">
+              <article class="card nested">
+                <h3>Milestone Timeline</h3>
+                <div class="timeline">
+                  <div><strong>M1</strong><span>Portfolio stabilization · done</span></div>
+                  <div><strong>M2</strong><span>Execution workflow hardening · in progress</span></div>
+                  <div><strong>M3</strong><span>Sprint close automation · planned</span></div>
+                </div>
+              </article>
+            </div>
+
+            <div class="tab-panel" id="tab-people">
+              <article class="card nested">
+                <h3>People & Capacity</h3>
+                <ul class="list">
+                  <li>Mia — 82% load · 1 blocker owned</li>
+                  <li>Noah — 74% load · review heavy</li>
+                  <li>Jonas — 88% load · backend critical</li>
+                </ul>
+              </article>
+            </div>
+
+            <div class="tab-panel" id="tab-reports">
+              <div class="split">
+                <article class="card nested">
+                  <h3>Quality & Throughput</h3>
+                  <ul class="list">
+                    <li>Escaped defects: <strong>1</strong></li>
+                    <li>Cycle time: <strong>2.6d</strong></li>
+                    <li>Forecast confidence: <strong>81%</strong></li>
+                  </ul>
+                </article>
+                <article class="card nested">
+                  <h3>Momentum Signals</h3>
+                  <ul class="list">
+                    <li>Streak: 2 sprints on-time</li>
+                    <li>Achievement: Zero carry-over lane</li>
+                    <li>Pressure trend: improving</li>
+                  </ul>
+                </article>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="screen" id="screen-execution">
+          <div class="toolbar card">
+            <span>Sprint 26</span><span>Filter: Core + UX</span><span>WIP Guard: ON</span>
+            <span class="right">Focused Execution Mode</span>
+          </div>
+          <div class="kanban-grid">
+            <article class="card col"><h3>Backlog <span>9</span></h3><button class="ticket" data-task="task1">OAuth edge states <small>assignee: Mia</small></button></article>
+            <article class="card col"><h3>In Progress <span>6</span></h3><button class="ticket blocked" data-task="task2">Metrics sync timeout <small>blocked: vendor API</small></button></article>
+            <article class="card col"><h3>Review <span>4</span></h3><button class="ticket" data-task="task3">Timeline dependency links <small>assignee: Noah</small></button></article>
+            <article class="card col"><h3>Done <span>14</span></h3><button class="ticket done" data-task="task4">People load balancing <small>assignee: Jonas</small></button></article>
+          </div>
+        </section>
+
+        <section class="screen" id="screen-close">
+          <div class="split two-thirds">
+            <article class="card">
+              <h3>Sprint Close Summary</h3>
+              <ul class="list">
+                <li>Committed: <strong>52 pts</strong></li>
+                <li>Completed: <strong>47 pts</strong></li>
+                <li>Carry-over: <strong>5 pts</strong></li>
+                <li>Blocker MTTR: <strong>6.4h</strong></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Close Decision</h3>
+              <p class="small">Retro actions drafted. Pressure normalized. Ready for sprint close.</p>
+              <button class="primary-btn">Confirm Sprint Close</button>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <aside class="task-drawer" id="task-drawer" aria-hidden="true">
+      <div class="drawer-head">
+        <h3>Task Details</h3>
+        <button id="close-drawer" class="icon-btn">✕</button>
+      </div>
+      <div class="drawer-body">
+        <p class="drawer-title" id="drawer-title">Task title</p>
+        <div class="field"><span>Assignee</span><strong id="drawer-assignee">-</strong></div>
+        <div class="field"><span>Due date</span><strong id="drawer-deadline">-</strong></div>
+        <div class="field"><span>Estimate</span><strong id="drawer-estimate">-</strong></div>
+        <div class="field"><span>Status</span><strong id="drawer-status">-</strong></div>
+        <div class="field"><span>Priority</span><strong id="drawer-priority">-</strong></div>
+        <div class="field"><span>Labels</span><strong id="drawer-labels">-</strong></div>
+        <div class="field"><span>Blocked</span><strong id="drawer-blocked">-</strong></div>
+        <div class="field"><span>Blocked reason</span><strong id="drawer-blocked-reason">-</strong></div>
+      </div>
+      <div class="drawer-foot">
+        <button class="ghost-btn small">Save (mock)</button>
+      </div>
+    </aside>
+
+    <aside class="overlay-panel" id="overlay-panel" aria-hidden="true">
+      <h3>Progression Overlay</h3>
+      <div class="overlay-block">
+        <div class="label">Team XP</div>
+        <div class="value">13,220</div>
+        <div class="meter"><span style="width: 68%"></span></div>
+      </div>
+      <div class="overlay-block">
+        <div class="label">Level</div>
+        <div class="value small">L8 · Delivery Specialist</div>
+      </div>
+      <div class="overlay-block">
+        <div class="label">Active achievements</div>
+        <ul class="list compact">
+          <li>No carry-over lane ×2</li>
+          <li>Blocker response &lt; 4h</li>
+        </ul>
+      </div>
+      <div class="overlay-block">
+        <div class="label">Boss pressure</div>
+        <div class="meter warn"><span style="width: 41%"></span></div>
+        <p class="small">Pressure is stable and decreasing.</p>
+      </div>
+    </aside>
+
+    <script src="app.js"></script>
+  </body>
+</html>

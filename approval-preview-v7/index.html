@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reveal V7 Approval Preview</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">Reveal <span>V7</span></div>
+        <p class="sidebar-copy">Serious execution platform with a game soul.</p>
+
+        <nav class="nav">
+          <button class="nav-btn active" data-screen="dashboard">Dashboard</button>
+          <button class="nav-btn" data-screen="workspace">Project Workspace</button>
+          <button class="nav-btn" data-screen="session">Session / Play Mode</button>
+        </nav>
+
+        <div class="sidebar-card">
+          <div class="eyebrow">Mode</div>
+          <div class="sidebar-value">Professional by default</div>
+          <p>Game layer er advisory, sekundært og kontekststyret.</p>
+        </div>
+
+        <button id="overlay-toggle" class="secondary-btn">Overlay: Off</button>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow" id="screen-eyebrow">What needs action now</div>
+            <h1 id="screen-title">Dashboard</h1>
+            <p id="screen-subtitle">Ledelsesblik først. Momentum som sekundært signal.</p>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-btn">Filter</button>
+            <button class="ghost-btn">Saved view</button>
+            <button class="primary-btn">New project</button>
+          </div>
+        </header>
+
+        <section class="screen active" id="screen-dashboard">
+          <div class="hero-grid">
+            <article class="hero-card primary">
+              <div class="hero-top">
+                <div>
+                  <div class="eyebrow danger">Needs attention now</div>
+                  <h2>2 projekter kræver beslutning i dag</h2>
+                  <p>Det vigtigste lige nu er at fjerne blocker-pres på Reveal Platform og godkende 3 pending PM actions.</p>
+                </div>
+                <button class="primary-btn">Open priority workspace</button>
+              </div>
+              <div class="attention-list">
+                <div class="attention-item">
+                  <strong>Reveal Platform</strong>
+                  <span>3 approvals pending · 1 blocker over SLA · owner: PM Core</span>
+                </div>
+                <div class="attention-item">
+                  <strong>Agent Ops Board</strong>
+                  <span>Confidence drop i execution lane · dependency unresolved</span>
+                </div>
+              </div>
+            </article>
+
+            <aside class="hero-card secondary overlay-aware">
+              <div class="eyebrow">Momentum</div>
+              <h3>Delivery Pressure</h3>
+              <div class="meter warn"><span style="width: 58%"></span></div>
+              <ul class="mini-list">
+                <li>Pressure trend: stabiliseret</li>
+                <li>Team XP: +420 denne sprint</li>
+                <li>Boss pressure: medium</li>
+              </ul>
+            </aside>
+          </div>
+
+          <div class="content-grid two-one">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Projects requiring action</h3>
+                <div class="chip-row">
+                  <span class="chip active">All</span>
+                  <span class="chip">Blocked</span>
+                  <span class="chip">Approvals</span>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr><th>Project</th><th>Owner</th><th>Status</th><th>Health</th><th>Next action</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Reveal Platform</td><td>PM Core</td><td>Active</td><td>Medium risk</td><td>Approve 3 requests</td></tr>
+                  <tr><td>Agent Ops Board</td><td>Infra Team</td><td>Active</td><td>High risk</td><td>Resolve blocker</td></tr>
+                  <tr><td>Madro.ai Fase 2</td><td>Product Squad</td><td>Active</td><td>Low risk</td><td>Review rollout plan</td></tr>
+                </tbody>
+              </table>
+            </article>
+
+            <article class="panel">
+              <h3>Secondary signals</h3>
+              <div class="stat-stack">
+                <div class="stat"><span>Pending approvals</span><strong>3</strong></div>
+                <div class="stat"><span>Blocked items</span><strong>4</strong></div>
+                <div class="stat"><span>Upcoming sessions</span><strong>2</strong></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="screen" id="screen-workspace">
+          <div class="workspace-header panel">
+            <div>
+              <div class="eyebrow">Project workspace</div>
+              <h2>Reveal Platform · Sprint 26</h2>
+              <p>Sprint objective: stabilisere execution workflow og reducere blocker-pressure uden at skabe PM/game divergens.</p>
+            </div>
+            <div class="workspace-actions">
+              <button class="ghost-btn">Board</button>
+              <button class="ghost-btn">Timeline</button>
+              <button class="primary-btn">Add work item</button>
+            </div>
+          </div>
+
+          <div class="content-grid two-one">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Execution board</h3>
+                <span class="subtle">Primary workflow surface</span>
+              </div>
+              <div class="board-grid">
+                <div class="column">
+                  <div class="column-head">Backlog <span>7</span></div>
+                  <div class="card-item"><strong>Perspektiv-Poker spec</strong><span>Owner: Mia · 5 pts</span></div>
+                  <div class="card-item"><strong>Webhook event schema</strong><span>Owner: Jonas · 3 pts</span></div>
+                </div>
+                <div class="column">
+                  <div class="column-head">In progress <span>4</span></div>
+                  <div class="card-item blocked"><strong>Conflict UX v2</strong><span>Blocked by copy decision</span></div>
+                  <div class="card-item"><strong>Dashboard hierarchy cleanup</strong><span>Owner: Noah · 2 pts</span></div>
+                </div>
+                <div class="column">
+                  <div class="column-head">Review <span>2</span></div>
+                  <div class="card-item"><strong>Approval flow tests</strong><span>PR ready</span></div>
+                </div>
+                <div class="column">
+                  <div class="column-head">Done <span>11</span></div>
+                  <div class="card-item done"><strong>Governance dashboard route</strong><span>Shipped</span></div>
+                </div>
+              </div>
+            </article>
+
+            <aside class="panel overlay-aware">
+              <div class="eyebrow">Momentum layer</div>
+              <h3>Pressure & progress</h3>
+              <div class="stat-stack compact">
+                <div class="stat"><span>Delivery pressure</span><strong>Controlled</strong></div>
+                <div class="stat"><span>Boss state</span><strong>58% HP</strong></div>
+                <div class="stat"><span>XP this sprint</span><strong>+420</strong></div>
+              </div>
+              <div class="callout">
+                <strong>Challenge available</strong>
+                <p>1 blocker kan omdannes til side-quest, hvis PM godkender workaround.</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="screen" id="screen-session">
+          <div class="session-hero panel game-surface">
+            <div>
+              <div class="eyebrow accent">Session / Play mode</div>
+              <h2>Planning Poker — Sprint Objective Boss</h2>
+              <p>Her må Reveal føles levende. Men spillaget er stadig bundet til rigtige PM-events og rigtige beslutninger.</p>
+            </div>
+            <div class="boss-card">
+              <span class="boss-name">Execution Drift</span>
+              <div class="meter"><span style="width: 42%"></span></div>
+              <small>Boss HP falder kun ved rigtige decisions / completed work</small>
+            </div>
+          </div>
+
+          <div class="content-grid two-one">
+            <article class="panel game-surface">
+              <div class="panel-head">
+                <h3>Decision surface</h3>
+                <span class="subtle">Primary action: afgiv estimat / tag beslutning</span>
+              </div>
+              <div class="vote-row">
+                <button class="vote-card">3</button>
+                <button class="vote-card active">5</button>
+                <button class="vote-card">8</button>
+                <button class="vote-card">13</button>
+                <button class="vote-card">?</button>
+              </div>
+              <div class="decision-summary">
+                <div><span>Story</span><strong>Webhook event routing</strong></div>
+                <div><span>Perspective spread</span><strong>Dev 5 · Ops 8 · PM 5</strong></div>
+                <div><span>Recommended next action</span><strong>Discuss ops risk before confirm</strong></div>
+              </div>
+            </article>
+
+            <aside class="panel overlay-aware">
+              <div class="eyebrow">Why this works</div>
+              <h3>Bridge between work and play</h3>
+              <ul class="mini-list">
+                <li>PM object er stadig source-of-truth</li>
+                <li>Game-signaler er advisory</li>
+                <li>Session-feedback gør beslutningen tydeligere</li>
+                <li>Resultatet går tilbage til execution-systemet</li>
+              </ul>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
