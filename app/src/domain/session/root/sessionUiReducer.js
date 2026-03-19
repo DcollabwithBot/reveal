@@ -9,6 +9,8 @@ export const initialSessionUiState = {
   shake: false,
   showAchieve: null,
   spellName: null,
+  showRoulette: false,
+  showLoot: false,
 };
 
 export function sessionUiReducer(state, action) {
@@ -37,6 +39,10 @@ export function sessionUiReducer(state, action) {
       return { ...state, showAchieve: action.value };
     case 'spellName':
       return { ...state, spellName: action.value };
+    case 'showRoulette':
+      return { ...state, showRoulette: action.value };
+    case 'showLoot':
+      return { ...state, showLoot: action.value };
     default:
       return state;
   }
