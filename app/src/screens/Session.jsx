@@ -5,6 +5,7 @@ import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/sess
 import { projectBossEncounter } from "../domain/session/boss/bossProjection.js";
 import { buildRootState } from "../domain/session/root/selectors.js";
 import { buildSessionViewModel } from "../domain/session/root/viewModel.js";
+import { createInitialSessionFlowState, sessionFlowReducer } from "../domain/session/root/sessionFlowReducer.js";
 import { initialSessionUiState, sessionUiReducer } from "../domain/session/root/sessionUiReducer.js";
 import { projectWorld } from "../domain/session/world/projectWorld.js";
 import { buildChallenge } from "../domain/session/challenge/buildChallenge.js";
@@ -16,7 +17,7 @@ import SessionCombatStage from "../components/session/SessionCombatStage.jsx";
 import { AchievePopup, Boss, Box, Btn, ComboDisplay, DmgNum, FlipCard, LootDrops, Scene, Sprite } from "../components/session/SessionPrimitives.jsx";
 import { applyOracleDecision, applyRetroEventVote, applyRootCauseDecision, buildBossRetroViewModel } from "../domain/session/challenge/retroDecisions.js";
 import { createChallengeCompletionResult, createConfidenceResult, createLifelineResult, createVictoryResult, createVoteResult } from "../domain/session/challenge/sessionTransitions.js";
-import { getLatestApprovalState, getProjectionConfig, submitAdvisoryRequest } from "../lib/api";
+import { useSessionData } from "../hooks/useSessionData.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -41,21 +42,10 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     ...NPC_TEAM,
   ];
 
-  const [step, setStep] = useState(0);
-  const [pv, setPv] = useState(null);
-  const [votes, setVotes] = useState([]);
-  const [rdy, setRdy] = useState(false);
-  const [rev, setRev] = useState(false);
-  const [cd, setCd] = useState(-1);
-  const [cv, setCv] = useState(null);
-  const [ac, setAc] = useState([]);
-  const [bossHp, setBossHp] = useState(maxHp);
+  const [flow, dispatchFlow] = useReducer(sessionFlowReducer, maxHp, createInitialSessionFlowState);
+  const { step, pv, votes, rdy, rev, cd, cv, ac, bossHp, combo, achieves, loot, rc, ll, llr, activeChallenge, initialVote, revoting } = flow;
   const [sessionUi, dispatchUi] = useReducer(sessionUiReducer, initialSessionUiState);
   const { bossHit, bossDead, atk, npcAtk, npcHits, dmgNums, flash, shake, showAchieve, spellName, showRoulette, showLoot } = sessionUi;
-  const [combo, setCombo] = useState(0);
-  const [achieves, setAchieves] = useState([]);
-  const [loot, setLoot] = useState([]);
-  const [projectionConfig, setProjectionConfig] = useState(null);
 
   const { bossName, maxHp, bossDamageMultiplier } = projectBossEncounter({
     projectionConfig,
@@ -63,15 +53,15 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     project,
     bossKey: 'delivery-pressure-default',
   });
-  const [rc, setRc] = useState([]);
-  const [ll, setLl] = useState(null);
-  const [llr, setLlr] = useState(null);
+  const { projectionConfig, approvalState, advisoryBusy, advisoryError, setApprovalState, sendToApprovalQueue } = useSessionData({
+    nodeId: node?.id,
+    projectId: project?.id,
+    pv,
+    spread: 0,
+    cv,
+    rootEstimate: pv ?? 0,
+  });
   const finCalled = useRef(false);
-
-  // Roulette states
-  const [activeChallenge, setActiveChallenge] = useState(null);
-  const [initialVote, setInitialVote] = useState(null);
-  const [revoting, setRevoting] = useState(false);
 
   // Boss Battle / Retro states
   const [bossStep, setBossStep] = useState(0); // 0=intro, 1=events, 2=reveal, 3=rootcause, 4=confidence, 5=end
@@ -87,9 +77,6 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [bossBattleHp, setBossBattleHp] = useState(0);
   const [problemEvents, setProblemEvents] = useState([]);
   const [rootCauseIdx, setRootCauseIdx] = useState(0);
-  const [approvalState, setApprovalState] = useState(null);
-  const [advisoryBusy, setAdvisoryBusy] = useState(false);
-  const [advisoryError, setAdvisoryError] = useState(null);
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -121,7 +108,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   function addAchieve(a) {
     const resolved = typeof a === 'string' ? resolveProjectionAchievement(a) : a;
     if (!resolved || achieves.includes(resolved.id)) return;
-    setAchieves(p => [...p, resolved.id]);
+    dispatchFlow({ type: 'addAchieveId', value: resolved.id });
     dispatchUi({ type: 'showAchieve', value: resolved });
     sound("achieve");
   }
@@ -132,7 +119,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   useEffect(() => {
     if (pv === null || rdy) return;
     const timer = setTimeout(() => {
-      const v = gv(pv, 2); setVotes(v); setRdy(true);
+      const v = gv(pv, 2); dispatchFlow({ type: 'setVotesReady', votes: v });
       v.forEach((vote, i) => {
         setTimeout(() => {
           dispatchUi({ type: 'npcAtk:add', value: vote.mid });
@@ -148,36 +135,11 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     return () => clearTimeout(timer);
   }, [pv, rdy]);
 
-  useEffect(() => {
-    let active = true;
-    const targetId = project?.id || node?.id;
-    if (!targetId) return () => { active = false; };
-
-    getLatestApprovalState(targetId)
-      .then((state) => {
-        if (!active) return;
-        setApprovalState(state || null);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [project?.id, node?.id]);
-
-  useEffect(() => {
-    let active = true;
-    getProjectionConfig()
-      .then((data) => {
-        if (!active) return;
-        setProjectionConfig(data || null);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
-
   function handleChallengeComplete(challenge) {
     const result = createChallengeCompletionResult({ maxHp, challenge });
-    setActiveChallenge(result.activeChallenge);
+    dispatchFlow({ type: 'merge', patch: { activeChallenge: result.activeChallenge } });
     dispatchUi({ type: 'showRoulette', value: result.showRoulette });
-    setRevoting(result.revoting);
+    dispatchFlow({ type: 'merge', patch: { revoting: result.revoting } });
     setBossHp(prev => Math.min(prev + result.bonusHp, Math.round(maxHp * 1.5)));
     addAchieve(result.achievementId);
   }
@@ -185,9 +147,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   function doVote(v) {
     const result = createVoteResult({ vote: v, bossDamageMultiplier });
     if (isR && !revoting && initialVote === null) {
-      setInitialVote(v);
+      dispatchFlow({ type: 'merge', patch: { initialVote: v } });
     }
-    setPv(result.selectedVote);
+    dispatchFlow({ type: 'merge', patch: { pv: result.selectedVote } });
     sound('attack');
     dispatchUi({ type: 'atk', value: true });
     dispatchUi({ type: 'spellName', value: TEAM[0].cls.spellName });
@@ -197,23 +159,23 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     doFlash(TEAM[0].cls.trail);
     doShake();
     setTimeout(() => dispatchUi({ type: 'atk', value: false }), 500);
-    setCombo(c => c + result.comboDelta);
+    dispatchFlow({ type: 'merge', patch: { combo: combo + result.comboDelta } });
     result.achievementIds.forEach((id) => addAchieve(id));
     if (result.sound === 'combo') sound('combo');
   }
 
   function doReveal() {
-    sound("countdown"); setCd(3);
+    sound("countdown"); dispatchFlow({ type: 'merge', patch: { cd: 3 } });
     const i = setInterval(() => {
-      setCd(p => {
+      dispatchFlow({ type: 'merge', patch: { cd: (cd <= 1 ? 0 : cd - 1) } }); return (p => {
         if (p <= 1) {
           clearInterval(i);
           setTimeout(() => {
-            setCd(-1); sound("countgo"); doFlash(mc); doShake();
+            dispatchFlow({ type: 'merge', patch: { cd: -1 } }); sound("countgo"); doFlash(mc); doShake();
             setBossHp(0); dispatchUi({ type: 'bossDead', value: true });
             setTimeout(() => {
               sound("boom"); doFlash(C.wht); doShake();
-              setRev(true); setStep(1);
+              dispatchFlow({ type: 'merge', patch: { rev: true, step: 1 } });
               const allV = [pv, ...votes.map(v => v.val)];
               const avg = allV.reduce((a, b) => a + b, 0) / allV.length;
               if (Math.abs(pv - avg) < 2) addAchieve('sniper');
@@ -231,26 +193,26 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   function doDisc(riskCard) {
     if (riskCard) {
       if (!rc.includes(riskCard)) {
-        setRc([...rc, riskCard]);
+        dispatchFlow({ type: 'addRiskCard', value: riskCard });
         sound('click');
         addAchieve('detective');
       }
       return;
     }
-    setStep(2);
+    dispatchFlow({ type: 'merge', patch: { step: 2 } });
     sound('click');
   }
   function doCv(v) {
     if (v === null) {
-      setStep(3);
+      dispatchFlow({ type: 'merge', patch: { step: 3 } });
       sound('click');
       return;
     }
     const result = createConfidenceResult({ value: v });
-    setCv(result.confidence);
+    dispatchFlow({ type: 'merge', patch: { cv: result.confidence } });
     sound('select');
     if (result.achievementId) addAchieve(result.achievementId);
-    setTimeout(() => { setAc(NPC_TEAM.map(m => ({ mid: m.id, val: Math.max(1, Math.min(5, v + Math.floor(Math.random() * 3) - 1)) }))); }, 500);
+    setTimeout(() => { dispatchFlow({ type: 'merge', patch: { ac: NPC_TEAM.map(m => ({ mid: m.id, val: Math.max(1, Math.min(5, v + Math.floor(Math.random() * 3) - 1)) })) } }); }, 500);
   }
   function doFin() {
     const result = createVictoryResult({
@@ -261,46 +223,23 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
       colors: { xp: C.xp, acc: C.acc, org: C.org, pur: C.pur, gld: C.gld },
       buildRewardLoot,
     });
-    setStep(result.step);
+    dispatchFlow({ type: 'merge', patch: { step: result.step } });
     sound(result.sound);
     doFlash(result.flashColor);
-    setLoot(result.loot);
+    dispatchFlow({ type: 'merge', patch: { loot: result.loot } });
     setTimeout(() => dispatchUi({ type: 'showLoot', value: true }), result.showLootDelayMs);
     setTimeout(() => safeComplete(), result.completeDelayMs);
   }
   function doLL(id) {
     const result = createLifelineResult({ id, pv, votes });
-    setLl(result.lifelineId);
+    dispatchFlow({ type: 'merge', patch: { ll: result.lifelineId } });
     sound('powerup');
     doFlash(C.pur);
     if (result.achievementId) addAchieve(result.achievementId);
-    setLlr(result.response);
+    dispatchFlow({ type: 'merge', patch: { llr: result.response } });
   }
 
-  async function sendToApprovalQueue() {
-    if (advisoryBusy) return;
-    setAdvisoryBusy(true);
-    setAdvisoryError(null);
-    try {
-      const estimate = pv ?? clamp(rootState.voting.roundedEstimate || 0);
-      const targetId = project?.id || node?.id;
-      const payload = {
-        target_type: 'project',
-        target_id: targetId,
-        requested_patch: {
-          status: estimate >= 8 ? 'on_hold' : 'active',
-          description: `Advisory fra game: est=${estimate}, spread=${spread}, confidence=${cv || 'na'}`
-        },
-        idempotency_key: `game:${targetId}:${Date.now()}`
-      };
-      const created = await submitAdvisoryRequest(payload);
-      setApprovalState(created?.state || 'pending_approval');
-    } catch (err) {
-      setAdvisoryError(err.message);
-    } finally {
-      setAdvisoryBusy(false);
-    }
-  }
+
 
   function handleEventVote(vote) {
     const ev = retroEvents[currentEvtIdx];
