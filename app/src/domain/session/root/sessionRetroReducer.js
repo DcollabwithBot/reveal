@@ -1,4 +1,4 @@
-import { SPRINT_EVENTS } from '../../shared/constants.js';
+import { SPRINT_EVENTS } from '../../../shared/constants.js';
 
 export function createInitialSessionRetroState() {
   const shuffled = [...SPRINT_EVENTS].sort(() => Math.random() - 0.5);
