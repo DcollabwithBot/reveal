@@ -4,6 +4,7 @@ import { useSound } from "./shared/useSound.js";
 import Landing from "./screens/Landing.jsx";
 import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
+import Dashboard from "./screens/Dashboard.jsx";
 import AvatarCreator from "./screens/AvatarCreator.jsx";
 import WorldSelect from "./screens/WorldSelect.jsx";
 import Overworld from "./screens/Overworld.jsx";
@@ -13,7 +14,7 @@ import "./shared/animations.css";
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | game
+  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | game
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
@@ -40,7 +41,7 @@ export default function App() {
       const u = session?.user ?? null;
       setUser(u);
       if (u && authScreen === "login") {
-        setAuthScreen("lobby");
+        setAuthScreen(window.location.pathname === '/dashboard' ? "dashboard" : "lobby");
       }
       if (!u) {
         setAuthScreen("landing");
@@ -85,6 +86,10 @@ export default function App() {
     return null;
   }
 
+  if (user && window.location.pathname === '/dashboard' && authScreen !== 'dashboard') {
+    setAuthScreen('dashboard');
+  }
+
   // Not logged in → landing (default) or login (if coming from /game path or "Start Playing")
   if (!user && authScreen !== "game") {
     // Show login if explicitly navigated there or via /game path
@@ -113,10 +118,27 @@ export default function App() {
       <Lobby
         user={user}
         onContinue={() => setAuthScreen("game")}
+        onDashboard={() => {
+          window.history.pushState({}, document.title, '/dashboard');
+          setAuthScreen("dashboard");
+        }}
         onGuest={() => {
           // Play as guest (logged in but skip personalization)
           setAuthScreen("game");
         }}
+      />
+    );
+  }
+
+  if (user && authScreen === "dashboard") {
+    return (
+      <Dashboard
+        user={user}
+        onBackToLobby={() => {
+          window.history.pushState({}, document.title, '/');
+          setAuthScreen("lobby");
+        }}
+        onContinue={() => setAuthScreen("game")}
       />
     );
   }
