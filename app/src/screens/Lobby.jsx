@@ -5,6 +5,9 @@ import {
   getDashboardGovernance,
   rejectRequest
 } from '../lib/api';
+import GovernanceSummary from '../components/governance/GovernanceSummary';
+import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
+import DashboardSnapshot from '../components/governance/DashboardSnapshot';
 
 export default function Lobby({ user, onContinue, onGuest }) {
   const displayName = user?.user_metadata?.full_name || user?.email || 'Spiller';
@@ -100,81 +103,21 @@ export default function Lobby({ user, onContinue, onGuest }) {
           </div>
         </div>
 
-        <div style={styles.govGrid}>
-          <Widget title="Approval Queue" value={health.queue_depth} hint="Pending" />
-          <Widget title="Ready to Apply" value={approvedReady.length} hint="Approved" />
-          <Widget title="Conflict Center" value={health.blocked_writes} hint="Blocked writes" />
-        </div>
+        <GovernanceSummary health={health} approvedReadyCount={approvedReady.length} />
 
-        <div style={styles.dashboardGrid}>
-          <SectionBox title="PM Actions">
-            {error && <div style={styles.error}>{error}</div>}
-            {loadingGov && <div style={styles.muted}>Henter governance data…</div>}
+        <GovernanceWorkspace
+          loading={loadingGov}
+          error={error}
+          pending={pending}
+          approvedReady={approvedReady}
+          conflicts={conflicts}
+          busyId={busyId}
+          onApprove={(id) => handleAction(id, 'approve')}
+          onReject={(id) => handleAction(id, 'reject')}
+          onApply={(id) => handleAction(id, 'apply')}
+        />
 
-            {!loadingGov && pending.length === 0 && approvedReady.length === 0 && (
-              <div style={styles.muted}>Ingen governance-actions lige nu.</div>
-            )}
-
-            {!loadingGov && pending.map((req) => (
-              <ActionRow
-                key={req.id}
-                req={req}
-                busyId={busyId}
-                onApprove={() => handleAction(req.id, 'approve')}
-                onReject={() => handleAction(req.id, 'reject')}
-              />
-            ))}
-
-            {!loadingGov && approvedReady.map((req) => (
-              <ApplyRow
-                key={req.id}
-                req={req}
-                busyId={busyId}
-                onApply={() => handleAction(req.id, 'apply')}
-              />
-            ))}
-          </SectionBox>
-
-          <SectionBox title="Conflict Center">
-            {(conflicts || []).slice(0, 5).map((c) => (
-              <div key={c.id} style={styles.conflictRow}>
-                <div style={styles.conflictMain}>
-                  <span style={styles.conflictTarget}>{c.target_type || 'unknown'} · {String(c.target_id || 'n/a').slice(0, 8)}</span>
-                  <span style={styles.conflictReason}>{c.payload?.reason || 'blocked write'}</span>
-                </div>
-                <div style={styles.conflictMeta}>
-                  {c.source_layer || 'unknown'} · {formatShortDate(c.created_at)}
-                </div>
-              </div>
-            ))}
-            {!conflicts?.length && <div style={styles.muted}>Ingen konflikter registreret.</div>}
-          </SectionBox>
-        </div>
-
-        <div style={styles.dashboardGrid}>
-          <SectionBox title="Active Projects">
-            {activeProjects.map((project) => (
-              <div key={project.id} style={styles.projectRow}>
-                <div>
-                  <div style={styles.projectName}>{project.icon || '📋'} {project.name}</div>
-                  <div style={styles.projectMeta}>status: {project.status} · progress: {project.progress ?? 0}%</div>
-                </div>
-                <div style={styles.projectStats}>{project.total_items || 0} items</div>
-              </div>
-            ))}
-            {!activeProjects.length && <div style={styles.muted}>Ingen aktive projekter endnu.</div>}
-          </SectionBox>
-
-          <SectionBox title="Recent Activity">
-            {recentActivity.map((item) => (
-              <div key={item.id} style={styles.activityRow}>
-                <div style={styles.activityTitle}>{item.title}</div>
-                <div style={styles.activityMeta}>{item.description} · {formatShortDate(item.created_at)}</div>
-              </div>
-            ))}
-            {!recentActivity.length && <div style={styles.muted}>Ingen aktivitet endnu.</div>}
-          </SectionBox>
-        </div>
+        <DashboardSnapshot activeProjects={activeProjects} recentActivity={recentActivity} />
 
         <button style={styles.continueBtn} onClick={onContinue}>▶ FORTSÆT SOM {displayName.split(' ')[0].toUpperCase()}</button>
 
@@ -189,82 +132,6 @@ export default function Lobby({ user, onContinue, onGuest }) {
       </div>
     </div>
   );
-}
-
-function Widget({ title, value, hint }) {
-  return (
-    <div style={styles.widget}>
-      <div style={styles.widgetTitle}>{title}</div>
-      <div style={styles.widgetValue}>{value}</div>
-      <div style={styles.widgetHint}>{hint}</div>
-    </div>
-  );
-}
-
-function SectionBox({ title, children }) {
-  return (
-    <div style={styles.sectionBox}>
-      <div style={styles.sectionTitle}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function ActionRow({ req, busyId, onApprove, onReject }) {
-  return (
-    <div style={styles.queueItem}>
-      <div style={styles.queueMeta}>
-        <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)}</div>
-        <div style={styles.queueState}>{req.state}</div>
-      </div>
-      <div style={styles.queueActions}>
-        <button
-          style={{ ...styles.actionBtn, ...styles.approveBtn }}
-          onClick={onApprove}
-          disabled={Boolean(busyId)}
-        >
-          ✅
-        </button>
-        <button
-          style={{ ...styles.actionBtn, ...styles.rejectBtn }}
-          onClick={onReject}
-          disabled={Boolean(busyId)}
-        >
-          ✖
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ApplyRow({ req, busyId, onApply }) {
-  return (
-    <div style={styles.queueItemApproved}>
-      <div style={styles.queueMeta}>
-        <div style={styles.queueTarget}>{req.target_type} · {String(req.target_id).slice(0, 8)} · klar til apply</div>
-        <div style={styles.queueState}>approved</div>
-      </div>
-      <button
-        style={{ ...styles.actionBtn, ...styles.applyBtn }}
-        onClick={onApply}
-        disabled={Boolean(busyId)}
-      >
-        Apply
-      </button>
-    </div>
-  );
-}
-
-function formatShortDate(value) {
-  if (!value) return 'ukendt';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'ukendt';
-  return new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
 }
 
 const styles = {
@@ -286,38 +153,6 @@ const styles = {
   playerInfo: { flex: 1, minWidth: 0 },
   playerLabel: { margin: '0 0 4px', fontSize: '7px', color: '#6b7280', letterSpacing: '2px' },
   playerName: { margin: 0, fontSize: '11px', color: '#e5e7eb' },
-  govGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: '8px', marginBottom: '12px' },
-  dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: '12px', marginBottom: '12px' },
-  widget: { background: '#131629', border: '1px solid #374151', padding: '10px' },
-  widgetTitle: { fontSize: '7px', color: '#9ca3af', marginBottom: '6px' },
-  widgetValue: { fontSize: '16px', color: '#a78bfa', marginBottom: '4px' },
-  widgetHint: { fontSize: '6px', color: '#6b7280' },
-  sectionBox: { background: '#101425', border: '1px solid #374151', padding: '10px', minHeight: '170px' },
-  sectionTitle: { fontSize: '8px', color: '#d1d5db', marginBottom: '10px' },
-  queueItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #2e364a', background: '#0f1220', padding: '8px', marginBottom: '6px' },
-  queueItemApproved: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #2f5040', background: '#0f1a15', padding: '8px', marginBottom: '6px' },
-  queueMeta: { display: 'flex', flexDirection: 'column', gap: '4px' },
-  queueTarget: { fontSize: '7px', color: '#e5e7eb' },
-  queueState: { fontSize: '6px', color: '#9ca3af' },
-  queueActions: { display: 'flex', gap: '6px' },
-  actionBtn: { border: '1px solid #374151', padding: '5px 8px', fontFamily: "'Press Start 2P', monospace", fontSize: '7px', cursor: 'pointer' },
-  approveBtn: { background: '#065f46', color: '#ecfeff' },
-  rejectBtn: { background: '#7f1d1d', color: '#fef2f2' },
-  applyBtn: { background: '#1d4ed8', color: '#eff6ff' },
-  conflictRow: { border: '1px solid #2d1d4d', background: '#120f1f', padding: '8px', marginBottom: '6px' },
-  conflictMain: { display: 'flex', flexDirection: 'column', gap: '4px' },
-  conflictTarget: { fontSize: '7px', color: '#e9d5ff' },
-  conflictReason: { fontSize: '6px', color: '#d1d5db' },
-  conflictMeta: { fontSize: '6px', color: '#8b5cf6', marginTop: '4px' },
-  projectRow: { display: 'flex', justifyContent: 'space-between', gap: '8px', border: '1px solid #27324a', background: '#0f1220', padding: '8px', marginBottom: '6px' },
-  projectName: { fontSize: '7px', color: '#e5e7eb', marginBottom: '4px' },
-  projectMeta: { fontSize: '6px', color: '#9ca3af' },
-  projectStats: { fontSize: '6px', color: '#a78bfa', whiteSpace: 'nowrap' },
-  activityRow: { borderBottom: '1px solid #253046', padding: '6px 0' },
-  activityTitle: { fontSize: '7px', color: '#e5e7eb', marginBottom: '4px' },
-  activityMeta: { fontSize: '6px', color: '#9ca3af' },
-  muted: { fontSize: '7px', color: '#6b7280' },
-  error: { fontSize: '7px', color: '#fda4af', marginBottom: '8px' },
   continueBtn: { width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #7c3aed 100%)', border: '2px solid #a78bfa', color: '#fff', fontFamily: "'Press Start 2P', monospace", fontSize: '9px', cursor: 'pointer', letterSpacing: '1px' },
   guestBtn: { width: '100%', padding: '12px 20px', background: 'transparent', border: '2px solid #374151', color: '#9ca3af', fontFamily: "'Press Start 2P', monospace", fontSize: '9px', cursor: 'pointer', letterSpacing: '1px' },
   guestNote: { margin: '12px 0 0', fontSize: '7px', color: '#4b5563', textAlign: 'center', letterSpacing: '1px', lineHeight: '1.6' }
