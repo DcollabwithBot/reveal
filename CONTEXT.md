@@ -1,36 +1,55 @@
 # Reveal — Projekt CONTEXT
 
+Last updated: 2026-03-19
+
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.3
+- Fase: Aktiv udvikling — v0.4 (Sprint 4b komplet)
 - Live: https://reveal.blichert.net
 - GitHub: https://github.com/DcollabwithBot/reveal
 - App: `app/` — Vite + React, bygget og deployet på Nordicway
 
 ## Hvad er bygget
+
+### Sprint 1-3 ✅
 - Alle 4 skærme koblet: Avatar Creator → World Select → Overworld → Session
 - Shared infrastruktur: constants.js, useSound.js, utils.js, animations.css
-- Bug fixes (8 stk.): double-onComplete, bossName, weather thrashing, equipment propagering, node completion, NPC bubbles, dk() dedup
-- **Scope Roulette**: Mekanisk distinkt game mode — slot animation, 18 challenge-cards (human/tech/extern), boss HP modifier, re-vote + delta-visning
-- **Planning Poker**: Fuldt fungerende med confidence vote, achievements, loot
+- Bug fixes (8 stk.)
+- Scope Roulette: slot animation, 18 challenge-cards (human/tech/extern), boss HP modifier, re-vote + delta
+- Planning Poker: fuldt fungerende med confidence vote, achievements, loot
+- Sprint Boss Battle: retrospective game mode med event voting, root cause, oracle mechanic
+- RPG Landing page
+
+### Sprint 4 ✅ (Supabase + Auth)
+- Supabase projekt oprettet: `swyfcathwcdpgkirwihh` (reveal.ai)
+- Komplet DB schema (organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes) — RLS aktiveret
+- Google OAuth + login screen (Login.jsx)
+- Supabase client: `app/src/lib/supabase.js`
+
+### Sprint 4b ✅ (Multiplayer Realtime)
+- Lobby screen (Lobby.jsx) — spiller joiner via join_code, presence tracking
+- Active session screen (Session.jsx) — realtime stemmer, GM view
+- Supabase Realtime channel: `session:{session_id}`
+- Screens: Landing, Login, AvatarCreator, WorldSelect, Overworld, Lobby, Session
 
 ## Næste sprint
-- Sprint 4: Supabase + Auth + Multiplayer arkitektur
+- Sprint 5: XP/achievements logik, overworld node-completion, team velocity, custom challenges UI, co-GM/observer roller
 
 ## Roadmap
-| Sprint | Indhold |
-|--------|---------|
-| 1-3 | MVP modes (Poker, Roulette, Boss Battle) ✅ |
-| 4 | Supabase schema + Auth (Google OAuth) + Realtime multiplayer + avatar persistence |
-| 5 | Bluff Poker |
-| 6 | Perspektiv-Poker |
-| 7 | Spec Wars |
-| 8 | Russian Nesting Scope |
-| 9 | Speed Scope |
-| 10 | Jira/Azure DevOps integration |
-| 11 | AI Lifelines + mønstergenkendelse |
+| Sprint | Indhold | Status |
+|--------|---------|--------|
+| 1-3 | MVP modes (Poker, Roulette, Boss Battle) | ✅ |
+| 4 | Supabase schema + Auth (Google OAuth) | ✅ |
+| 4b | Realtime multiplayer + Lobby + Session UI | ✅ |
+| 5 | XP/achievements, velocity, observer rolle, co-GM | 🔜 |
+| 6 | Perspektiv-Poker + session templates + Slack/Teams webhooks | |
+| 7 | Spec Wars | |
+| 8 | Russian Nesting Scope | |
+| 9 | Speed Scope | |
+| 10 | Jira/Azure DevOps integration | |
+| 11 | AI Lifelines + mønstergenkendelse | |
 
 ## Game modes status
 | Mode | Node type | Status |
@@ -44,49 +63,29 @@ Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint R
 | Russian Nesting Scope | rn | 🔜 Sprint 8 |
 | Speed Scope | ss | 🔜 Sprint 9 |
 
-## Teknisk beslutning (Sprint 4)
-- Backend: Supabase (ny projekt — ikke madro.ai's)
-- Auth: Supabase Auth + Google OAuth
-- Realtime: Supabase Realtime channels (multiplayer)
-- Hosting: Nordicway (frontend statiske filer)
-- Nuværende Vite-setup + supabase-js client — ingen framework-skift nødvendig
-
-## Supabase schema (Sprint 4 target)
-- `profiles` — avatar (klasse, skin, equipment), XP, level
-- `teams` — workspace/organisation
-- `rooms` — persistente rum knyttet til team + projekt
-- `sessions` — enkelt game session (mode, start/slut, resultat)
-- `votes` — individuelle stemmer per session
-- `achievements` — unlocked achievements per bruger
-- `worlds` + `nodes` — overworld progression
-
-## Flow
-```
-Avatar Creator → World Select → Overworld Map → Game Session → (tilbage til Overworld)
-```
-
-## Filer
-- `reveal-1-avatar.jsx` — Avatar Creator (klasse + equipment)
-- `reveal-2-worlds.jsx` — World Select / Tavern Hub
-- `reveal-3-overworld.jsx` — Overworld Map (SVG-baseret)
-- `reveal-session.jsx` — Game Session (boss battle, Planning Poker)
-- `REVEAL-HANDOFF.md` — Fuld teknisk brief til udvikler
-- `Reveal-Koncept-v3.1.docx` — Original konceptdokument
-
-## Hvad mangler
-1. Shared infrastruktur (farver, klasser, NPC team, equipment, sound engine, animations) → egne filer
-2. Props-interface på alle 4 komponenter (se HANDOFF.md)
-3. App Router (simpel state machine: screen + avatar + world + node)
-4. Avatar → Session flow (avatarens klasse/farver/equipment bruges i session)
-5. Session → Map flow (markér node completed)
+## Supabase
+- Projekt ID: `swyfcathwcdpgkirwihh`
+- Migrerede tabeller: organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes
+- Ikke migreret (sprint 5+): achievements, user_achievements, worlds, world_nodes, node_completions, custom_challenges, custom_events, session_templates, audit_log, rooms
 
 ## Tech stack
-- React (hooks only)
+- React (hooks only) + Vite
+- Supabase (Auth + DB + Realtime)
 - Web Audio API (lyd — ingen filer)
 - SVG (overworld)
 - CSS animations inline
 - Press Start 2P + VT323 (Google Fonts)
-- Ingen externe deps udover React
+- Hosting: Nordicway (statiske filer)
+- Backend: Express skeleton i `server/`
+
+## Filer
+- `app/src/screens/` — Landing, Login, AvatarCreator, WorldSelect, Overworld, Lobby, Session
+- `app/src/components/` — RetroEventCard, RootCauseSelector, RouletteOverlay
+- `app/src/lib/supabase.js` — Supabase client
+- `SPRINT4-PLAN.md` — Komplet teknisk blueprint Sprint 4
+- `SPRINT4-SUMMARY.md` — Arkitekturbeslutninger + MVP scope
+- `REVEAL-HANDOFF.md` — Fuld teknisk brief til udvikler
+- `Reveal-Koncept-v3.1.docx` — Original konceptdokument
 
 ## Design-principper (rør ikke)
 - Pixel art æstetik

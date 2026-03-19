@@ -4,6 +4,7 @@ import { dk, pick } from "../shared/utils.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
 import RetroEventCard from "../components/RetroEventCard.jsx";
 import RootCauseSelector from "../components/RootCauseSelector.jsx";
+import { supabase } from "../lib/supabase.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -192,7 +193,7 @@ function Btn({ children, onClick, color = C.acc, disabled, large, style: s }) {
 }
 function Box({ children, color = C.brd, glow, style: s }) { return <div style={{ border: `3px solid ${color}`, boxShadow: glow ? `0 0 12px ${glow}` : `3px 3px 0 ${C.bg}`, background: C.bgC + "e8", ...s }}>{children}</div>; }
 
-export default function Session({ avatar, node, project, onBack, onComplete, sound }) {
+export default function Session({ avatar, node, project, onBack, onComplete, sound, sessionId, sessionItemId }) {
   // Determine mode from node type
   const isR = node?.tp === "r";
   const isB = node?.tp === "b";
@@ -262,9 +263,39 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [problemEvents, setProblemEvents] = useState([]);
   const [rootCauseIdx, setRootCauseIdx] = useState(0);
 
-  function safeComplete() {
+  async function safeComplete() {
     if (finCalled.current) return;
     finCalled.current = true;
+
+    // Write node completion to DB (if node has a dbId from world_nodes)
+    if (node?.dbId) {
+      try {
+        await supabase
+          .from('node_completions')
+          .insert({ node_id: node.dbId, session_id: sessionId || null, completed_at: new Date().toISOString() })
+      } catch (err) {
+        // Silently skip — node_completions table may not exist yet
+        console.warn('node_completion write skipped:', err?.message)
+      }
+    }
+
+    // Write final estimate to session_items (if sessionItemId provided)
+    if (sessionItemId && votes.length > 0) {
+      const numVotes = votes.map(v => Number(v.val)).filter(n => !isNaN(n))
+      if (numVotes.length > 0) {
+        const avg = numVotes.reduce((a, b) => a + b, 0) / numVotes.length
+        const finalEst = String(clamp(Math.round(avg)))
+        try {
+          await supabase
+            .from('session_items')
+            .update({ final_estimate: finalEst, status: 'completed' })
+            .eq('id', sessionItemId)
+        } catch (err) {
+          console.warn('session_items update skipped:', err?.message)
+        }
+      }
+    }
+
     if (onComplete) onComplete(node?.id);
   }
 

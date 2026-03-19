@@ -113,7 +113,7 @@ app.post('/api/sessions', async (req, res) => {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (!user || authErr) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { name, session_type, items } = req.body;
+  const { name, session_type, voting_mode, items } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
 
   // Get or create user's team
@@ -152,6 +152,7 @@ app.post('/api/sessions', async (req, res) => {
     .insert({
       name,
       session_type: session_type || 'estimation',
+      voting_mode: voting_mode || 'fibonacci',
       team_id: teamId,
       game_master_id: user.id,
       created_by: user.id,

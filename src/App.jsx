@@ -8,6 +8,7 @@ import Session from "./screens/Session.jsx";
 import SessionLobby from "./screens/SessionLobby.jsx";
 import ActiveSession from "./screens/ActiveSession.jsx";
 import AuthScreen from "./screens/AuthScreen.jsx";
+import SessionSetup from "./screens/SessionSetup.jsx";
 import "./shared/animations.css";
 
 export default function App() {
@@ -20,17 +21,29 @@ export default function App() {
   const sound = useSound();
 
   useEffect(() => {
+    // Check for /setup route in URL
+    if (window.location.pathname === "/setup") {
+      // Will be handled after auth check
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       const u = data?.session?.user || null;
       setUser(u);
-      setScreen(u ? "lobby" : "auth");
+      if (u && window.location.pathname === "/setup") {
+        setScreen("setup");
+      } else {
+        setScreen(u ? "lobby" : "auth");
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user || null;
       setUser(u);
       if (u) {
-        setScreen("lobby");
+        // Don't override setup screen on auth change if we're already in setup
+        if (screen !== "setup") {
+          setScreen("lobby");
+        }
       } else {
         setActiveSessionId(null);
         setScreen("auth");
@@ -59,6 +72,25 @@ export default function App() {
     return <AuthScreen />;
   }
 
+  // Session Setup (GM creates session)
+  if (screen === "setup") {
+    return (
+      <SessionSetup
+        onBack={() => {
+          window.history.pushState({}, '', '/');
+          setScreen("lobby");
+        }}
+        onSessionCreated={(session) => {
+          if (session.enterNow || session.id) {
+            setActiveSessionId(session.id);
+            window.history.pushState({}, '', '/');
+            setScreen("lobby");
+          }
+        }}
+      />
+    );
+  }
+
   // Logged in, in a session
   if (activeSessionId) {
     return (
@@ -74,6 +106,10 @@ export default function App() {
     <SessionLobby
       onJoin={(id) => setActiveSessionId(id)}
       onCreate={(id) => setActiveSessionId(id)}
+      onSetup={() => {
+        window.history.pushState({}, '', '/setup');
+        setScreen("setup");
+      }}
     />
   );
 }
