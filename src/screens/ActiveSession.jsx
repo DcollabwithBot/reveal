@@ -25,6 +25,22 @@ const C = {
 
 const FIBONACCI = [1, 2, 3, 5, 8, 13, 21, '?']
 const TSHIRT    = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '?']
+const PERSPECTIVES = ['Dev', 'QA', 'PM', 'Security']
+
+function average(nums) {
+  if (!nums.length) return null
+  return nums.reduce((sum, n) => sum + n, 0) / nums.length
+}
+
+function percentile(values, p) {
+  if (!values.length) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const idx = (sorted.length - 1) * p
+  const low = Math.floor(idx)
+  const high = Math.ceil(idx)
+  if (low === high) return sorted[low]
+  return sorted[low] + (sorted[high] - sorted[low]) * (idx - low)
+}
 
 // Calculate mode (most common value) for T-shirt reveal
 function calcMode(values) {
@@ -112,6 +128,8 @@ function HPBar({ pct }) {
 export default function ActiveSession({ sessionId, onBack }) {
   const { session, items, votes, participants, loading, castVote } = useSession(sessionId)
   const [myVoteValue, setMyVoteValue] = useState(null)
+  const [selectedPerspective, setSelectedPerspective] = useState('Dev')
+  const [voteError, setVoteError] = useState(null)
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
@@ -176,6 +194,7 @@ export default function ActiveSession({ sessionId, onBack }) {
     if (prevItemRef.current !== currentItemIndex) {
       setRevealed(false)
       setMyVoteValue(null)
+      setVoteError(null)
       prevItemRef.current = currentItemIndex
     }
   }, [currentItemIndex])
@@ -187,12 +206,22 @@ export default function ActiveSession({ sessionId, onBack }) {
 
   // Determine card values based on voting_mode from DB
   const isTshirt = session?.voting_mode === 'tshirt'
+  const isPerspectivePoker = session?.voting_mode === 'perspective_poker'
   const cardValues = isTshirt ? TSHIRT : FIBONACCI
 
   const handleVote = async (value) => {
     if (!currentItem) return
+    if (isPerspectivePoker && !selectedPerspective) {
+      setVoteError('Vælg et perspektiv før du stemmer')
+      return
+    }
+
+    setVoteError(null)
     setMyVoteValue(value)
-    await castVote(currentItem.id, String(value))
+    await castVote(currentItem.id, String(value), {
+      perspective: isPerspectivePoker ? selectedPerspective : null,
+      metadata: isPerspectivePoker ? { mode: 'perspective_poker' } : {}
+    })
   }
 
   const handleNextItem = async () => {
@@ -260,6 +289,22 @@ export default function ActiveSession({ sessionId, onBack }) {
   const maxVote = numericVotes.length ? Math.max(...numericVotes) : null
   const hpPct = Math.max(10, 100 - (currentItemIndex / Math.max(items.length, 1)) * 100)
 
+  const perspectiveBreakdown = PERSPECTIVES
+    .map((perspective) => {
+      const pvotes = currentItemVotes.filter(v => v.perspective === perspective)
+      const nums = pvotes.map(v => Number(v.value)).filter(n => !Number.isNaN(n))
+      const consensus = nums.length ? Math.round(average(nums)) : null
+      return { perspective, count: pvotes.length, consensus }
+    })
+    .filter(p => p.count > 0)
+
+  const perspectiveNumbers = perspectiveBreakdown.map(p => p.consensus).filter(v => typeof v === 'number')
+  const recommendedEstimate = perspectiveNumbers.length ? Math.round(average(perspectiveNumbers)) : null
+  const q1 = percentile(numericVotes, 0.25)
+  const q3 = percentile(numericVotes, 0.75)
+  const iqr = q1 != null && q3 != null ? q3 - q1 : null
+  const outlierThreshold = iqr != null ? (q3 + iqr * 1.5) : null
+
   // Write final estimate to DB when GM reveals
   const handleRevealAndSave = async () => {
     setRevealed(true)
@@ -267,7 +312,9 @@ export default function ActiveSession({ sessionId, onBack }) {
     if (currentItem?.id && currentItemVotes.length > 0) {
       const finalEstimate = isTshirt
         ? modeVote
-        : (avgVote !== null ? String(Math.round(avgVote)) : null)
+        : (isPerspectivePoker
+          ? (recommendedEstimate !== null ? String(recommendedEstimate) : null)
+          : (avgVote !== null ? String(Math.round(avgVote)) : null))
       if (finalEstimate) {
         try {
           await supabase
@@ -367,6 +414,34 @@ export default function ActiveSession({ sessionId, onBack }) {
             <div style={{ fontFamily: PIXEL, fontSize: '9px', color: C.gold, marginBottom: '16px' }}>
               🎴 CAST YOUR SPELL
             </div>
+
+            {isPerspectivePoker && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontFamily: PIXEL, fontSize: '8px', color: C.dim, marginBottom: '8px' }}>PERSPECTIVE CARD</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {PERSPECTIVES.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setSelectedPerspective(p)}
+                      style={{
+                        background: selectedPerspective === p ? '#1a1040' : '#0a0a1a',
+                        border: `2px solid ${selectedPerspective === p ? C.accent : C.border}`,
+                        borderRadius: '6px',
+                        color: selectedPerspective === p ? C.gold : C.text,
+                        fontFamily: PIXEL,
+                        fontSize: '8px',
+                        padding: '8px 10px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
               {cardValues.map(val => (
                 <VoteCard
@@ -377,9 +452,15 @@ export default function ActiveSession({ sessionId, onBack }) {
                 />
               ))}
             </div>
+            {voteError && (
+              <div style={{ textAlign: 'center', marginTop: '10px', color: C.red, fontFamily: VT, fontSize: '18px' }}>
+                ⚠ {voteError}
+              </div>
+            )}
             {myCurrentVote && (
               <div style={{ textAlign: 'center', marginTop: '12px', color: C.green, fontFamily: VT, fontSize: '18px' }}>
                 ✓ Your vote: <strong>{myCurrentVote.value}</strong>
+                {isPerspectivePoker && myCurrentVote.perspective ? ` as ${myCurrentVote.perspective}` : ''}
               </div>
             )}
           </div>
@@ -417,6 +498,16 @@ export default function ActiveSession({ sessionId, onBack }) {
                     }}>
                       {revealed ? vote.value : '?'}
                     </div>
+                    {revealed && isPerspectivePoker && vote.perspective && (
+                      <div style={{ fontFamily: PIXEL, fontSize: '8px', color: C.accent, marginTop: '6px' }}>
+                        {vote.perspective}
+                      </div>
+                    )}
+                    {revealed && outlierThreshold != null && Number(vote.value) > outlierThreshold && (
+                      <div style={{ fontFamily: PIXEL, fontSize: '8px', color: C.red, marginTop: '4px' }}>
+                        OUTLIER
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -439,6 +530,21 @@ export default function ActiveSession({ sessionId, onBack }) {
                       <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.text }}>{currentItemVotes.length}</div>
                     </div>
                   </>
+                ) : isPerspectivePoker ? (
+                  <>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>RECOMMENDED</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '18px', color: C.gold }}>{recommendedEstimate ?? '-'}</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>PERSPECTIVES</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '16px', color: C.text }}>{perspectiveBreakdown.length}</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '13px', color: C.dim }}>OUTLIER CUT</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '14px', color: C.red }}>{outlierThreshold?.toFixed?.(1) ?? '-'}</div>
+                    </div>
+                  </>
                 ) : (
                   // Fibonacci mode: show avg/min/max
                   <>
@@ -456,6 +562,20 @@ export default function ActiveSession({ sessionId, onBack }) {
                     </div>
                   </>
                 )}
+              </div>
+            )}
+            {revealed && isPerspectivePoker && perspectiveBreakdown.length > 0 && (
+              <div style={{ marginTop: '12px', background: '#0a0a1a', borderRadius: '8px', padding: '10px' }}>
+                <div style={{ fontFamily: PIXEL, fontSize: '8px', color: C.dim, marginBottom: '8px' }}>CONSENSUS PER PERSPECTIVE</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {perspectiveBreakdown.map((row) => (
+                    <div key={row.perspective} style={{ border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 8px' }}>
+                      <div style={{ fontFamily: PIXEL, fontSize: '8px', color: C.accent }}>{row.perspective}</div>
+                      <div style={{ fontFamily: PIXEL, fontSize: '12px', color: C.gold }}>{row.consensus ?? '-'}</div>
+                      <div style={{ fontSize: '12px', color: C.dim }}>{row.count} vote(s)</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

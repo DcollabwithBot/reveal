@@ -50,6 +50,21 @@ function median(values) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+function avg(values) {
+  if (!values.length) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+function percentile(values, p) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * p;
+  const low = Math.floor(idx);
+  const high = Math.ceil(idx);
+  if (low === high) return sorted[low];
+  return sorted[low] + (sorted[high] - sorted[low]) * (idx - low);
+}
+
 async function resolveMembership(userId) {
   const { data: member } = await supabase
     .from('team_members')
@@ -481,7 +496,7 @@ app.get('/api/sessions/:id/results', async (req, res) => {
 
   const { data: session, error: sessionErr } = await supabase
     .from('sessions')
-    .select('id,name,status,created_at,ended_at,share_token')
+    .select('id,name,status,voting_mode,created_at,ended_at,share_token')
     .eq('id', id)
     .maybeSingle();
 
@@ -504,7 +519,7 @@ app.get('/api/sessions/:id/results', async (req, res) => {
   const { data: votes } = itemIds.length
     ? await supabase
         .from('votes')
-        .select('id,session_item_id,value,confidence,user_id,profiles(display_name)')
+        .select('id,session_item_id,value,confidence,user_id,perspective,profiles(display_name)')
         .in('session_item_id', itemIds)
     : { data: [] };
 
@@ -512,11 +527,38 @@ app.get('/api/sessions/:id/results', async (req, res) => {
     const itemVotes = (votes || []).filter(v => v.session_item_id === item.id);
     const numbers = itemVotes.map(v => normalizeVote(v.value)).filter(v => typeof v === 'number' && !Number.isNaN(v));
     const med = median(numbers);
-    const outlier = med > 0 && numbers.some(v => v > med * 2);
+    const q1 = percentile(numbers, 0.25);
+    const q3 = percentile(numbers, 0.75);
+    const iqr = (q1 != null && q3 != null) ? (q3 - q1) : null;
+    const outlierThreshold = iqr != null ? (q3 + iqr * 1.5) : null;
+    const outlier = outlierThreshold != null && numbers.some(v => v > outlierThreshold);
     const avgConfidence = itemVotes.length
       ? (itemVotes.reduce((sum, v) => sum + (Number(v.confidence) || 0), 0) / itemVotes.length)
       : 0;
-    const consensus = med > 0 ? med : (item.final_estimate || null);
+
+    const byPerspective = itemVotes.reduce((acc, v) => {
+      if (!v.perspective) return acc;
+      if (!acc[v.perspective]) acc[v.perspective] = [];
+      const n = Number(v.value);
+      if (!Number.isNaN(n)) acc[v.perspective].push(n);
+      return acc;
+    }, {});
+
+    const perspective_consensus = Object.entries(byPerspective)
+      .map(([perspective, vals]) => ({
+        perspective,
+        count: vals.length,
+        consensus: vals.length ? Math.round(avg(vals)) : null
+      }))
+      .filter(row => row.count > 0);
+
+    const recommended_estimate = perspective_consensus.length
+      ? Math.round(avg(perspective_consensus.map(p => p.consensus).filter(v => typeof v === 'number')))
+      : null;
+
+    const consensus = session.voting_mode === 'perspective_poker'
+      ? (recommended_estimate ?? item.final_estimate ?? null)
+      : (med > 0 ? med : (item.final_estimate || null));
 
     return {
       id: item.id,
@@ -524,13 +566,18 @@ app.get('/api/sessions/:id/results', async (req, res) => {
       final_estimate: item.final_estimate,
       median: med,
       consensus,
+      recommended_estimate,
+      perspective_consensus,
+      outlier_threshold: outlierThreshold != null ? Number(outlierThreshold.toFixed(2)) : null,
       avg_confidence: Number(avgConfidence.toFixed(2)),
       outlier,
       votes: itemVotes.map(v => ({
         user_id: v.user_id,
         name: v.profiles?.display_name || v.user_id?.slice(0, 6) || 'unknown',
         value: v.value,
-        confidence: v.confidence || null
+        perspective: v.perspective || null,
+        confidence: v.confidence || null,
+        outlier: outlierThreshold != null ? Number(v.value) > outlierThreshold : false
       }))
     };
   });

@@ -32,6 +32,12 @@ const VOTING_MODES = [
     desc: 'Relative: XS, S, M, L, XL, XXL',
     cards: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '?']
   },
+  {
+    id: 'perspective_poker',
+    label: '🧠 Perspective Poker',
+    desc: 'Pick role perspective + estimate (Dev, QA, PM, Security)',
+    cards: ['Dev + 3', 'QA + 5', 'PM + 8', 'Security + 13']
+  },
 ]
 
 export default function SessionSetup({ onSessionCreated, onBack }) {
