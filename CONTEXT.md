@@ -1,6 +1,6 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-19 (sprint 1 governance/apply/dashboard continuation)
+Last updated: 2026-03-19 (governance sprint merge-prep complete)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
@@ -149,6 +149,13 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 ## Design-principper (rør ikke)
 - Pixel art æstetik
 - Alt lever — ingen statiske elementer
+- Lyd på alt
+- Boss battle = opgaven der skal estimeres
+- Tavern hub = world select
+
+## Lokation
+`/root/.openclaw/workspace/projects/reveal/`
+er — ingen statiske elementer
 - Lyd på alt
 - Boss battle = opgaven der skal estimeres
 - Tavern hub = world select
