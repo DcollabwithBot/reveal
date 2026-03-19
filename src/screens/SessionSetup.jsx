@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { apiFetch } from '../lib/api'
+import ImportModal from '../components/ImportModal'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
 
 const PIXEL = "'Press Start 2P', monospace"
 const VT = "'VT323', monospace"
@@ -16,25 +17,6 @@ const C = {
   red: '#f87171',
   text: '#e0d8f0',
   dim: '#6060a0',
-}
-
-async function getToken() {
-  const { data } = await supabase.auth.getSession()
-  return data?.session?.access_token
-}
-
-async function apiFetch(path, options = {}) {
-  const token = await getToken()
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
-  }
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers: { ...headers, ...(options.headers || {}) } })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || 'API error')
-  }
-  return res.json()
 }
 
 const VOTING_MODES = [
@@ -54,7 +36,6 @@ const VOTING_MODES = [
 
 export default function SessionSetup({ onSessionCreated, onBack }) {
   const [user, setUser] = useState(null)
-  const [isGM, setIsGM] = useState(false)
   const [checkingRole, setCheckingRole] = useState(true)
 
   const [name, setName] = useState('')
@@ -64,6 +45,9 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
   const [created, setCreated] = useState(null) // { id, join_code }
+  const [templates, setTemplates] = useState([])
+  const [showImport, setShowImport] = useState(false)
+  const [templateName, setTemplateName] = useState('')
 
   useEffect(() => {
     async function checkAccess() {
@@ -79,7 +63,12 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
         .eq('user_id', u.id)
         .maybeSingle()
 
-      setIsGM(membership?.role === 'admin' || membership?.role === 'org_admin' || membership?.role === 'org_owner')
+      try {
+        const loadedTemplates = await apiFetch('/api/templates')
+        setTemplates(loadedTemplates)
+      } catch {
+        setTemplates([])
+      }
       setCheckingRole(false)
     }
     checkAccess()
@@ -95,6 +84,23 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
 
   const updateItem = (idx, field, value) => {
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
+  }
+
+  const applyTemplate = (id) => {
+    const template = templates.find(t => t.id === id)
+    if (!template) return
+    const cfg = template.config || {}
+    if (cfg.name) setName(cfg.name)
+    if (cfg.votingMode) setVotingMode(cfg.votingMode)
+    if (Array.isArray(cfg.items) && cfg.items.length) setItems(cfg.items)
+  }
+
+  const saveTemplate = async () => {
+    if (!templateName.trim()) return
+    const payload = { name: templateName.trim(), config: { name, votingMode, items } }
+    const createdTemplate = await apiFetch('/api/templates', { method: 'POST', body: JSON.stringify(payload) })
+    setTemplates(prev => [createdTemplate, ...prev])
+    setTemplateName('')
   }
 
   const handleSubmit = async (e) => {
@@ -259,6 +265,15 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
 
         <form onSubmit={handleSubmit}>
 
+          <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select onChange={e => applyTemplate(e.target.value)} defaultValue="" style={{ flex: 1 }}>
+              <option value="">Load template...</option>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder='Template name' style={{ flex: 1 }} />
+            <button type='button' onClick={saveTemplate}>Save template</button>
+          </div>
+
           {/* Session name */}
           <div style={{ marginBottom: '24px' }}>
             <label style={{ display: 'block', fontFamily: PIXEL, fontSize: '9px', color: C.gold, marginBottom: '8px' }}>
@@ -318,16 +333,28 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
               <label style={{ fontFamily: PIXEL, fontSize: '9px', color: C.gold }}>
                 BACKLOG ITEMS ({items.length})
               </label>
-              <button
-                type="button"
-                onClick={addItem}
-                style={{
-                  background: C.accent, border: 'none', borderRadius: '4px',
-                  color: '#fff', padding: '6px 12px', fontFamily: PIXEL, fontSize: '8px', cursor: 'pointer'
-                }}
-              >
-                + ADD ITEM
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowImport(true)}
+                  style={{
+                    background: C.border, border: 'none', borderRadius: '4px',
+                    color: '#fff', padding: '6px 10px', fontFamily: PIXEL, fontSize: '8px', cursor: 'pointer'
+                  }}
+                >
+                  IMPORT
+                </button>
+                <button
+                  type="button"
+                  onClick={addItem}
+                  style={{
+                    background: C.accent, border: 'none', borderRadius: '4px',
+                    color: '#fff', padding: '6px 12px', fontFamily: PIXEL, fontSize: '8px', cursor: 'pointer'
+                  }}
+                >
+                  + ADD ITEM
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -397,6 +424,15 @@ export default function SessionSetup({ onSessionCreated, onBack }) {
           </button>
 
         </form>
+        {showImport && (
+          <ImportModal
+            onClose={() => setShowImport(false)}
+            onConfirm={(importedItems) => {
+              setItems(prev => [...prev, ...importedItems.map(it => ({ title: it.title, description: it.description }))])
+              setShowImport(false)
+            }}
+          />
+        )}
       </div>
     </div>
   )

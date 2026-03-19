@@ -9,13 +9,6 @@ const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
 
-const CHAL = [
-  { i: "🏖️", t: "IT HAR FERIE!", d: "Nøglepersonen er væk i 2 uger!" },
-  { i: "🔄", t: "KRAV ÆNDRET!", d: "Kunden vil noget helt andet!" },
-  { i: "📉", t: "USTABILT!", d: "API'et crasher under load!" },
-  { i: "📄", t: "DOCS MANGLER!", d: "Ingen spec overhovedet!" },
-  { i: "🧑‍💻", t: "SINGLE POK!", d: "Kun én forstår den kode!" },
-];
 const ACHIEVEMENTS = [
   { id: "first", name: "FIRST BLOOD", icon: "🩸", desc: "Første vote i sessionen" },
   { id: "risk", name: "RISK HUNTER", icon: "🔍", desc: "Spillede et risk card" },

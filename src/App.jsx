@@ -1,115 +1,93 @@
-import { useState, useEffect } from "react";
-import { supabase } from "./lib/supabase";
-import { useSound } from "./shared/useSound.js";
-import AvatarCreator from "./screens/AvatarCreator.jsx";
-import WorldSelect from "./screens/WorldSelect.jsx";
-import Overworld from "./screens/Overworld.jsx";
-import Session from "./screens/Session.jsx";
-import SessionLobby from "./screens/SessionLobby.jsx";
-import ActiveSession from "./screens/ActiveSession.jsx";
-import AuthScreen from "./screens/AuthScreen.jsx";
-import SessionSetup from "./screens/SessionSetup.jsx";
-import "./shared/animations.css";
+import { useState, useEffect } from 'react'
+import { supabase } from './lib/supabase'
+import SessionLobby from './screens/SessionLobby.jsx'
+import ActiveSession from './screens/ActiveSession.jsx'
+import AuthScreen from './screens/AuthScreen.jsx'
+import SessionSetup from './screens/SessionSetup.jsx'
+import DashboardScreen from './screens/DashboardScreen.jsx'
+import ProjectsScreen from './screens/ProjectsScreen.jsx'
+import SessionResultsScreen from './screens/SessionResultsScreen.jsx'
+import './shared/animations.css'
+
+function push(path) {
+  window.history.pushState({}, '', path)
+  window.dispatchEvent(new Event('popstate'))
+}
+
+function parseRoute(pathname) {
+  if (pathname === '/setup') return { name: 'setup' }
+  if (pathname === '/dashboard' || pathname === '/') return { name: 'dashboard' }
+  if (pathname === '/projects') return { name: 'projects' }
+  if (pathname.startsWith('/projects/')) return { name: 'project', projectId: pathname.split('/')[2] }
+  if (pathname.startsWith('/sessions/') && pathname.endsWith('/results')) return { name: 'results', sessionId: pathname.split('/')[2] }
+  return { name: 'dashboard' }
+}
 
 export default function App() {
-  const [screen, setScreen] = useState("loading");
-  const [avatar, setAvatar] = useState(null);
-  const [world, setWorld] = useState(null);
-  const [node, setNode] = useState(null);
-  const [user, setUser] = useState(null);
-  const [activeSessionId, setActiveSessionId] = useState(null);
-  const sound = useSound();
+  const [screen, setScreen] = useState('loading')
+  const [user, setUser] = useState(null)
+  const [activeSessionId, setActiveSessionId] = useState(null)
+  const [route, setRoute] = useState(parseRoute(window.location.pathname))
 
   useEffect(() => {
-    // Check for /setup route in URL
-    if (window.location.pathname === "/setup") {
-      // Will be handled after auth check
-    }
+    const onPop = () => setRoute(parseRoute(window.location.pathname))
+    window.addEventListener('popstate', onPop)
 
     supabase.auth.getSession().then(({ data }) => {
-      const u = data?.session?.user || null;
-      setUser(u);
-      if (u && window.location.pathname === "/setup") {
-        setScreen("setup");
-      } else {
-        setScreen(u ? "lobby" : "auth");
-      }
-    });
+      const u = data?.session?.user || null
+      setUser(u)
+      setScreen(u ? 'app' : 'auth')
+      if (u && window.location.pathname === '/') push('/dashboard')
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user || null;
-      setUser(u);
+      const u = session?.user || null
+      setUser(u)
       if (u) {
-        // Don't override setup screen on auth change if we're already in setup
-        if (screen !== "setup") {
-          setScreen("lobby");
-        }
+        setScreen('app')
+        if (window.location.pathname === '/') push('/dashboard')
       } else {
-        setActiveSessionId(null);
-        setScreen("auth");
+        setActiveSessionId(null)
+        setScreen('auth')
       }
-    });
+    })
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe()
+      window.removeEventListener('popstate', onPop)
+    }
+  }, [])
 
-  // Loading
-  if (screen === "loading") {
-    return (
-      <div style={{
-        minHeight: "100vh", background: "#0a0a1a",
-        display: "flex", alignItems: "center", justifyContent: "center"
-      }}>
-        <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "14px", color: "#f0c040" }}>
-          ⚙️ LOADING...
-        </div>
-      </div>
-    );
-  }
+  if (screen === 'loading') return <div style={{ minHeight: '100vh', background: '#0a0a1a', display: 'grid', placeItems: 'center', color: '#f0c040' }}>⚙️ LOADING...</div>
+  if (!user) return <AuthScreen />
 
-  // Not logged in → auth screen
-  if (!user) {
-    return <AuthScreen />;
-  }
-
-  // Session Setup (GM creates session)
-  if (screen === "setup") {
-    return (
-      <SessionSetup
-        onBack={() => {
-          window.history.pushState({}, '', '/');
-          setScreen("lobby");
-        }}
-        onSessionCreated={(session) => {
-          if (session.enterNow || session.id) {
-            setActiveSessionId(session.id);
-            window.history.pushState({}, '', '/');
-            setScreen("lobby");
-          }
-        }}
-      />
-    );
-  }
-
-  // Logged in, in a session
   if (activeSessionId) {
-    return (
-      <ActiveSession
-        sessionId={activeSessionId}
-        onBack={() => setActiveSessionId(null)}
-      />
-    );
+    return <ActiveSession sessionId={activeSessionId} onBack={() => setActiveSessionId(null)} />
   }
 
-  // Logged in, session lobby
+  if (route.name === 'setup') {
+    return <SessionSetup onBack={() => push('/dashboard')} onSessionCreated={(session) => setActiveSessionId(session.id)} />
+  }
+
+  if (route.name === 'projects') {
+    return <ProjectsScreen onBack={() => push('/dashboard')} onOpenProject={(id) => push(`/projects/${id}`)} />
+  }
+
+  if (route.name === 'project') {
+    return <ProjectsScreen projectId={route.projectId} onBack={() => push('/projects')} />
+  }
+
+  if (route.name === 'results') {
+    return <SessionResultsScreen sessionId={route.sessionId} onBack={() => push('/dashboard')} />
+  }
+
   return (
-    <SessionLobby
-      onJoin={(id) => setActiveSessionId(id)}
-      onCreate={(id) => setActiveSessionId(id)}
-      onSetup={() => {
-        window.history.pushState({}, '', '/setup');
-        setScreen("setup");
-      }}
+    <DashboardScreen
+      onOpenSession={(id) => setActiveSessionId(id)}
+      onSetup={() => push('/setup')}
+      onOpenProjects={() => push('/projects')}
+      onOpenProject={(id) => push(`/projects/${id}`)}
+      onOpenResults={(id) => push(`/sessions/${id}/results`)}
     />
-  );
+  )
 }

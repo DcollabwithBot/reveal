@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../hooks/useSession'
-import { ROULETTE_CHALLENGES, SPRINT_EVENTS } from '../shared/constants'
+import { ROULETTE_CHALLENGES, SPRINT_EVENTS, CLASSES } from '../shared/constants'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -407,7 +407,7 @@ export default function ActiveSession({ sessionId, onBack }) {
                     padding: '10px 14px', textAlign: 'center', minWidth: '70px'
                   }}>
                     <div style={{ fontSize: '13px', color: C.dim, marginBottom: '4px' }}>
-                      🧙 {vote.profiles?.display_name || vote.user_id?.slice(0, 6) || '???'}
+                      {(CLASSES.find(c => c.id === vote.profiles?.avatar_class)?.icon || '🧙')} {vote.profiles?.display_name || vote.user_id?.slice(0, 6) || '???'}
                     </div>
                     <div style={{
                       fontFamily: PIXEL, fontSize: '16px',
