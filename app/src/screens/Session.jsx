@@ -9,8 +9,8 @@ import { buildRootState } from "../domain/session/root/selectors.js";
 import { projectWorld } from "../domain/session/world/projectWorld.js";
 import { buildChallenge } from "../domain/session/challenge/buildChallenge.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
-import RetroEventCard from "../components/RetroEventCard.jsx";
-import RootCauseSelector from "../components/RootCauseSelector.jsx";
+import BossRetroStage from "../components/session/BossRetroStage.jsx";
+import { applyOracleDecision, applyRetroEventVote, applyRootCauseDecision, buildBossRetroViewModel } from "../domain/session/challenge/retroDecisions.js";
 import { getLatestApprovalState, getProjectionConfig, submitAdvisoryRequest } from "../lib/api";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
@@ -452,22 +452,32 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
 
   function handleEventVote(vote) {
     const ev = retroEvents[currentEvtIdx];
+    const decision = applyRetroEventVote({
+      vote,
+      event: ev,
+      currentEvtIdx,
+      totalEvents: retroEvents.length,
+      maxHp,
+    });
+
     setEventVotes(p => ({ ...p, [ev.id]: vote }));
-    if (vote === "wrong" || (vote === "improve" && ev.hp)) {
-      const hp = ev.hp || 10;
-      setBossBattleHp(p => p + hp);
-      setBossHp(p => Math.min(p + Math.round(hp * 0.5), maxHp * 2));
+    if (decision.addProblemEvent) {
+      setBossBattleHp(p => p + decision.hpGain);
       setProblemEvents(p => [...p, ev]);
     }
-    if (vote === "well" && ev.dmg) {
-      setBossHp(p => Math.max(0, p - ev.dmg));
-    }
+    setBossHp(p => {
+      const next = p + decision.bossHpDelta;
+      return decision.bossHpDelta >= 0
+        ? Math.min(next, decision.bossHpCap)
+        : Math.max(0, next);
+    });
+
     setTimeout(() => {
-      if (currentEvtIdx + 1 < retroEvents.length) {
-        setCurrentEvtIdx(p => p + 1);
-        setOracleUsed(false);
+      if (decision.resetOracle) setOracleUsed(false);
+      if (decision.nextBossStep === 1) {
+        setCurrentEvtIdx(decision.nextEventIndex);
       } else {
-        setBossStep(2);
+        setBossStep(decision.nextBossStep);
       }
     }, 600);
   }
@@ -476,8 +486,8 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     const ev = retroEvents[currentEvtIdx];
     setOracleEvents(p => {
       const next = [...p, ev.id];
-      if (next.length >= 3) addAchieve('prophet');
-      if (next.length >= 1) addAchieve('oracle');
+      const decision = applyOracleDecision({ currentOracleEvents: p });
+      decision.unlocks.forEach((achievementId) => addAchieve(achievementId));
       return next;
     });
     setOracleUsed(true);
@@ -487,14 +497,19 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
 
   function handleRootCause(cause) {
     const ev = problemEvents[rootCauseIdx];
+    const decision = applyRootCauseDecision({
+      rootCauseIdx,
+      totalProblemEvents: problemEvents.length,
+    });
+
     setRootCauses(p => ({ ...p, [ev.id]: cause }));
-    setBossHp(p => Math.max(0, p - 20));
-    setBossBattleHp(p => Math.max(0, p - 20));
+    setBossHp(p => Math.max(0, p - decision.bossDamage));
+    setBossBattleHp(p => Math.max(0, p - decision.bossDamage));
     setTimeout(() => {
-      if (rootCauseIdx + 1 < problemEvents.length) {
-        setRootCauseIdx(p => p + 1);
+      if (decision.nextBossStep === 3) {
+        setRootCauseIdx(decision.nextRootCauseIdx);
       } else {
-        setBossStep(4);
+        setBossStep(decision.nextBossStep);
       }
     }, 500);
   }
@@ -502,6 +517,17 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const allV = rootState.voting.allVotes;
   const avg = rootState.voting.averageDisplay;
   const spread = rootState.voting.spread;
+  const bossRetroVm = buildBossRetroViewModel({
+    bossStep,
+    currentEvtIdx,
+    retroEvents,
+    bossBattleHp,
+    maxHp,
+    problemEvents,
+    rootCauseIdx,
+    oracleEvents,
+    bossHp,
+  });
 
   return (
     <>
@@ -509,167 +535,24 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     {isB && (
       <Scene mc={C.red}>
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 16px", gap: 20 }}>
-
-          {/* STEP 0 — Intro */}
-          {bossStep === 0 && (
-            <div style={{ textAlign: "center", animation: "fadeIn 0.5s ease" }}>
-              <div style={{ fontSize: 64, marginBottom: 16, animation: "bossIdle 2s ease-in-out infinite" }}>👾</div>
-              <div style={{ fontFamily: PF, fontSize: 11, color: C.red, marginBottom: 12, letterSpacing: 2 }}>
-                SPRINT DEMON VÅGNER
-              </div>
-              <div style={{ fontFamily: "VT323, monospace", fontSize: 20, color: C.txt, marginBottom: 8, maxWidth: 320, lineHeight: 1.4 }}>
-                Hvad skjuler sprinten? Hvert problem I erkender, giver dæmonen styrke.
-              </div>
-              <div style={{ fontFamily: "VT323, monospace", fontSize: 18, color: C.dim, marginBottom: 24, maxWidth: 300, lineHeight: 1.4 }}>
-                Men erkendelse er første skridt mod sejr.
-              </div>
-              <button onClick={() => setBossStep(1)}
-                style={{
-                  fontFamily: PF, fontSize: 9, color: C.wht, background: C.red,
-                  border: `3px solid ${C.red}`, borderBottom: `5px solid ${C.bg}`,
-                  borderRight: `5px solid ${C.bg}`, padding: "12px 24px", cursor: "pointer"
-                }}>
-                ⚔️ START RETROSPEKTIV
-              </button>
-            </div>
-          )}
-
-          {/* STEP 1 — Event voting */}
-          {bossStep === 1 && currentEvtIdx < retroEvents.length && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div style={{ fontFamily: PF, fontSize: 7, color: C.dim }}>
-                EVENT {currentEvtIdx + 1} / {retroEvents.length}
-              </div>
-              <div style={{ width: "min(320px, 85vw)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontFamily: PF, fontSize: 6, color: C.red }}>👾 SPRINT DEMON</span>
-                  <span style={{ fontFamily: PF, fontSize: 6, color: C.red }}>{bossBattleHp} / {maxHp} HP</span>
-                </div>
-                <div style={{ height: 8, background: C.bgL, border: `2px solid ${C.brd}` }}>
-                  <div style={{ height: "100%", width: `${Math.min((bossBattleHp / maxHp) * 100, 100)}%`, background: C.red, transition: "width 0.5s ease" }} />
-                </div>
-              </div>
-              <RetroEventCard
-                event={retroEvents[currentEvtIdx]}
-                oracleUsed={oracleUsed}
-                onVote={handleEventVote}
-                onOracle={handleOracle}
-              />
-            </div>
-          )}
-
-          {/* STEP 2 — Boss reveal */}
-          {bossStep === 2 && (
-            <div style={{ textAlign: "center", animation: "fadeIn 0.5s ease" }}>
-              <div style={{ fontSize: 80, marginBottom: 16, animation: bossBattleHp > 60 ? "bossRage 1s ease-in-out infinite" : "bossIdle 2s ease-in-out infinite" }}>
-                {bossBattleHp > 80 ? "😤" : bossBattleHp > 40 ? "😠" : "😐"}
-              </div>
-              <div style={{ fontFamily: PF, fontSize: 10, color: C.red, marginBottom: 8 }}>
-                SPRINT DEMON HAR {bossBattleHp} HP
-              </div>
-              <div style={{ fontFamily: "VT323, monospace", fontSize: 18, color: C.txt, marginBottom: 8 }}>
-                {problemEvents.length} problemer identificeret.
-              </div>
-              <div style={{ fontFamily: "VT323, monospace", fontSize: 16, color: C.dim, marginBottom: 24 }}>
-                {bossBattleHp === 0 ? "Ingen problemer — en perfekt sprint! 🎉" : "Kan I forklare hvad der skete?"}
-              </div>
-              <button onClick={() => setBossStep(bossBattleHp === 0 ? 5 : 3)}
-                style={{
-                  fontFamily: PF, fontSize: 9, color: C.bg, background: bossBattleHp === 0 ? C.grn : C.yel,
-                  border: `3px solid ${bossBattleHp === 0 ? C.grn : C.yel}`,
-                  borderBottom: `5px solid ${C.bg}`, borderRight: `5px solid ${C.bg}`,
-                  padding: "12px 24px", cursor: "pointer"
-                }}>
-                {bossBattleHp === 0 ? "🏆 PERFEKT SPRINT!" : "⚔️ ANALYSER PROBLEMER"}
-              </button>
-            </div>
-          )}
-
-          {/* STEP 3 — Root cause */}
-          {bossStep === 3 && rootCauseIdx < problemEvents.length && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div style={{ fontFamily: PF, fontSize: 7, color: C.dim }}>
-                PROBLEM {rootCauseIdx + 1} / {problemEvents.length}
-              </div>
-              <RootCauseSelector
-                event={problemEvents[rootCauseIdx]}
-                onSelect={handleRootCause}
-              />
-            </div>
-          )}
-
-          {/* STEP 4 — Confidence */}
-          {bossStep === 4 && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: PF, fontSize: 9, color: C.yel, marginBottom: 12 }}>
-                FINAL SPØRGSMÅL
-              </div>
-              <div style={{ fontFamily: "VT323, monospace", fontSize: 22, color: C.wht, marginBottom: 8 }}>
-                Vil vi gentage disse fejl næste sprint?
-              </div>
-              <div style={{ fontFamily: "VT323, monospace", fontSize: 16, color: C.dim, marginBottom: 24 }}>
-                1 = Sikkert · 5 = Aldrig igen
-              </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                {[1,2,3,4,5].map(n => (
-                  <button key={n} onClick={() => {
-                    if (n >= 4) setBossHp(p => Math.max(0, p - 15));
-                    if (problemEvents.length >= 5) addAchieve('honest');
-                    setBossStep(5);
-                    sound("reveal");
-                  }}
-                    style={{
-                      fontFamily: PF, fontSize: 9, color: C.bg,
-                      background: n <= 2 ? C.red : n === 3 ? C.yel : C.grn,
-                      border: `3px solid ${n <= 2 ? C.red : n === 3 ? C.yel : C.grn}`,
-                      borderBottom: `5px solid ${C.bg}`, borderRight: `5px solid ${C.bg}`,
-                      padding: "12px 16px", cursor: "pointer", minWidth: 40
-                    }}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* STEP 5 — Victory/Defeat */}
-          {bossStep === 5 && (
-            <div style={{ textAlign: "center", animation: "fadeIn 0.5s ease" }}>
-              {bossHp <= 0 ? (
-                <>
-                  <div style={{ fontSize: 64, marginBottom: 16, animation: "victoryPulse 1s ease-in-out infinite" }}>🏆</div>
-                  <div style={{ fontFamily: PF, fontSize: 12, color: C.grn, marginBottom: 8, animation: "victoryPulse 1s ease-in-out infinite" }}>
-                    SPRINT DEMON BESEJRET!
-                  </div>
-                  <div style={{ fontFamily: "VT323, monospace", fontSize: 20, color: C.txt, marginBottom: 8 }}>
-                    {oracleEvents.length > 0 && `🔮 ${oracleEvents.length} Oracle-forudsigelse(r)`}
-                  </div>
-                  <div style={{ fontFamily: "VT323, monospace", fontSize: 18, color: C.dim, marginBottom: 24 }}>
-                    {problemEvents.length === 0 ? "Perfekt sprint! Ingen problemer fundet." : `${problemEvents.length} problemer forstået og lært af.`}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 64, marginBottom: 16 }}>😤</div>
-                  <div style={{ fontFamily: PF, fontSize: 10, color: C.red, marginBottom: 8 }}>
-                    SPRINT DEMON SLIPPER VÆK!
-                  </div>
-                  <div style={{ fontFamily: "VT323, monospace", fontSize: 18, color: C.dim, marginBottom: 24 }}>
-                    {bossHp} HP carry-over til næste sprint...
-                  </div>
-                </>
-              )}
-              <button onClick={() => safeComplete(node?.id)}
-                style={{
-                  fontFamily: PF, fontSize: 9, color: C.bg, background: C.grn,
-                  border: `3px solid ${C.grn}`, borderBottom: `5px solid ${C.bg}`,
-                  borderRight: `5px solid ${C.bg}`, padding: "12px 24px", cursor: "pointer"
-                }}>
-                📋 AFSLUT RETROSPEKTIV
-              </button>
-            </div>
-          )}
-
+          <BossRetroStage
+            C={C}
+            PF={PF}
+            bossVm={bossRetroVm}
+            oracleUsed={oracleUsed}
+            onStart={() => setBossStep(1)}
+            onVote={handleEventVote}
+            onOracle={handleOracle}
+            onContinue={() => setBossStep(bossBattleHp === 0 ? 5 : 3)}
+            onRootCause={handleRootCause}
+            onConfidence={(n) => {
+              if (n >= 4) setBossHp(p => Math.max(0, p - 15));
+              if (problemEvents.length >= 5) addAchieve('honest');
+              setBossStep(5);
+              sound("reveal");
+            }}
+            onFinish={() => safeComplete(node?.id)}
+          />
         </div>
       </Scene>
     )}
