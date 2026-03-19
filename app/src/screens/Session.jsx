@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { C, PF, BF, CLASSES, NPC_TEAM, ROULETTE_CHALLENGES, SPRINT_EVENTS } from "../shared/constants.js";
 import { dk, pick } from "../shared/utils.js";
-import { buildRewardLoot, createAchievementResolver, resolveBossProfile, getBossHpBase, getBossDamageMultiplier, getChallengeBonusHp } from "../shared/projection.js";
+import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
+import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/session/rewards/achievements.js";
+import { getChallengeBonusHp, projectBossEncounter } from "../domain/session/boss/bossProjection.js";
+import { approvalStateLabel, approvalStateColor, projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
+import { buildRootState } from "../domain/session/root/selectors.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
 import RetroEventCard from "../components/RetroEventCard.jsx";
 import RootCauseSelector from "../components/RootCauseSelector.jsx";
@@ -16,20 +20,6 @@ const CHAL = [
   { i: "📉", t: "USTABILT!", d: "API'et crasher under load!" },
   { i: "📄", t: "DOCS MANGLER!", d: "Ingen spec overhovedet!" },
   { i: "🧑‍💻", t: "SINGLE POK!", d: "Kun én forstår den kode!" },
-];
-const ACHIEVEMENTS = [
-  { id: "first", name: "FIRST BLOOD", icon: "🩸", desc: "Første vote i sessionen" },
-  { id: "risk", name: "RISK HUNTER", icon: "🔍", desc: "Spillede et risk card" },
-  { id: "power", name: "POWER PLAYER", icon: "⚡", desc: "Brugte en power-up" },
-  { id: "sniper", name: "ESTIMATION SNIPER", icon: "🎯", desc: "Ramte tæt på gennemsnittet" },
-  { id: "team", name: "TEAM PLAYER", icon: "🤝", desc: "Alle havde lav spredning" },
-  { id: "brave", name: "BRAVE SOUL", icon: "💪", desc: "Confidence 5/5" },
-  { id: "roulette", name: "SCOPE SURVIVOR", icon: "🎰", desc: "Overlevede en Roulette-udfordring" },
-  { id: "oracle",  name: "ORACLE",          icon: "🔮", desc: "Forudså et problem før sprinten" },
-  { id: "honest",  name: "RADICAL HONESTY", icon: "🪞", desc: "Anerkendte 5+ problemer" },
-  { id: "aligned", name: "HIVE MIND",       icon: "🧠", desc: "100% team enighed om root cause" },
-  { id: "learner", name: "NEVER AGAIN",     icon: "🎓", desc: "Confidence 5/5 på alle problems" },
-  { id: "prophet", name: "PROPHET",         icon: "⭐", desc: "Forudså 3+ problemer" },
 ];
 
 function Scene({ children, mc = C.acc }) {
@@ -188,22 +178,6 @@ function FlipCard({ value, member, revealed, delay = 0, mc = C.acc }) {
   );
 }
 
-function approvalStateLabel(state) {
-  if (state === 'pending_approval') return 'Pending';
-  if (state === 'approved') return 'Approved';
-  if (state === 'rejected') return 'Rejected';
-  if (state === 'applied') return 'Applied';
-  return 'Advisory';
-}
-
-function approvalStateColor(state) {
-  if (state === 'pending_approval') return C.yel;
-  if (state === 'approved') return C.blu;
-  if (state === 'rejected') return C.red;
-  if (state === 'applied') return C.grn;
-  return C.dim;
-}
-
 function Btn({ children, onClick, color = C.acc, disabled, large, style: s }) {
   const [p, setP] = useState(false);
   return <button onClick={onClick} disabled={disabled} onMouseDown={() => setP(true)} onMouseUp={() => setP(false)} onMouseLeave={() => setP(false)} style={{ fontFamily: PF, fontSize: large ? "10px" : "8px", color: C.wht, background: disabled ? C.dim : color, border: `3px solid ${disabled ? C.dim : color}`, borderBottom: p ? `3px solid ${color}` : `5px solid ${C.bg}`, borderRight: p ? `3px solid ${color}` : `5px solid ${C.bg}`, padding: large ? "12px 20px" : "8px 14px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transform: p ? "translate(2px,2px)" : "none", transition: "transform 0.05s", letterSpacing: "1px", display: "inline-flex", alignItems: "center", gap: "8px", ...s }}>{children}</button>;
@@ -253,10 +227,12 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [projectionConfig, setProjectionConfig] = useState(null);
   const [showLoot, setShowLoot] = useState(false);
 
-  const bossProfile = resolveBossProfile(projectionConfig, 'delivery-pressure-default');
-  const bossName = node?.l || bossProfile?.name || project?.name || "PROJ-142: OAuth2 Login Flow";
-  const maxHp = getBossHpBase(bossProfile, 100);
-  const bossDamageMultiplier = getBossDamageMultiplier(bossProfile, 2);
+  const { bossName, maxHp, bossDamageMultiplier } = projectBossEncounter({
+    projectionConfig,
+    node,
+    project,
+    bossKey: 'delivery-pressure-default',
+  });
   const [rc, setRc] = useState([]);
   const [ll, setLl] = useState(null);
   const [llr, setLlr] = useState(null);
@@ -293,8 +269,17 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     if (onComplete) onComplete(node?.id);
   }
 
-  const resolveProjectionAchievement = createAchievementResolver(projectionConfig?.achievements || [], ACHIEVEMENTS);
+  const resolveProjectionAchievement = createAchievementResolver(projectionConfig?.achievements || [], FALLBACK_ACHIEVEMENTS);
   const sessionRewardRule = (projectionConfig?.rewardRules || []).find((rule) => rule.key === 'session-complete-default') || null;
+  const rootState = buildRootState({
+    selectedVote: pv,
+    votes,
+    approvalState,
+    projectionConfig,
+    node,
+    project,
+  });
+  const approvalOverlay = projectApprovalOverlay(approvalState, { yel: C.yel, blu: C.blu, red: C.red, grn: C.grn, dim: C.dim });
 
   function addDmg(val, x, critical = false) { setDmgNums(p => [...p, { id: Date.now() + Math.random(), val, x, critical }]); setTimeout(() => setDmgNums(p => p.slice(1)), 1200); }
   function addAchieve(a) {
@@ -435,7 +420,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     setAdvisoryBusy(true);
     setAdvisoryError(null);
     try {
-      const estimate = pv ?? clamp(Math.round(allV.reduce((s, v) => s + v.val, 0) / Math.max(allV.length, 1)));
+      const estimate = pv ?? clamp(rootState.voting.roundedEstimate || 0);
       const targetId = project?.id || node?.id;
       const payload = {
         target_type: 'project',
@@ -504,9 +489,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     }, 500);
   }
 
-  const allV = pv !== null ? [{ mid: 1, val: pv }, ...votes] : [];
-  const avg = allV.length ? (allV.reduce((s, v) => s + v.val, 0) / allV.length).toFixed(1) : 0;
-  const spread = allV.length ? Math.max(...allV.map(v => v.val)) - Math.min(...allV.map(v => v.val)) : 0;
+  const allV = rootState.voting.allVotes;
+  const avg = rootState.voting.averageDisplay;
+  const spread = rootState.voting.spread;
 
   return (
     <>
@@ -700,21 +685,21 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             <div style={{ fontFamily: PF, fontSize: "6px", padding: "3px 6px", background: mc, color: C.bg }}>{isR ? "🎰 ROULETTE" : "🃏 POKER"}</div>
             <div style={{ fontFamily: PF, fontSize: "5px", color: mc }}>{bossName}</div>
             <div style={{ flex: 1 }} />
-            <div style={{ fontFamily: PF, fontSize: "5px", color: approvalStateColor(approvalState), marginRight: "8px", padding: "2px 5px", background: C.bgL, border: `1px solid ${approvalStateColor(approvalState)}` }}>
-              {approvalStateLabel(approvalState)}
+            <div style={{ fontFamily: PF, fontSize: "5px", color: approvalOverlay.color, marginRight: "8px", padding: "2px 5px", background: C.bgL, border: `1px solid ${approvalOverlay.color}` }}>
+              {approvalOverlay.label}
             </div>
             <div style={{ fontFamily: PF, fontSize: "5px", color: C.org, marginRight: "4px" }}>🔥{combo}</div>
             {["ESTIMÉR", "REVEAL", "DISK.", "CONF.", "VICTORY"].map((s, i) => <div key={i} style={{ height: "9px", padding: "0 3px", background: i < step ? C.grn : i === step ? C.acc : C.bgL, fontFamily: PF, fontSize: "4px", color: C.wht, display: "flex", alignItems: "center" }}>{i === step ? s : i < step ? "✓" : ""}</div>)}
           </div>
 
-          <div style={{ marginBottom: "8px", border: `2px solid ${approvalStateColor(approvalState)}`, background: C.bgC + "dd", padding: "6px" }}>
+          <div style={{ marginBottom: "8px", border: `2px solid ${approvalOverlay.color}`, background: C.bgC + "dd", padding: "6px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-              <div style={{ fontFamily: PF, fontSize: "5px", color: approvalStateColor(approvalState) }}>
-                Advisory Overlay · Outcome: {approvalStateLabel(approvalState)}
+              <div style={{ fontFamily: PF, fontSize: "5px", color: approvalOverlay.color }}>
+                Advisory Overlay · Outcome: {approvalOverlay.label}
               </div>
               <button
                 onClick={sendToApprovalQueue}
-                disabled={advisoryBusy || approvalState === 'pending_approval'}
+                disabled={advisoryBusy || !approvalOverlay.canSubmitAdvisory}
                 style={{
                   fontFamily: PF,
                   fontSize: "5px",
@@ -904,44 +889,6 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     )}
     </>
   );
-}
-
-
-
-
-}
-
-
-   )}
-    </>
-  );
-}
-
-
-
-
-}
-
-
-}
-
-
-
-
-}
-
-
-   )}
-    </>
-  );
-}
-
-
-
-
-}
-
-
 }
 
 
