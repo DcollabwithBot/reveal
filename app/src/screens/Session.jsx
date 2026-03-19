@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useReducer } from "react";
-import { C, NPC_TEAM, SPRINT_EVENTS } from "../shared/constants.js";
+import { C, NPC_TEAM } from "../shared/constants.js";
 import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
 import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/session/rewards/achievements.js";
 import { projectBossEncounter } from "../domain/session/boss/bossProjection.js";
 import { buildRootState } from "../domain/session/root/selectors.js";
 import { buildSessionViewModel } from "../domain/session/root/viewModel.js";
 import { createInitialSessionFlowState, sessionFlowReducer } from "../domain/session/root/sessionFlowReducer.js";
+import { createInitialSessionRetroState, sessionRetroReducer } from "../domain/session/root/sessionRetroReducer.js";
 import { initialSessionUiState, sessionUiReducer } from "../domain/session/root/sessionUiReducer.js";
 import { projectWorld } from "../domain/session/world/projectWorld.js";
 import { buildChallenge } from "../domain/session/challenge/buildChallenge.js";
@@ -18,6 +19,7 @@ import { AchievePopup, Boss, Box, Btn, ComboDisplay, DmgNum, FlipCard, LootDrops
 import { applyOracleDecision, applyRetroEventVote, applyRootCauseDecision, buildBossRetroViewModel } from "../domain/session/challenge/retroDecisions.js";
 import { createChallengeCompletionResult, createConfidenceResult, createLifelineResult, createVictoryResult, createVoteResult } from "../domain/session/challenge/sessionTransitions.js";
 import { useSessionData } from "../hooks/useSessionData.js";
+import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -63,20 +65,8 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   });
   const finCalled = useRef(false);
 
-  // Boss Battle / Retro states
-  const [bossStep, setBossStep] = useState(0); // 0=intro, 1=events, 2=reveal, 3=rootcause, 4=confidence, 5=end
-  const [retroEvents] = useState(() => {
-    const shuffled = [...SPRINT_EVENTS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 6);
-  });
-  const [currentEvtIdx, setCurrentEvtIdx] = useState(0);
-  const [eventVotes, setEventVotes] = useState({});
-  const [oracleEvents, setOracleEvents] = useState([]);
-  const [oracleUsed, setOracleUsed] = useState(false);
-  const [rootCauses, setRootCauses] = useState({});
-  const [bossBattleHp, setBossBattleHp] = useState(0);
-  const [problemEvents, setProblemEvents] = useState([]);
-  const [rootCauseIdx, setRootCauseIdx] = useState(0);
+  const [retro, dispatchRetro] = useReducer(sessionRetroReducer, undefined, createInitialSessionRetroState);
+  const { bossStep, retroEvents, currentEvtIdx, eventVotes, oracleEvents, oracleUsed, rootCauses, bossBattleHp, problemEvents, rootCauseIdx } = retro;
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -112,25 +102,15 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     dispatchUi({ type: 'showAchieve', value: resolved });
     sound("achieve");
   }
-  function doFlash(col) { dispatchUi({ type: 'flash', value: col }); setTimeout(() => dispatchUi({ type: 'flash', value: null }), 300); }
-  function doShake() { dispatchUi({ type: 'shake', value: true }); setTimeout(() => dispatchUi({ type: 'shake', value: false }), 400); }
+  function doFlash(col) { orchestration.flash(col); }
+  function doShake() { orchestration.shake(); }
   function doBossHit(dmg) { dispatchUi({ type: 'bossHit', value: true }); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => dispatchUi({ type: 'bossHit', value: false }), 200); sound("hit"); }
 
   useEffect(() => {
     if (pv === null || rdy) return;
     const timer = setTimeout(() => {
       const v = gv(pv, 2); dispatchFlow({ type: 'setVotesReady', votes: v });
-      v.forEach((vote, i) => {
-        setTimeout(() => {
-          dispatchUi({ type: 'npcAtk:add', value: vote.mid });
-          sound("spell");
-          dispatchUi({ type: 'spellName', value: TEAM.find(m => m.id === vote.mid)?.cls?.spellName || "ATTACK" });
-          setTimeout(() => { dispatchUi({ type: 'spellName', value: null }); }, 600);
-          doBossHit(vote.val * 1.5);
-          addDmg(vote.val, 35 + i * 10);
-          setTimeout(() => dispatchUi({ type: 'npcAtk:remove', value: vote.mid }), 500);
-        }, 400 + i * 500);
-      });
+      orchestration.runNpcAttackSequence(v);
     }, 1200);
     return () => clearTimeout(timer);
   }, [pv, rdy]);
@@ -165,30 +145,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   }
 
   function doReveal() {
-    sound("countdown"); dispatchFlow({ type: 'merge', patch: { cd: 3 } });
-    const i = setInterval(() => {
-      dispatchFlow({ type: 'merge', patch: { cd: (cd <= 1 ? 0 : cd - 1) } }); return (p => {
-        if (p <= 1) {
-          clearInterval(i);
-          setTimeout(() => {
-            dispatchFlow({ type: 'merge', patch: { cd: -1 } }); sound("countgo"); doFlash(mc); doShake();
-            setBossHp(0); dispatchUi({ type: 'bossDead', value: true });
-            setTimeout(() => {
-              sound("boom"); doFlash(C.wht); doShake();
-              dispatchFlow({ type: 'merge', patch: { rev: true, step: 1 } });
-              const allV = [pv, ...votes.map(v => v.val)];
-              const avg = allV.reduce((a, b) => a + b, 0) / allV.length;
-              if (Math.abs(pv - avg) < 2) addAchieve('sniper');
-              const spread = Math.max(...allV) - Math.min(...allV);
-              if (spread <= 3) addAchieve('team');
-            }, 800);
-          }, 400);
-          return 0;
-        }
-        sound("heartbeat"); return p - 1;
-      });
-    }, 750);
+    orchestration.runRevealCountdown({ mc, pv, votes, addAchieve });
   }
+
 
   function doDisc(riskCard) {
     if (riskCard) {
@@ -251,10 +210,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
       maxHp,
     });
 
-    setEventVotes(p => ({ ...p, [ev.id]: vote }));
+    dispatchRetro({ type: 'eventVote', eventId: ev.id, vote });
     if (decision.addProblemEvent) {
-      setBossBattleHp(p => p + decision.hpGain);
-      setProblemEvents(p => [...p, ev]);
+      dispatchRetro({ type: 'problemEvent:add', event: ev, hpGain: decision.hpGain });
     }
     setBossHp(p => {
       const next = p + decision.bossHpDelta;
@@ -264,24 +222,20 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     });
 
     setTimeout(() => {
-      if (decision.resetOracle) setOracleUsed(false);
+      if (decision.resetOracle) dispatchRetro({ type: 'oracle:reset' });
       if (decision.nextBossStep === 1) {
-        setCurrentEvtIdx(decision.nextEventIndex);
+        dispatchRetro({ type: 'merge', patch: { currentEvtIdx: decision.nextEventIndex } });
       } else {
-        setBossStep(decision.nextBossStep);
+        dispatchRetro({ type: 'merge', patch: { bossStep: decision.nextBossStep } });
       }
     }, 600);
   }
 
   function handleOracle() {
     const ev = retroEvents[currentEvtIdx];
-    setOracleEvents(p => {
-      const next = [...p, ev.id];
-      const decision = applyOracleDecision({ currentOracleEvents: p });
-      decision.unlocks.forEach((achievementId) => addAchieve(achievementId));
-      return next;
-    });
-    setOracleUsed(true);
+    const decision = applyOracleDecision({ currentOracleEvents: oracleEvents });
+    dispatchRetro({ type: 'oracle:add', eventId: ev.id });
+    decision.unlocks.forEach((achievementId) => addAchieve(achievementId));
     setBossHp(p => Math.max(0, p - 15));
     sound("achieve");
   }
@@ -293,14 +247,14 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
       totalProblemEvents: problemEvents.length,
     });
 
-    setRootCauses(p => ({ ...p, [ev.id]: cause }));
+    dispatchRetro({ type: 'rootCause:set', eventId: ev.id, cause });
     setBossHp(p => Math.max(0, p - decision.bossDamage));
     setBossBattleHp(p => Math.max(0, p - decision.bossDamage));
     setTimeout(() => {
       if (decision.nextBossStep === 3) {
-        setRootCauseIdx(decision.nextRootCauseIdx);
+        dispatchRetro({ type: 'merge', patch: { rootCauseIdx: decision.nextRootCauseIdx } });
       } else {
-        setBossStep(decision.nextBossStep);
+        dispatchRetro({ type: 'merge', patch: { bossStep: decision.nextBossStep } });
       }
     }, 500);
   }
@@ -347,15 +301,15 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             PF={PF}
             bossVm={bossRetroVm}
             oracleUsed={oracleUsed}
-            onStart={() => setBossStep(1)}
+            onStart={() => dispatchRetro({ type: 'merge', patch: { bossStep: 1 } })}
             onVote={handleEventVote}
             onOracle={handleOracle}
-            onContinue={() => setBossStep(bossBattleHp === 0 ? 5 : 3)}
+            onContinue={() => dispatchRetro({ type: 'merge', patch: { bossStep: bossBattleHp === 0 ? 5 : 3 } })}
             onRootCause={handleRootCause}
             onConfidence={(n) => {
               if (n >= 4) setBossHp(p => Math.max(0, p - 15));
               if (problemEvents.length >= 5) addAchieve('honest');
-              setBossStep(5);
+              dispatchRetro({ type: 'merge', patch: { bossStep: 5 } });
               sound("reveal");
             }}
             onFinish={() => safeComplete(node?.id)}
