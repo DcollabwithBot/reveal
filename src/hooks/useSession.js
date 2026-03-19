@@ -59,30 +59,27 @@ export function useSession(sessionId) {
   }, [sessionId])
 
   // Cast vote — uses real schema: session_item_id, round defaults to 1
-  const castVote = async (sessionItemId, value) => {
+  const castVote = async (sessionItemId, value, extra = {}) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Upsert: update if user already voted for this item in this session/round
-    const { error } = await supabase.from('votes').upsert({
+    const payload = {
       session_id: sessionId,
       session_item_id: sessionItemId,
       user_id: user.id,
       value: String(value),
+      perspective: extra.perspective || null,
+      metadata: extra.metadata || {},
       round: 1,
       submitted_at: new Date().toISOString()
-    }, { onConflict: 'session_id,session_item_id,user_id,round' })
+    }
+
+    // Upsert: update if user already voted for this item in this session/round
+    const { error } = await supabase.from('votes').upsert(payload, { onConflict: 'session_id,session_item_id,user_id,round' })
 
     if (error) {
       // Fallback: insert new vote
-      await supabase.from('votes').insert({
-        session_id: sessionId,
-        session_item_id: sessionItemId,
-        user_id: user.id,
-        value: String(value),
-        round: 1,
-        submitted_at: new Date().toISOString()
-      })
+      await supabase.from('votes').insert(payload)
     }
   }
 
