@@ -15,8 +15,9 @@ function push(path) {
 }
 
 function parseRoute(pathname) {
+  if (pathname === '/') return { name: 'root' }
   if (pathname === '/setup') return { name: 'setup' }
-  if (pathname === '/dashboard' || pathname === '/') return { name: 'dashboard' }
+  if (pathname === '/dashboard') return { name: 'dashboard' }
   if (pathname === '/projects') return { name: 'projects' }
   if (pathname.startsWith('/projects/')) return { name: 'project', projectId: pathname.split('/')[2] }
   if (pathname.startsWith('/sessions/') && pathname.endsWith('/results')) return { name: 'results', sessionId: pathname.split('/')[2] }
@@ -37,7 +38,13 @@ export default function App() {
       const u = data?.session?.user || null
       setUser(u)
       setScreen(u ? 'app' : 'auth')
-      if (u && window.location.pathname === '/') push('/dashboard')
+
+      if (u && window.location.pathname === '/') {
+        push('/dashboard')
+      }
+      if (!u && window.location.pathname !== '/') {
+        push('/')
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -49,6 +56,7 @@ export default function App() {
       } else {
         setActiveSessionId(null)
         setScreen('auth')
+        if (window.location.pathname !== '/') push('/')
       }
     })
 
