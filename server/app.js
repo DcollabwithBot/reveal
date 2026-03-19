@@ -1506,6 +1506,54 @@ app.get('/api/approval-requests', async (req, res) => {
   return res.json(data || []);
 });
 
+app.get('/api/projection/config', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  const organizationId = membership?.organization_id || null;
+
+  let profileQuery = supabase
+    .from('game_profiles')
+    .select('*')
+    .eq('is_default', true)
+    .is('organization_id', null)
+    .limit(1);
+
+  if (organizationId) {
+    profileQuery = supabase
+      .from('game_profiles')
+      .select('*')
+      .or(`organization_id.eq.${organizationId},and(organization_id.is.null,is_default.eq.true)`)
+      .order('organization_id', { ascending: false })
+      .limit(1);
+  }
+
+  const { data: profiles, error: profileError } = await profileQuery;
+  if (profileError) return res.status(500).json({ error: profileError.message });
+
+  const profile = (profiles || [])[0] || null;
+  if (!profile) {
+    return res.json({ profile: null, bossProfiles: [], rewardRules: [], achievements: [] });
+  }
+
+  const [{ data: bossProfiles, error: bossError }, { data: rewardRules, error: rewardError }, { data: achievements, error: achievementError }] = await Promise.all([
+    supabase.from('boss_profiles').select('*').eq('game_profile_id', profile.id).order('key'),
+    supabase.from('reward_rules').select('*').eq('game_profile_id', profile.id).eq('is_active', true).order('key'),
+    supabase.from('achievement_definitions').select('*').eq('game_profile_id', profile.id).eq('is_active', true).order('key')
+  ]);
+
+  const err = bossError || rewardError || achievementError;
+  if (err) return res.status(500).json({ error: err.message });
+
+  return res.json({
+    profile,
+    bossProfiles: bossProfiles || [],
+    rewardRules: rewardRules || [],
+    achievements: achievements || []
+  });
+});
+
 app.get('/api/sync/health', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { C, PF, BF, CLASSES, NPC_TEAM, ROULETTE_CHALLENGES, SPRINT_EVENTS } from "../shared/constants.js";
 import { dk, pick } from "../shared/utils.js";
+import { buildRewardLoot, createAchievementResolver, resolveBossProfile, getBossHpBase, getBossDamageMultiplier, getChallengeBonusHp } from "../shared/projection.js";
 import RouletteOverlay from "../components/RouletteOverlay.jsx";
 import RetroEventCard from "../components/RetroEventCard.jsx";
 import RootCauseSelector from "../components/RootCauseSelector.jsx";
-import { getLatestApprovalState, submitAdvisoryRequest } from "../lib/api";
+import { getLatestApprovalState, getProjectionConfig, submitAdvisoryRequest } from "../lib/api";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -214,8 +215,6 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const isR = node?.tp === "r";
   const isB = node?.tp === "b";
   const mc = isR ? C.yel : isB ? C.red : C.blu;
-  const bossName = node?.l || project?.name || "PROJ-142: OAuth2 Login Flow";
-  const maxHp = 100;
 
   // Build team from avatar + NPCs
   const TEAM = [
@@ -251,7 +250,13 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [achieves, setAchieves] = useState([]);
   const [showAchieve, setShowAchieve] = useState(null);
   const [loot, setLoot] = useState([]);
+  const [projectionConfig, setProjectionConfig] = useState(null);
   const [showLoot, setShowLoot] = useState(false);
+
+  const bossProfile = resolveBossProfile(projectionConfig, 'delivery-pressure-default');
+  const bossName = node?.l || bossProfile?.name || project?.name || "PROJ-142: OAuth2 Login Flow";
+  const maxHp = getBossHpBase(bossProfile, 100);
+  const bossDamageMultiplier = getBossDamageMultiplier(bossProfile, 2);
   const [rc, setRc] = useState([]);
   const [ll, setLl] = useState(null);
   const [llr, setLlr] = useState(null);
@@ -288,8 +293,17 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     if (onComplete) onComplete(node?.id);
   }
 
+  const resolveProjectionAchievement = createAchievementResolver(projectionConfig?.achievements || [], ACHIEVEMENTS);
+  const sessionRewardRule = (projectionConfig?.rewardRules || []).find((rule) => rule.key === 'session-complete-default') || null;
+
   function addDmg(val, x, critical = false) { setDmgNums(p => [...p, { id: Date.now() + Math.random(), val, x, critical }]); setTimeout(() => setDmgNums(p => p.slice(1)), 1200); }
-  function addAchieve(a) { if (achieves.includes(a.id)) return; setAchieves(p => [...p, a.id]); setShowAchieve(a); sound("achieve"); }
+  function addAchieve(a) {
+    const resolved = typeof a === 'string' ? resolveProjectionAchievement(a) : a;
+    if (!resolved || achieves.includes(resolved.id)) return;
+    setAchieves(p => [...p, resolved.id]);
+    setShowAchieve(resolved);
+    sound("achieve");
+  }
   function doFlash(col) { setFlash(col); setTimeout(() => setFlash(null), 300); }
   function doShake() { setShake(true); setTimeout(() => setShake(false), 400); }
   function doBossHit(dmg) { setBossHit(true); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => setBossHit(false), 200); sound("hit"); }
@@ -327,14 +341,25 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     return () => { active = false; };
   }, [project?.id, node?.id]);
 
+  useEffect(() => {
+    let active = true;
+    getProjectionConfig()
+      .then((data) => {
+        if (!active) return;
+        setProjectionConfig(data || null);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   function handleChallengeComplete(challenge) {
     setActiveChallenge(challenge);
     setShowRoulette(false);
     setRevoting(true);
     // Boss regen
-    const bonusHp = Math.round(maxHp * (challenge.modifier - 1.0) * 0.4);
+    const bonusHp = getChallengeBonusHp(maxHp, challenge.modifier);
     setBossHp(prev => Math.min(prev + bonusHp, Math.round(maxHp * 1.5)));
-    addAchieve(ACHIEVEMENTS.find(a => a.id === "roulette"));
+    addAchieve('roulette');
   }
 
   function doVote(v) {
@@ -345,9 +370,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     setAtk(true);
     setSpellName(TEAM[0].cls.spellName);
     setTimeout(() => { setSpellName(null); }, 600);
-    doBossHit(v * 2); addDmg(v, 50, v >= 8); doFlash(TEAM[0].cls.trail); doShake();
+    doBossHit(v * bossDamageMultiplier); addDmg(v, 50, v >= 8); doFlash(TEAM[0].cls.trail); doShake();
     setTimeout(() => setAtk(false), 500);
-    setCombo(c => c + 1); addAchieve(ACHIEVEMENTS[0]);
+    setCombo(c => c + 1); addAchieve('first');
     if (v >= 8) sound("combo");
   }
 
@@ -365,9 +390,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
               setRev(true); setStep(1);
               const allV = [pv, ...votes.map(v => v.val)];
               const avg = allV.reduce((a, b) => a + b, 0) / allV.length;
-              if (Math.abs(pv - avg) < 2) addAchieve(ACHIEVEMENTS[3]);
+              if (Math.abs(pv - avg) < 2) addAchieve('sniper');
               const spread = Math.max(...allV) - Math.min(...allV);
-              if (spread <= 3) addAchieve(ACHIEVEMENTS[4]);
+              if (spread <= 3) addAchieve('team');
             }, 800);
           }, 400);
           return 0;
@@ -380,23 +405,25 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   function doDisc() { setStep(2); sound("click"); }
   function doCv(v) {
     setCv(v); sound("select");
-    if (v === 5) addAchieve(ACHIEVEMENTS[5]);
+    if (v === 5) addAchieve('brave');
     setTimeout(() => { setAc(NPC_TEAM.map(m => ({ mid: m.id, val: Math.max(1, Math.min(5, v + Math.floor(Math.random() * 3) - 1)) }))); }, 500);
   }
   function doFin() {
     setStep(4); sound("victory"); doFlash(C.gld);
-    const loots = [{ icon: "💎", label: `+${45 + Math.floor(Math.random() * 30)} XP`, color: C.xp }];
-    if (rc.length > 0) loots.push({ icon: "🔍", label: "Risk Badge", color: C.acc });
-    if (combo >= 3) loots.push({ icon: "🔥", label: "Streak Bonus", color: C.org });
-    if (ll) loots.push({ icon: "⚡", label: "Power Badge", color: C.pur });
-    loots.push({ icon: "⭐", label: "Session Star", color: C.gld });
+    const loots = buildRewardLoot({
+      rewardRule: sessionRewardRule,
+      combo,
+      rootCauseCount: rc.length,
+      lifelineUsed: Boolean(ll),
+      colors: { xp: C.xp, acc: C.acc, org: C.org, pur: C.pur, gld: C.gld }
+    });
     setLoot(loots);
     setTimeout(() => setShowLoot(true), 500);
     // auto-complete after showing victory for 5s
     setTimeout(() => safeComplete(), 5000);
   }
   function doLL(id) {
-    setLl(id); sound("powerup"); doFlash(C.pur); addAchieve(ACHIEVEMENTS[2]);
+    setLl(id); sound("powerup"); doFlash(C.pur); addAchieve('power');
     if (id === "expert") setLlr("💬 \"Denne type tog 8 pts sidst.\"");
     else if (id === "audience") { const av = [pv, ...votes.map(v => v.val)]; const d = {}; av.forEach(v => { d[v] = (d[v] || 0) + 1; }); setLlr(`📊 ${Object.entries(d).map(([k, v]) => `${k}:${Math.round(v / av.length * 100)}%`).join(" ")}`); }
     else if (id === "5050") setLlr("✂️ To dårlige antagelser fjernet!");
@@ -454,8 +481,8 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     const ev = retroEvents[currentEvtIdx];
     setOracleEvents(p => {
       const next = [...p, ev.id];
-      if (next.length >= 3) addAchieve(ACHIEVEMENTS.find(a => a.id === "prophet"));
-      if (next.length >= 1) addAchieve(ACHIEVEMENTS.find(a => a.id === "oracle"));
+      if (next.length >= 3) addAchieve('prophet');
+      if (next.length >= 1) addAchieve('oracle');
       return next;
     });
     setOracleUsed(true);
@@ -592,7 +619,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
                 {[1,2,3,4,5].map(n => (
                   <button key={n} onClick={() => {
                     if (n >= 4) setBossHp(p => Math.max(0, p - 15));
-                    if (problemEvents.length >= 5) addAchieve(ACHIEVEMENTS.find(a => a.id === "honest"));
+                    if (problemEvents.length >= 5) addAchieve('honest');
                     setBossStep(5);
                     sound("reveal");
                   }}
@@ -797,7 +824,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
               <div style={{ fontFamily: PF, fontSize: "5px", color: C.dim, marginBottom: "5px" }}>RISK CARDS</div>
               <div style={{ display: "flex", gap: "4px", justifyContent: "center", flexWrap: "wrap", marginBottom: "10px" }}>
                 {["🔥 Dependency", "🧱 Legacy", "🕳️ Unknown", "🧑‍💻 Single PoK"].map(c => (
-                  <div key={c} onClick={() => { if (!rc.includes(c)) { setRc([...rc, c]); sound("click"); addAchieve(ACHIEVEMENTS[1]); } }} style={{ fontFamily: PF, fontSize: "5px", padding: "5px 8px", cursor: "pointer", background: rc.includes(c) ? C.acc : C.bgL + "dd", color: rc.includes(c) ? C.wht : C.txt, border: `2px solid ${rc.includes(c) ? C.acc : C.brd}`, animation: rc.includes(c) ? "pop 0.3s" : "none" }}>{c}</div>
+                  <div key={c} onClick={() => { if (!rc.includes(c)) { setRc([...rc, c]); sound("click"); addAchieve('detective'); } }} style={{ fontFamily: PF, fontSize: "5px", padding: "5px 8px", cursor: "pointer", background: rc.includes(c) ? C.acc : C.bgL + "dd", color: rc.includes(c) ? C.wht : C.txt, border: `2px solid ${rc.includes(c) ? C.acc : C.brd}`, animation: rc.includes(c) ? "pop 0.3s" : "none" }}>{c}</div>
                 ))}
               </div>
               <div style={{ fontFamily: PF, fontSize: "5px", color: C.dim, marginBottom: "6px" }}>POWER-UPS</div>
@@ -863,7 +890,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
               {achieves.length > 0 && <div style={{ marginTop: "8px" }}>
                 <div style={{ fontFamily: PF, fontSize: "5px", color: C.gld, marginBottom: "4px" }}>ACHIEVEMENTS</div>
                 <div style={{ display: "flex", gap: "6px", justifyContent: "center", flexWrap: "wrap" }}>
-                  {achieves.map(id => { const a = ACHIEVEMENTS.find(x => x.id === id); return a ? <div key={id} style={{ padding: "4px 8px", background: C.bgL, border: `2px solid ${C.gld}`, display: "flex", alignItems: "center", gap: "4px" }}><span style={{ fontSize: "12px" }}>{a.icon}</span><span style={{ fontFamily: PF, fontSize: "4px", color: C.gld }}>{a.name}</span></div> : null; })}
+                  {achieves.map(id => { const a = resolveProjectionAchievement(id); return a ? <div key={id} style={{ padding: "4px 8px", background: C.bgL, border: `2px solid ${C.gld}`, display: "flex", alignItems: "center", gap: "4px" }}><span style={{ fontSize: "12px" }}>{a.icon}</span><span style={{ fontFamily: PF, fontSize: "4px", color: C.gld }}>{a.name}</span></div> : null; })}
                 </div>
               </div>}
               <div style={{ marginTop: "12px" }}>
@@ -878,3 +905,43 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     </>
   );
 }
+
+
+
+
+}
+
+
+   )}
+    </>
+  );
+}
+
+
+
+
+}
+
+
+}
+
+
+
+
+}
+
+
+   )}
+    </>
+  );
+}
+
+
+
+
+}
+
+
+}
+
+

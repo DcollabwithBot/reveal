@@ -22,6 +22,10 @@ export function getDashboard() {
   return request('/api/dashboard');
 }
 
+export function getProjectionConfig() {
+  return request('/api/projection/config');
+}
+
 export function getDashboardGovernance() {
   return Promise.all([
     getDashboard(),
