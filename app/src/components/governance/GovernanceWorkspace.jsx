@@ -9,7 +9,8 @@ export default function GovernanceWorkspace({
   busyId,
   onApprove,
   onReject,
-  onApply
+  onApply,
+  onResolveConflict
 }) {
   return (
     <div style={s.dashboardGrid}>
@@ -46,19 +47,31 @@ export default function GovernanceWorkspace({
       </SectionBox>
 
       <SectionBox title="Conflict Center">
-        {(conflicts || []).slice(0, 5).map((c) => (
-          <div key={c.id} style={s.conflictRow}>
-            <div style={s.conflictMain}>
-              <span style={s.conflictTarget}>{c.target_type || 'unknown'} · {String(c.target_id || 'n/a').slice(0, 8)}</span>
-              <span style={s.conflictReason}>{c.payload?.reason || 'blocked write'}</span>
+        {(conflicts || []).slice(0, 5).map((c) => {
+          const canResolve = Boolean(c?.payload?.attempted_patch && Object.keys(c.payload.attempted_patch || {}).length);
+          return (
+            <div key={c.id} style={s.conflictRow}>
+              <div style={s.conflictMain}>
+                <span style={s.conflictTarget}>{c.target_type || 'unknown'} · {String(c.target_id || 'n/a').slice(0, 8)}</span>
+                <span style={s.conflictReason}>{c.payload?.reason || 'blocked write'}</span>
+              </div>
+              <div style={s.conflictMeta}>{c.source_layer || 'unknown'} · {formatShortDate(c.created_at)}</div>
+              <div style={s.suggestionRow}>
+                <span style={s.suggestionBadge}>Forslag: opret advisory request</span>
+                <span style={s.suggestionBadge}>Tjek owner/policy mismatch</span>
+                {canResolve && (
+                  <button
+                    style={{ ...s.actionBtn, ...s.applyBtn }}
+                    onClick={() => onResolveConflict?.(c)}
+                    disabled={busyId === `conflict-${c.id}`}
+                  >
+                    Resolve via queue
+                  </button>
+                )}
+              </div>
             </div>
-            <div style={s.conflictMeta}>{c.source_layer || 'unknown'} · {formatShortDate(c.created_at)}</div>
-            <div style={s.suggestionRow}>
-              <span style={s.suggestionBadge}>Forslag: opret advisory request</span>
-              <span style={s.suggestionBadge}>Tjek owner/policy mismatch</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {!conflicts?.length && <div style={s.muted}>Ingen konflikter registreret.</div>}
       </SectionBox>
     </div>

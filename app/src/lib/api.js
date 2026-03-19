@@ -74,6 +74,17 @@ export function submitAdvisoryRequest(payload) {
   });
 }
 
+export function createConflictResolutionRequest(conflict) {
+  const attemptedPatch = conflict?.payload?.attempted_patch || {};
+  const { source_layer, approval_request_id, id, ...requestedPatch } = attemptedPatch;
+  return submitAdvisoryRequest({
+    target_type: conflict?.target_type,
+    target_id: conflict?.target_id,
+    requested_patch: requestedPatch,
+    idempotency_key: `conflict:${conflict?.id}:${Date.now()}`
+  });
+}
+
 export function getApprovalRequests() {
   return request('/api/approval-requests');
 }

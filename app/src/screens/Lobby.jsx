@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   applyRequest,
   approveRequest,
+  createConflictResolutionRequest,
   getDashboardGovernance,
   rejectRequest
 } from '../lib/api';
@@ -75,6 +76,19 @@ export default function Lobby({ user, onContinue, onGuest }) {
     }
   }
 
+  async function handleResolveConflict(conflict) {
+    setBusyId(`conflict-${conflict.id}`);
+    setError(null);
+    try {
+      await createConflictResolutionRequest(conflict);
+      await refreshGovernance();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div style={styles.container}>
       <div style={styles.scanlines} />
@@ -115,6 +129,7 @@ export default function Lobby({ user, onContinue, onGuest }) {
           onApprove={(id) => handleAction(id, 'approve')}
           onReject={(id) => handleAction(id, 'reject')}
           onApply={(id) => handleAction(id, 'apply')}
+          onResolveConflict={handleResolveConflict}
         />
 
         <DashboardSnapshot activeProjects={activeProjects} recentActivity={recentActivity} />

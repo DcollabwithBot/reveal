@@ -357,7 +357,11 @@ async function enforcePmMutationGuard({ req, membership, targetType, targetId })
       targetType,
       targetId,
       approvalRequestId,
-      payload: { reason: err.message },
+      payload: {
+        reason: err.message,
+        attempted_patch: req.body || {},
+        resolution_hint: 'create_advisory_request'
+      },
       outcome: 'blocked'
     });
     throw err;
