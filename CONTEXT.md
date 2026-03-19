@@ -1,15 +1,15 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-19
+Last updated: 2026-03-19 (sprint 5 merge + migration)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.5 (Sprint 5 implementeret, afventer DB migration)
+- Fase: Aktiv udvikling — v0.5 (Sprint 5 komplet ✅)
 - Live: https://reveal.blichert.net
 - GitHub: https://github.com/DcollabwithBot/reveal
-- Branch: `james/sprint-5-db-driven`
+- Branch: `main` (sprint 5 merged 2026-03-19)
 - App: `app/` — Vite + React
 
 ## Hvad er bygget
@@ -37,10 +37,10 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 
 **Hvad er lavet:**
 
-1. **DB Migrations (afventer manuelt run)**
-   - `supabase/migrations/sprint5.sql` — kør i Supabase SQL editor
-   - `supabase/seed/sprint5-defaults.sql` — kør efter migration
-   - Tilføjer: `sessions.voting_mode`, `retro_events` tabel, `challenges` tabel
+1. **DB Migrations ✅ kørt 2026-03-19**
+   - `supabase/migrations/sprint5.sql` — ✅ eksekveret via Supabase Management API
+   - `supabase/seed/sprint5-defaults.sql` — ✅ eksekveret (12 retro_events, 18 challenges seeded)
+   - Tilføjet: `sessions.voting_mode`, `retro_events` tabel, `challenges` tabel
 
 2. **SessionSetup.jsx** (ny fil)
    - Route: `/setup`
@@ -71,9 +71,11 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 7. **server/app.js**
    - POST /api/sessions accepterer nu `voting_mode` parameter
 
-## Hvad mangler (næste sprint)
+## Hvad mangler (Sprint 6)
 
-- Danny skal køre `supabase/migrations/sprint5.sql` + `supabase/seed/sprint5-defaults.sql` manuelt
+- Perspektiv-Poker (næste sprint)
+- Session templates
+- Slack/Teams webhooks
 - Verifikation: `session_items.description` kolonne skal eksistere i schema
 - Verifikation: `node_completions` tabel skal eksistere for den del at virke
 - `/setup` → `/lobby` flow: Regler om hvem der er GM (team_members.role check er best-effort)
@@ -85,8 +87,8 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 | 1-3 | MVP modes (Poker, Roulette, Boss Battle) | ✅ |
 | 4 | Supabase schema + Auth (Google OAuth) | ✅ |
 | 4b | Realtime multiplayer + Lobby + Session UI | ✅ |
-| 5 | Admin UI, DB-driven content, voting modes | ✅ (kræver DB migration) |
-| 6 | Perspektiv-Poker + session templates + Slack/Teams webhooks | |
+| 5 | Admin UI, DB-driven content, voting modes | ✅ |
+| 6 | Perspektiv-Poker + session templates + Slack/Teams webhooks | 🎯 næste |
 | 7 | Spec Wars | |
 | 8 | Russian Nesting Scope | |
 | 9 | Speed Scope | |
@@ -96,8 +98,8 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 ## Supabase
 - Projekt ID: `swyfcathwcdpgkirwihh`
 - Eksisterende tabeller: organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes
-- Sprint 5 tilføjer: `sessions.voting_mode`, `retro_events`, `challenges`
-- **Kræver manuelt run:** `supabase/migrations/sprint5.sql` + `supabase/seed/sprint5-defaults.sql`
+- Sprint 5 tilføjede: `sessions.voting_mode`, `retro_events` (12 rows), `challenges` (18 rows)
+- Migration kørt: 2026-03-19 via Supabase Management API
 
 ## Tech stack
 - React (hooks only) + Vite
