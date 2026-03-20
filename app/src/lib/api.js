@@ -77,7 +77,7 @@ export async function getDashboard() {
       .limit(100),
     supabase
       .from('projects')
-      .select('id,name,description,status,color,icon,created_by,created_at,updated_at,sprints(id,session_items(id,status))')
+      .select('id,name,description,status,color,icon,created_by,created_at,updated_at,sprints(id,session_items(id,item_status))')
       .eq('organization_id', membership.organization_id)
       .order('updated_at', { ascending: false })
   ]);
@@ -117,7 +117,7 @@ export async function getDashboard() {
     }),
     ...(projects || []).slice(0, 20).map(p => {
       const allItems = (p.sprints || []).flatMap(s => s.session_items || []);
-      const doneItems = allItems.filter(i => i.status === 'completed' || i.status === 'done').length;
+      const doneItems = allItems.filter(i => i.item_status === 'done').length;
       const total = allItems.length;
       const progress = total > 0 ? Math.round((doneItems / total) * 100) : 0;
       let description;
@@ -142,9 +142,9 @@ export async function getDashboard() {
 
   const projectsWithProgress = (projects || []).map(p => {
     const allItems = (p.sprints || []).flatMap(s => s.session_items || []);
-    const doneItems = allItems.filter(i => i.status === 'completed' || i.status === 'done');
+    const doneItems = allItems.filter(i => i.item_status === 'done');
     const progress = allItems.length > 0 ? Math.round((doneItems.length / allItems.length) * 100) : 0;
-    return { ...p, total_items: allItems.length, progress };
+    return { ...p, total_items: allItems.length, done_items: doneItems.length, progress };
   });
 
   return { ...byStatus, projects: projectsWithProgress, activity };
