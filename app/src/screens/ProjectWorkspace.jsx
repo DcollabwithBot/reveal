@@ -530,59 +530,26 @@ function KanbanColumn({
               {item.title}
             </div>
 
-            {/* Assignee display */}
-            {item.assigned_to && (
-              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
-                👤 {teamMembers.find(m => m.id === item.assigned_to)?.display_name || item.assigned_to.slice(0, 8)}
-              </div>
-            )}
-
-            {/* Assignee dropdown (editable) */}
-            {!dimmed && (
-              <select
-                value={item.assigned_to || ''}
-                onChange={(e) => {
-                  const val = e.target.value || null;
-                  onAssigneeChange(item.id, val);
-                }}
-                style={{
-                  marginTop: 5, fontSize: 10, background: 'var(--bg3)',
-                  border: '1px solid var(--border2)', borderRadius: 4,
-                  color: 'var(--text2)', padding: '2px 4px', cursor: 'pointer', width: '100%'
-                }}
-              >
-                <option value="">— Unassigned</option>
-                {teamMembers.map(m => (
-                  <option key={m.id} value={m.id}>{m.display_name || m.id.slice(0, 8)}</option>
-                ))}
-              </select>
-            )}
-
-            {/* Due date */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-              <span style={{ fontSize: 10, color: 'var(--text3)' }}>📅</span>
-              <input
-                type="date"
-                value={item.due_date || ''}
-                disabled={dimmed}
-                onChange={(e) => {
-                  const val = e.target.value || null;
-                  onDueDateChange(item.id, val);
-                }}
-                style={{
-                  fontSize: 10, background: 'var(--bg3)', border: '1px solid var(--border2)',
-                  borderRadius: 4, color: item.due_date ? 'var(--text2)' : 'var(--text3)',
-                  padding: '2px 4px', cursor: dimmed ? 'default' : 'pointer'
-                }}
-              />
+            {/* Meta row: assignee + due date — kun tekst, ingen inputs */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
+              {item.assigned_to && (
+                <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+                  👤 {teamMembers.find(m => m.id === item.assigned_to)?.display_name || 'Assigned'}
+                </span>
+              )}
+              {item.due_date && !dimmed && (
+                <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+                  📅 {new Date(item.due_date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
+                </span>
+              )}
             </div>
 
-            {/* Bottom row: hours + action button */}
+            {/* Bottom row: hours + action/status */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
               <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-                {item.estimated_hours ? `${item.estimated_hours}h est.` : '—'}
+                {item.estimated_hours ? `${item.estimated_hours}h` : '—'}
               </span>
-              {onStatusChange && nextStatus && (
+              {!dimmed && onStatusChange && nextStatus && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onStatusChange(item.id, nextStatus); }}
                   style={{
@@ -595,7 +562,7 @@ function KanbanColumn({
                 </button>
               )}
               {dimmed && (
-                <span style={{ fontSize: 11, color: 'var(--text2)' }}>✓ {item.hours_fak ? `${item.hours_fak}h` : ''}</span>
+                <span style={{ fontSize: 11, color: 'var(--jade)' }}>✓ {item.hours_fak ? `${item.hours_fak}h logget` : 'done'}</span>
               )}
             </div>
           </div>
