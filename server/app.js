@@ -25,6 +25,19 @@ const eventLedger = new SupabaseEventLedger({ supabase });
 
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_BACKOFF_MS = [1000, 3000];
+const GAME_SESSION_TELEMETRY_WINDOW_LIMIT = 200;
+
+const gameSessionTelemetry = {
+  counters: {
+    readSuccess: 0,
+    readFailure: 0,
+    writeSuccess: 0,
+    writeFailure: 0,
+    exportSuccess: 0,
+    exportFailure: 0,
+  },
+  recent: [],
+};
 
 function signPayload(secret, body) {
   if (!secret) return null;
@@ -300,6 +313,38 @@ async function appendAuditLog({
   if (error) {
     console.error('audit_log insert failed:', error.message);
   }
+}
+
+function sanitizeTelemetryContext(context = {}) {
+  return {
+    organization_id: context.organizationId || null,
+    project_id: context.projectId || null,
+    node_id: context.nodeId || null,
+    source: context.source || null,
+    format: context.format || null,
+    action: context.action || null,
+    error: context.error ? String(context.error).slice(0, 180) : null,
+  };
+}
+
+function recordGameSessionTelemetry(metric, context = {}) {
+  if (!gameSessionTelemetry.counters[metric] && gameSessionTelemetry.counters[metric] !== 0) return;
+  gameSessionTelemetry.counters[metric] += 1;
+  gameSessionTelemetry.recent.push({
+    metric,
+    at: new Date().toISOString(),
+    ...sanitizeTelemetryContext(context),
+  });
+  if (gameSessionTelemetry.recent.length > GAME_SESSION_TELEMETRY_WINDOW_LIMIT) {
+    gameSessionTelemetry.recent.splice(0, gameSessionTelemetry.recent.length - GAME_SESSION_TELEMETRY_WINDOW_LIMIT);
+  }
+}
+
+function buildGameSessionTelemetrySnapshot() {
+  return {
+    counters: { ...gameSessionTelemetry.counters },
+    recent: [...gameSessionTelemetry.recent],
+  };
 }
 
 async function appendLedgerEvent({ eventType, source, idempotencyKey, payload, direction = 'ingest' }) {
@@ -580,9 +625,24 @@ app.get('/api/game-session-state', async (req, res) => {
     .eq('node_id', nodeId)
     .maybeSingle();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    recordGameSessionTelemetry('readFailure', {
+      organizationId: membership.organization_id,
+      projectId,
+      nodeId,
+      source: 'game_session_states',
+      error: error.message,
+    });
+    return res.status(500).json({ error: error.message });
+  }
 
   if (data?.state) {
+    recordGameSessionTelemetry('readSuccess', {
+      organizationId: membership.organization_id,
+      projectId,
+      nodeId,
+      source: 'game_session_states',
+    });
     return res.json({
       state: data.state,
       saved_at: data.saved_at || null,
@@ -606,6 +666,12 @@ app.get('/api/game-session-state', async (req, res) => {
         userId: user.id
       });
 
+      recordGameSessionTelemetry('readSuccess', {
+        organizationId: membership.organization_id,
+        projectId,
+        nodeId,
+        source: 'audit_log_fallback'
+      });
       return res.json({
         state: legacy.state,
         saved_at: legacy.saved_at,
@@ -613,9 +679,22 @@ app.get('/api/game-session-state', async (req, res) => {
       });
     }
   } catch (fallbackErr) {
+    recordGameSessionTelemetry('readFailure', {
+      organizationId: membership.organization_id,
+      projectId,
+      nodeId,
+      source: 'audit_log_fallback',
+      error: fallbackErr.message,
+    });
     console.error('legacy game session state fallback failed:', fallbackErr.message);
   }
 
+  recordGameSessionTelemetry('readSuccess', {
+    organizationId: membership.organization_id,
+    projectId,
+    nodeId,
+    source: 'none'
+  });
   return res.json({ state: null, saved_at: null, source: 'none' });
 });
 
@@ -663,10 +742,127 @@ app.post('/api/game-session-state', async (req, res) => {
       outcome: 'accepted'
     });
 
+    recordGameSessionTelemetry('writeSuccess', {
+      organizationId: membership.organization_id,
+      projectId,
+      nodeId,
+      source: 'game_session_states'
+    });
     return res.json({ ok: true, saved_at: persisted?.saved_at || null, source: 'game_session_states' });
   } catch (err) {
+    recordGameSessionTelemetry('writeFailure', {
+      organizationId: membership.organization_id,
+      projectId,
+      nodeId,
+      source: 'game_session_states',
+      error: err.message,
+    });
     return res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/game-session-state/status', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const projectId = String(req.query.project_id || '').trim();
+  const nodeId = String(req.query.node_id || '').trim();
+  if (!projectId || !nodeId) return res.status(400).json({ error: 'project_id and node_id required' });
+
+  const [{ data: stateRow, error: stateErr }, { data: backfillMeta, error: backfillErr }] = await Promise.all([
+    supabase
+      .from('game_session_states')
+      .select('organization_id,project_id,node_id,status,step,saved_at,updated_at')
+      .eq('organization_id', membership.organization_id)
+      .eq('project_id', projectId)
+      .eq('node_id', nodeId)
+      .maybeSingle(),
+    supabase
+      .from('audit_log')
+      .select('created_at,payload')
+      .eq('organization_id', membership.organization_id)
+      .eq('event_type', 'game.session.state.backfill.completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (stateErr) return res.status(500).json({ error: stateErr.message || 'Unable to read game session state status' });
+  if (backfillErr) return res.status(500).json({ error: backfillErr.message || 'Unable to read backfill status' });
+
+  return res.json({
+    session_state: {
+      present: Boolean(stateRow),
+      status: stateRow?.status || null,
+      step: stateRow?.step ?? null,
+      saved_at: stateRow?.saved_at || null,
+      updated_at: stateRow?.updated_at || null,
+      stale: Boolean(stateRow?.saved_at) && Date.now() - new Date(stateRow.saved_at).getTime() > 1000 * 60 * 60 * 24,
+    },
+    backfill: backfillMeta
+      ? {
+        last_run_at: backfillMeta.created_at,
+        scanned: backfillMeta?.payload?.scanned ?? null,
+        valid_legacy_records: backfillMeta?.payload?.valid_legacy_records ?? null,
+        unique_targets: backfillMeta?.payload?.unique_targets ?? null,
+        upserted: backfillMeta?.payload?.upserted ?? null,
+      }
+      : null,
+    telemetry: buildGameSessionTelemetrySnapshot(),
+  });
+});
+
+app.post('/api/telemetry/export-event', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const action = String(req.body?.action || '').trim();
+  const format = String(req.body?.format || '').trim().toLowerCase();
+  const projectId = String(req.body?.project_id || '').trim() || null;
+  const sprintId = String(req.body?.sprint_id || '').trim() || null;
+  const ok = Boolean(req.body?.ok);
+  const errorMsg = req.body?.error ? String(req.body.error) : null;
+
+  if (action !== 'sprint_report_export') {
+    return res.status(400).json({ error: 'unsupported action' });
+  }
+
+  const metricKey = ok ? 'exportSuccess' : 'exportFailure';
+  recordGameSessionTelemetry(metricKey, {
+    organizationId: membership.organization_id,
+    projectId,
+    action,
+    format,
+    error: errorMsg,
+  });
+
+  await appendAuditLog({
+    eventType: ok ? 'retro.export.completed' : 'retro.export.failed',
+    actor: 'pm',
+    sourceLayer: 'pm',
+    organizationId: membership.organization_id,
+    teamId: membership.team_id,
+    targetType: 'sprint',
+    targetId: sprintId,
+    payload: {
+      action,
+      format,
+      project_id: projectId,
+      sprint_id: sprintId,
+      ok,
+      error: errorMsg ? errorMsg.slice(0, 180) : null,
+      initiated_by: user.id,
+    },
+    outcome: ok ? 'accepted' : 'blocked',
+  });
+
+  return res.json({ ok: true });
 });
 
 app.get('/api/sessions/join/:code', async (req, res) => {

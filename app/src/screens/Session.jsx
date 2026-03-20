@@ -23,7 +23,7 @@ import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
 import { useGameFeature } from "../shared/useGameFeature.js";
 import { dk } from "../shared/utils.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
-import { loadGameSessionState, persistGameSessionState } from "../lib/api.js";
+import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState } from "../lib/api.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -86,6 +86,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [retro, dispatchRetro] = useReducer(sessionRetroReducer, undefined, createInitialSessionRetroState);
   const { bossStep, retroEvents, currentEvtIdx, eventVotes, oracleEvents, oracleUsed, rootCauses, bossBattleHp, problemEvents, rootCauseIdx } = retro;
   const [hydrated, setHydrated] = useState(false);
+  const [sessionStateHealth, setSessionStateHealth] = useState(null);
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -128,7 +129,14 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
       }
 
       try {
-        const result = await loadGameSessionState({ projectId: project.id, nodeId: node.id });
+        const [result, status] = await Promise.all([
+          loadGameSessionState({ projectId: project.id, nodeId: node.id }),
+          getGameSessionStateStatus({ projectId: project.id, nodeId: node.id }).catch(() => null),
+        ]);
+        if (active && status) {
+          setSessionStateHealth(status);
+        }
+
         const persisted = result?.state;
         if (!active || !persisted) {
           if (active) setHydrated(true);
@@ -462,6 +470,14 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             onBack={() => { sound("click"); if (onBack) onBack(); }}
             onSendToApprovalQueue={sendToApprovalQueue}
           />
+
+          {sessionStateHealth && (
+            <div style={{ margin: '8px auto 12px', maxWidth: 660, fontSize: 11, color: 'var(--text3)' }}>
+              {sessionStateHealth?.session_state?.present
+                ? `Session state synced · status ${sessionStateHealth.session_state.status || 'unknown'}${sessionStateHealth.session_state.stale ? ' (stale)' : ''}`
+                : 'Session state not persisted yet — first save happens automatically when you start voting.'}
+            </div>
+          )}
 
           <SessionCombatStage
             C={C}

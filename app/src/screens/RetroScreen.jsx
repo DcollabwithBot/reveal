@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getMembership } from '../lib/api';
+import { getMembership, reportExportEvent } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { buildSprintExportFileBase, buildSprintExportPayload, buildSprintItemsCsv, resolveNextSprint } from '../domain/session/retro/sprintFlow';
 
@@ -250,8 +250,21 @@ export default function RetroScreen({ onNavigate }) {
       }
 
       setActionMessage(`✅ Sprint rapport eksporteret (${format.toUpperCase()})`);
+      reportExportEvent({
+        projectId: project?.id,
+        sprintId: selectedSprint?.id,
+        format,
+        ok: true,
+      }).catch(() => {});
     } catch (err) {
       setActionMessage(`❌ Kunne ikke eksportere rapport: ${err.message}`);
+      reportExportEvent({
+        projectId: project?.id,
+        sprintId: selectedSprint?.id,
+        format,
+        ok: false,
+        error: err.message,
+      }).catch(() => {});
     } finally {
       setExporting(false);
     }

@@ -538,3 +538,22 @@ export async function persistGameSessionState({ projectId, nodeId, state }) {
     body: JSON.stringify({ project_id: projectId, node_id: nodeId, state }),
   });
 }
+
+export async function getGameSessionStateStatus({ projectId, nodeId }) {
+  if (!projectId || !nodeId) return null;
+  return apiFetch(`/api/game-session-state/status?project_id=${encodeURIComponent(projectId)}&node_id=${encodeURIComponent(nodeId)}`);
+}
+
+export async function reportExportEvent({ projectId, sprintId, format, ok, error }) {
+  return apiFetch('/api/telemetry/export-event', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'sprint_report_export',
+      project_id: projectId || null,
+      sprint_id: sprintId || null,
+      format,
+      ok,
+      error: error || null,
+    }),
+  });
+}

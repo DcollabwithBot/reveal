@@ -109,14 +109,34 @@ async function run() {
   const uniqueKeys = new Set(patches.map((p) => `${p.organization_id}:${p.project_id}:${p.node_id}`));
   const skipped = Math.max(0, offset - patches.length);
 
-  console.log(JSON.stringify({
+  const summary = {
     scanned: offset,
     valid_legacy_records: patches.length,
     unique_targets: uniqueKeys.size,
     upserted,
     skipped,
     idempotent: true,
-  }, null, 2));
+    completed_at: new Date().toISOString(),
+  };
+
+  if (patches.length) {
+    const orgIds = [...new Set(patches.map((p) => p.organization_id).filter(Boolean))];
+    for (const organizationId of orgIds) {
+      await supabase.from('audit_log').insert({
+        event_type: 'game.session.state.backfill.completed',
+        actor: 'system',
+        source_layer: 'system',
+        organization_id: organizationId,
+        team_id: null,
+        target_type: 'game_session_state_backfill',
+        target_id: 'backfill',
+        outcome: 'accepted',
+        payload: summary,
+      });
+    }
+  }
+
+  console.log(JSON.stringify(summary, null, 2));
 }
 
 run().catch((err) => {
