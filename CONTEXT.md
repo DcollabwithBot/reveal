@@ -152,6 +152,10 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - sprint_draft_picks + sprint_draft_priority_votes tabeller
 - PM approval write-back via finalize-draft endpoint
 
+## TODO: Bidirektionel sync (Fase 5)
+Blokeret bag INT-G1/G2/G3 gates. Se docs/architecture/next-phase-architecture-v1.md.
+Bygges EFTER vi har pilotkunder og validated use case.
+
 ## Roadmap
 | Sprint | Indhold | Status |
 |--------|---------|--------|
@@ -164,6 +168,7 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 | 8 (Fase 2) | Burndown/Velocity, Dependencies, In-app Notifikationer | ✅ |
 | 9 (Fase 3) | Game-PM Bridge, Planning Poker fra Dashboard, GameStatsBar | ✅ |
 | 10 (Fase 4) | Sprint Draft "The Draft" — 4-step flow, priority tokens, capacity gauge | ✅ |
+| TODO | Admin Panel, Slack/Teams webhooks, Email (Resend), Jira Shadow Sync, Onboarding | ✅ |
 | 11 | Slack/Teams webhooks + Eksterne integrationer (Jira/Azure DevOps) | 🎯 næste |
 | 12 | AI Lifelines + mønstergenkendelse | |
 
@@ -198,6 +203,9 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - `finalize-draft/` — Sprint Draft finalization → approval request
 - `promote-retro-action/` — Retro action item → PM task via approval
 - `create-session/` — Session oprettelse med auto-provisioning
+- `send-webhook/` — Slack/Teams webhook notifikationer ved events
+- `send-email/` — Email notifikationer via Resend API (templates + custom)
+- `jira-sync/` — Jira shadow sync (polling, opdaterer Jira-owned fields)
 
 ## Vigtige filer (frontend)
 - `app/src/lib/api.js` — AL API-kommunikation. Supabase direkte + edgeFn() helper til Edge Functions

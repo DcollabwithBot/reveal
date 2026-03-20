@@ -3,6 +3,7 @@ import { useGameMode } from '../shared/GameModeContext';
 import { Card } from '../components/ui/Card';
 import { supabase } from '../lib/supabase';
 import IntegrationsSettings from '../components/IntegrationsSettings';
+import AdminPanel from '../components/AdminPanel';
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -249,6 +250,11 @@ const MODES = [
 export default function WorkspaceSettings({ onBack }) {
   const { gameMode, updateGameMode } = useGameMode();
   const [myPermissions, setMyPermissions] = useState([]);
+  const [myRole, setMyRole] = useState('member');
+  const [organizationId, setOrganizationId] = useState(null);
+  const [activeTab, setActiveTab] = useState('general');
+
+  const isAdmin = ['owner', 'admin'].includes(myRole);
 
   useEffect(() => {
     (async () => {
@@ -258,6 +264,8 @@ export default function WorkspaceSettings({ onBack }) {
         if (r.ok) {
           const data = await r.json();
           setMyPermissions(data.permissions || []);
+          setMyRole(data.role || 'member');
+          setOrganizationId(data.organization_id || null);
         }
       } catch { /* ignore */ }
     })();
@@ -286,6 +294,41 @@ export default function WorkspaceSettings({ onBack }) {
       </div>
 
       <div style={{ padding: '40px 32px', maxWidth: 900, margin: '0 auto' }}>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 32, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+          {[
+            { key: 'general', label: '⚙ General' },
+            ...(isAdmin ? [{ key: 'admin', label: '🔐 Admin' }] : []),
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '10px 18px', fontSize: 13, fontWeight: 500,
+                background: activeTab === tab.key ? 'var(--bg2)' : 'transparent',
+                color: activeTab === tab.key ? 'var(--text)' : 'var(--text3)',
+                border: activeTab === tab.key ? '1px solid var(--border)' : '1px solid transparent',
+                borderBottom: activeTab === tab.key ? '1px solid var(--bg2)' : '1px solid transparent',
+                borderRadius: 'var(--radius) var(--radius) 0 0',
+                cursor: 'pointer',
+                marginBottom: -1,
+                transition: 'color 0.2s',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Admin Tab */}
+        {activeTab === 'admin' && isAdmin && (
+          <div style={{ marginBottom: 48 }}>
+            <AdminPanel organizationId={organizationId} />
+          </div>
+        )}
+
+        {/* General Tab */}
+        {activeTab === 'general' && <>
         {/* Section header */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>🎮 Game Intensity</div>
@@ -361,6 +404,7 @@ export default function WorkspaceSettings({ onBack }) {
           </div>
           <IntegrationsSettings />
         </div>
+        </>}
       </div>
     </div>
   );

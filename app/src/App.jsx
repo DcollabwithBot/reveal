@@ -21,6 +21,7 @@ const TeamKanban = lazy(() => import("./screens/TeamKanban.jsx"));
 const RetroScreen = lazy(() => import("./screens/RetroScreen.jsx"));
 const ProjectWorkspace = lazy(() => import("./screens/ProjectWorkspace.jsx"));
 const SprintDraftScreen = lazy(() => import("./screens/SprintDraftScreen.jsx"));
+const Onboarding = lazy(() => import("./screens/Onboarding.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -31,6 +32,7 @@ export default function App() {
   const [timelogProjectId, setTimelogProjectId] = useState(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState(null);
   const [draftSessionId, setDraftSessionId] = useState(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -129,6 +131,18 @@ export default function App() {
     provisionUser(user.id, user.user_metadata?.full_name || user.email)
       .then((data) => { if (data?.organization_id) setOrganizationId(data.organization_id); })
       .catch(() => {});
+    // Check onboarding status
+    supabase
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && data.onboarding_completed === false) {
+          setNeedsOnboarding(true);
+        }
+      })
+      .catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -194,6 +208,21 @@ export default function App() {
         onStartPlaying={() => setAuthScreen("login")}
         onJoinSession={() => setAuthScreen("game")}
       />
+    );
+  }
+
+  if (user && needsOnboarding) {
+    return (
+      <Suspense fallback={<LoadingScreen label="LOADING..." />}>
+        <Onboarding
+          user={user}
+          onComplete={() => {
+            setNeedsOnboarding(false);
+            window.history.pushState({}, document.title, '/dashboard');
+            setAuthScreen('dashboard');
+          }}
+        />
+      </Suspense>
     );
   }
 
