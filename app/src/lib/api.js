@@ -397,3 +397,33 @@ export async function updateItem(itemId, updates) {
     .single();
   return data;
 }
+
+// ── Item Comments ─────────────────────────────────────────────────────────────
+export async function getItemComments(itemId) {
+  const { data } = await supabase
+    .from('item_comments')
+    .select('id, body, author_name, user_id, created_at')
+    .eq('item_id', itemId)
+    .order('created_at', { ascending: true });
+  return data || [];
+}
+
+export async function addItemComment(itemId, body, authorName) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data } = await supabase
+    .from('item_comments')
+    .insert({ item_id: itemId, body, author_name: authorName || 'Unknown', user_id: user?.id || null })
+    .select()
+    .single();
+  return data;
+}
+
+export async function closeItem(itemId) {
+  const { data } = await supabase
+    .from('session_items')
+    .update({ item_status: 'done', status: 'completed' })
+    .eq('id', itemId)
+    .select()
+    .single();
+  return data;
+}

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getMembership } from '../lib/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { getMembership, updateItem } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import ItemDetailModal from '../components/ItemDetailModal';
 
 // ── rarity from estimated_hours ───────────────────────────────────────────────
 function rarityFromHours(hours) {
@@ -31,7 +32,7 @@ function priorityDot(p) {
 }
 
 // ── Item card ─────────────────────────────────────────────────────────────────
-function KCard({ item, sprintName, projectName }) {
+function KCard({ item, sprintName, projectName, onDragStart, onDragEnd, isDragging, onClick }) {
   const rarity = rarityFromHours(item.estimated_hours);
   const rc = RARITY[rarity];
   const prio = priorityDot(item.priority);
@@ -40,18 +41,24 @@ function KCard({ item, sprintName, projectName }) {
   const progress = Number(item.progress) || 0;
 
   return (
-    <div style={{
-      background: 'var(--bg2)',
-      border: '1px solid var(--border)',
-      borderLeft: `3px solid ${rc.text}`,
-      borderRadius: 'var(--radius)',
-      padding: '12px 13px',
-      marginBottom: 7,
-      cursor: 'default',
-      transition: 'box-shadow 0.15s',
-    }}
-    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'}
-    onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      style={{
+        background: 'var(--bg2)',
+        border: '1px solid var(--border)',
+        borderLeft: `3px solid ${rc.text}`,
+        borderRadius: 'var(--radius)',
+        padding: '12px 13px',
+        marginBottom: 7,
+        cursor: 'grab',
+        opacity: isDragging ? 0.4 : 1,
+        transition: 'box-shadow 0.15s, opacity 0.15s',
+      }}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
     >
       {/* Top row: rarity + priority */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -111,9 +118,16 @@ function KCard({ item, sprintName, projectName }) {
 }
 
 // ── Status column ─────────────────────────────────────────────────────────────
-function StatusCol({ col, items, sprintMap, projectMap }) {
+function StatusCol({ col, items, sprintMap, projectMap, draggingId, onDragStart, onDragEnd, onDrop, onCardClick }) {
+  const [isOver, setIsOver] = useState(false);
+
   return (
-    <div style={{ flex: '1 1 0', minWidth: 260 }}>
+    <div
+      style={{ flex: '1 1 0', minWidth: 260 }}
+      onDragOver={e => { e.preventDefault(); setIsOver(true); }}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={e => { e.preventDefault(); setIsOver(false); onDrop(col.key); }}
+    >
       {/* Column header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '0 2px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -125,21 +139,35 @@ function StatusCol({ col, items, sprintMap, projectMap }) {
         </span>
       </div>
 
-      {/* Cards */}
-      {items.map(item => (
-        <KCard
-          key={item.id}
-          item={item}
-          sprintName={sprintMap[item.sprint_id]?.name}
-          projectName={projectMap[sprintMap[item.sprint_id]?.project_id]?.name}
-        />
-      ))}
+      {/* Drop zone */}
+      <div style={{
+        minHeight: 40,
+        borderRadius: 'var(--radius)',
+        background: isOver ? 'var(--jade-dim)' : 'transparent',
+        border: isOver ? '1px dashed rgba(0,200,150,0.4)' : '1px dashed transparent',
+        transition: 'all 0.15s',
+        padding: isOver ? '4px' : '0',
+      }}>
+        {/* Cards */}
+        {items.map(item => (
+          <KCard
+            key={item.id}
+            item={item}
+            sprintName={sprintMap[item.sprint_id]?.name}
+            projectName={projectMap[sprintMap[item.sprint_id]?.project_id]?.name}
+            isDragging={draggingId === item.id}
+            onDragStart={() => onDragStart(item.id)}
+            onDragEnd={onDragEnd}
+            onClick={() => onCardClick(item)}
+          />
+        ))}
 
-      {items.length === 0 && (
-        <div style={{ border: '1px dashed var(--border2)', borderRadius: 'var(--radius)', padding: '20px 16px', textAlign: 'center', fontSize: 11, color: 'var(--text3)' }}>
-          Ingen items her
-        </div>
-      )}
+        {items.length === 0 && !isOver && (
+          <div style={{ border: '1px dashed var(--border2)', borderRadius: 'var(--radius)', padding: '20px 16px', textAlign: 'center', fontSize: 11, color: 'var(--text3)' }}>
+            Ingen items her
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -168,6 +196,8 @@ export default function TeamKanban() {
   const [filterProjectId, setFilterProjectId] = useState(null);
   const [groupBySprint, setGroupBySprint] = useState(false);
   const [error, setError] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -245,6 +275,26 @@ export default function TeamKanban() {
     return { done, inProg, backlog, total: filteredItems.length, totalHours, loggedHours };
   }, [filteredItems]);
 
+  async function handleDrop(targetStatus) {
+    if (!draggingId || !targetStatus) return;
+    const item = items.find(i => i.id === draggingId);
+    if (!item || item.item_status === targetStatus) return;
+    // Optimistic update
+    setItems(prev => prev.map(i => i.id === draggingId ? { ...i, item_status: targetStatus } : i));
+    try {
+      await updateItem(draggingId, { item_status: targetStatus });
+    } catch {
+      // Rollback
+      setItems(prev => prev.map(i => i.id === draggingId ? { ...i, item_status: item.item_status } : i));
+    }
+    setDraggingId(null);
+  }
+
+  function handleItemUpdated(updated) {
+    setItems(prev => prev.map(i => i.id === updated.id ? { ...i, ...updated } : i));
+    setSelectedItem(prev => prev?.id === updated.id ? { ...prev, ...updated } : prev);
+  }
+
   if (loading) return <div style={{ padding: 32, color: 'var(--text2)', fontSize: 13 }}>Loader kanban...</div>;
   if (error) return <div style={{ padding: 32, color: 'var(--danger)', fontSize: 13 }}>Fejl: {error}</div>;
 
@@ -299,7 +349,6 @@ export default function TeamKanban() {
 
       {/* Kanban body */}
       {groupBySprint ? (
-        // ── Grouped by sprint ──
         sprintGroups.map(({ sprint, items: sprintItems }) => (
           <div key={sprint.id}>
             <SprintGroupBar sprint={sprint} project={projectMap[sprint.project_id]} itemCount={sprintItems.length} />
@@ -311,13 +360,17 @@ export default function TeamKanban() {
                   items={sprintItems.filter(i => i.item_status === col.key)}
                   sprintMap={sprintMap}
                   projectMap={projectMap}
+                  draggingId={draggingId}
+                  onDragStart={id => setDraggingId(id)}
+                  onDragEnd={() => setDraggingId(null)}
+                  onDrop={handleDrop}
+                  onCardClick={setSelectedItem}
                 />
               ))}
             </div>
           </div>
         ))
       ) : (
-        // ── All items grouped by status ──
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
           {STATUS_COLS.map(col => (
             <StatusCol
@@ -326,6 +379,11 @@ export default function TeamKanban() {
               items={filteredItems.filter(i => i.item_status === col.key)}
               sprintMap={sprintMap}
               projectMap={projectMap}
+              draggingId={draggingId}
+              onDragStart={id => setDraggingId(id)}
+              onDragEnd={() => setDraggingId(null)}
+              onDrop={handleDrop}
+              onCardClick={setSelectedItem}
             />
           ))}
         </div>
@@ -335,6 +393,14 @@ export default function TeamKanban() {
         <div style={{ color: 'var(--text3)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>
           Ingen items fundet.
         </div>
+      )}
+
+      {selectedItem && (
+        <ItemDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onUpdated={handleItemUpdated}
+        />
       )}
     </div>
   );

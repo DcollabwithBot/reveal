@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getProject, getProjectSprints, getSprintItems, updateItem } from '../lib/api';
 import { useGameFeature } from '../shared/useGameFeature';
+import ItemDetailModal from '../components/ItemDetailModal';
 
 export default function ProjectWorkspace({ projectId, organizationId, onBack, onTimelog }) {
   const [project, setProject] = useState(null);
@@ -14,6 +15,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
   // Drag state
   const [draggingId, setDraggingId] = useState(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const showXpBadges = useGameFeature('xpBadges');
   const showRarityStrips = useGameFeature('rarityStrips');
@@ -24,16 +26,29 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!organizationId) return;
+    // Hent team members uafhængigt af organizationId prop — find org via bruger
     loadTeamMembers(organizationId);
-  }, [organizationId]);
+  }, [organizationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadTeamMembers(orgId) {
     try {
+      let targetOrgId = orgId;
+
+      // Hvis orgId ikke er klar endnu, hent direkte
+      if (!targetOrgId) {
+        const { data: membership } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .maybeSingle();
+        targetOrgId = membership?.organization_id;
+      }
+
+      if (!targetOrgId) return;
+
       const { data: members } = await supabase
         .from('organization_members')
         .select('user_id, role')
-        .eq('organization_id', orgId);
+        .eq('organization_id', targetOrgId);
 
       if (members?.length) {
         const userIds = members.map(m => m.user_id);
@@ -77,15 +92,24 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
     e.preventDefault();
     setDragOverCol(null);
     if (!draggingId || !targetStatus) return;
-    setItems(prev => prev.map(i => i.id === draggingId ? { ...i, status: targetStatus } : i));
-    await updateItem(draggingId, { status: targetStatus });
+    const item = items.find(i => i.id === draggingId);
+    if (!item) return;
+    // Optimistisk update på begge felter
+    setItems(prev => prev.map(i => i.id === draggingId ? { ...i, item_status: targetStatus, status: targetStatus === 'done' ? 'completed' : targetStatus } : i));
+    await updateItem(draggingId, { item_status: targetStatus });
     setDraggingId(null);
   }
 
-  // Gruppér items
-  const backlog = items.filter(i => i.status === 'todo' || i.status === 'backlog');
-  const inProgress = items.filter(i => i.status === 'in_progress' || i.status === 'review' || i.status === 'active');
-  const done = items.filter(i => i.status === 'completed' || i.status === 'done');
+  function handleItemUpdated(updated) {
+    setItems(prev => prev.map(i => i.id === updated.id ? { ...i, ...updated } : i));
+    setSelectedItem(prev => prev?.id === updated.id ? { ...prev, ...updated } : prev);
+  }
+
+  // Gruppér items — brug item_status primært, fallback til status
+  const getStatus = i => i.item_status || i.status;
+  const backlog = items.filter(i => { const s = getStatus(i); return s === 'todo' || s === 'backlog' || !s; });
+  const inProgress = items.filter(i => { const s = getStatus(i); return s === 'in_progress' || s === 'review' || s === 'active'; });
+  const done = items.filter(i => { const s = getStatus(i); return s === 'completed' || s === 'done'; });
 
   // Burndown simuleret
   const total = items.length;
@@ -230,6 +254,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
                 }}
                 nextStatus={col.nextStatus}
                 nextLabel={col.nextLabel}
+                onCardClick={(item) => setSelectedItem(item)}
               />
             ))}
           </div>
@@ -290,6 +315,14 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
           )}
         </div>
       </div>
+
+      {selectedItem && (
+        <ItemDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onUpdated={handleItemUpdated}
+        />
+      )}
     </div>
   );
 }
@@ -301,7 +334,7 @@ function KanbanColumn({
   draggingId, dragOverCol,
   onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
   onStatusChange, onAssigneeChange, onDueDateChange,
-  nextStatus, nextLabel
+  nextStatus, nextLabel, onCardClick
 }) {
   const isOver = dragOverCol === colId;
 
@@ -339,6 +372,7 @@ function KanbanColumn({
               onDragStart(item.id);
             }}
             onDragEnd={onDragEnd}
+            onClick={() => onCardClick && onCardClick(item)}
             style={{
               background: 'var(--bg2)',
               border: '1px solid var(--border)',
