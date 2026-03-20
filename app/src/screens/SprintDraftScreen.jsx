@@ -5,27 +5,212 @@ import { getDraftState, submitDraftPicks, submitPriorityVotes, finalizeDraft } f
 const STEPS = ['lobby', 'priority', 'draft', 'summary'];
 const PRIORITY_TOKENS = 5;
 const VOTE_TIMER_SECONDS = 60;
+const TSHIRT_MAP = { S: 2, M: 5, L: 8, XL: 13 };
+const QUICK_ESTIMATE_SECONDS = 15;
 
-// ── Capacity Gauge ────────────────────────────────────────────────────────────
-function CapacityGauge({ used, total }) {
-  const pct = total > 0 ? Math.min((used / total) * 100, 105) : 0;
-  const color = pct > 95 ? 'var(--danger)' : pct > 80 ? 'var(--gold)' : 'var(--jade)';
-  const pulse = pct > 90;
+// ── Quick Estimate Modal ──────────────────────────────────────────────────────
+function QuickEstimateModal({ item, onEstimate, onCancel }) {
+  const [votes, setVotes] = useState({});
+  const [timer, setTimer] = useState(QUICK_ESTIMATE_SECONDS);
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (timer <= 0 && !submitted) {
+      handleSubmit();
+      return;
+    }
+    const t = setTimeout(() => setTimer(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [timer, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleVote(size) {
+    setVotes(prev => ({ ...prev, self: size }));
+  }
+
+  function handleSubmit() {
+    if (submitted) return;
+    setSubmitted(true);
+    // Majority wins — just use own vote for solo, or pick most common
+    const allVotes = Object.values(votes);
+    if (!allVotes.length) {
+      onEstimate(TSHIRT_MAP.M); // default M
+      return;
+    }
+    const counts = {};
+    allVotes.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+    const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    onEstimate(TSHIRT_MAP[winner] || 5);
+  }
 
   return (
-    <div style={gaugeStyles.container}>
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.85)', zIndex: 300,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: 'var(--bg2)', border: '2px solid var(--epic)',
+        borderRadius: 'var(--radius)', padding: 24, maxWidth: 400, width: '90%',
+        textAlign: 'center',
+      }}>
+        <p style={{ fontSize: 10, color: 'var(--text3)', fontFamily: "'Press Start 2P', monospace", marginBottom: 8 }}>QUICK ESTIMATE</p>
+        <p style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{item?.title}</p>
+        <p style={{
+          fontSize: 14, fontWeight: 700, fontFamily: "'Press Start 2P', monospace",
+          color: timer <= 5 ? 'var(--danger)' : 'var(--epic)',
+          animation: timer <= 5 ? 'gaugePulse 0.5s ease-in-out infinite' : 'none',
+          marginBottom: 16,
+        }}>⏱ {timer}s</p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+          {Object.entries(TSHIRT_MAP).map(([size, sp]) => (
+            <button key={size} onClick={() => handleVote(size)} style={{
+              padding: '12px 16px', border: `2px solid ${votes.self === size ? 'var(--epic)' : 'var(--border)'}`,
+              background: votes.self === size ? 'var(--epic-dim)' : 'var(--bg3)',
+              borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 12,
+              fontFamily: "'Press Start 2P', monospace", color: 'var(--text)',
+            }}>
+              <div>{size}</div>
+              <div style={{ fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>{sp} SP</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <button onClick={handleSubmit} disabled={!votes.self} style={{
+            ...screenStyles.primaryBtn, padding: '10px 20px', fontSize: 10,
+            opacity: votes.self ? 1 : 0.5,
+          }}>Confirm</button>
+          <button onClick={onCancel} style={{ ...screenStyles.secondaryBtn, padding: '10px 20px', fontSize: 10 }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CSS Confetti (pure CSS, no library) ───────────────────────────────────────
+function ConfettiBurst({ active }) {
+  if (!active) return null;
+  const particles = Array.from({ length: 10 }, (_, i) => {
+    const angle = (i / 10) * Math.PI * 2;
+    const dist = 40 + Math.random() * 60;
+    const tx = Math.cos(angle) * dist;
+    const ty = Math.sin(angle) * dist - 30;
+    const colors = ['var(--gold)', 'var(--epic)', 'var(--jade)', 'var(--danger)', '#facc15'];
+    return { tx, ty, color: colors[i % colors.length], delay: Math.random() * 0.15 };
+  });
+
+  return (
+    <div style={{ position: 'absolute', top: '50%', left: '50%', pointerEvents: 'none', zIndex: 10 }}>
+      {particles.map((p, i) => (
+        <div key={i} style={{
+          position: 'absolute', width: 6, height: 6,
+          background: p.color, borderRadius: 2,
+          '--tx': `${p.tx}px`, '--ty': `${p.ty}px`,
+          animation: `confettiPop 0.8s ${p.delay}s ease-out forwards`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// ── Sprint Celebration Overlay ────────────────────────────────────────────────
+function SprintCelebration({ sprintName, capacityPct, participants, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.92)', zIndex: 500,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      animation: 'fadeOverlay 3.5s ease-in-out forwards',
+    }}>
+      <div style={{
+        fontSize: 20, fontFamily: "'Press Start 2P', monospace",
+        color: 'var(--jade)', textShadow: '0 0 30px rgba(0,200,150,0.5)',
+        marginBottom: 16, animation: 'bounceIn 0.6s ease-out',
+      }}>
+        SPRINT LOCKED AND LOADED 🚀
+      </div>
+      {sprintName && (
+        <p style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8, fontFamily: "'Press Start 2P', monospace" }}>
+          {sprintName} · {capacityPct}% filled
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        {(participants || []).slice(0, 8).map((p, i) => (
+          <div key={p.id || i} style={{
+            width: 36, height: 36, borderRadius: '50%', background: 'var(--epic-dim)',
+            border: '2px solid var(--epic)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, color: 'var(--text)', fontWeight: 700,
+            animation: `bounceIn 0.4s ${0.1 * i}s ease-out both`,
+          }}>
+            {(p.display_name || 'A')[0].toUpperCase()}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Capacity Gauge (enhanced) ─────────────────────────────────────────────────
+function CapacityGauge({ used, total, overflowFlash }) {
+  const pct = total > 0 ? Math.min((used / total) * 100, 105) : 0;
+  const isLocked = pct >= 100;
+  const isDanger = pct > 95;
+  const isWarning = pct > 80;
+  const color = isDanger ? 'var(--danger)' : isWarning ? 'var(--gold)' : 'var(--jade)';
+  const pulseSpeed = isDanger ? '0.5s' : isWarning ? '1s' : 'none';
+  const [showPerfect, setShowPerfect] = useState(false);
+
+  useEffect(() => {
+    if (Math.round(pct) === 100 && !isDanger) {
+      setShowPerfect(true);
+      const t = setTimeout(() => setShowPerfect(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [pct, isDanger]);
+
+  return (
+    <div style={{
+      ...gaugeStyles.container,
+      animation: overflowFlash ? 'overflowShake 0.5s ease-in-out' : 'none',
+    }}>
       <div style={gaugeStyles.header}>
-        <span style={{ color: 'var(--text2)', fontSize: 11, letterSpacing: 1 }}>CAPACITY</span>
-        <span style={{ color, fontSize: 13, fontWeight: 700 }}>{Math.round(used)} / {total} SP ({Math.round(pct)}%)</span>
+        <span style={{ color: 'var(--text2)', fontSize: 11, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+          CAPACITY
+          {isLocked && <span style={{ animation: 'lockSlam 0.4s ease-out' }}>🔒</span>}
+        </span>
+        <span style={{ color, fontSize: 13, fontWeight: 700 }}>
+          {Math.round(used)} / {total} SP ({Math.round(pct)}%)
+        </span>
       </div>
       <div style={gaugeStyles.track}>
         <div style={{
           ...gaugeStyles.fill,
           width: `${Math.min(pct, 100)}%`,
           background: color,
-          animation: pulse ? 'gaugePulse 1s ease-in-out infinite' : 'none',
+          animation: isWarning ? `gaugePulse ${pulseSpeed} ease-in-out infinite` : 'none',
         }} />
       </div>
+      {showPerfect && (
+        <div style={{
+          textAlign: 'center', marginTop: 6, fontSize: 10,
+          color: 'var(--jade)', fontFamily: "'Press Start 2P', monospace",
+          animation: 'perfectFill 2s ease-out forwards',
+        }}>
+          🎯 Perfect Fill!
+        </div>
+      )}
+      {overflowFlash && (
+        <div style={{
+          textAlign: 'center', marginTop: 4, fontSize: 10,
+          color: 'var(--danger)', fontWeight: 700, fontFamily: "'Press Start 2P', monospace",
+        }}>
+          OVERFLOW
+        </div>
+      )}
     </div>
   );
 }
@@ -57,14 +242,51 @@ const tokenBtnStyle = {
   fontFamily: "'Press Start 2P', monospace",
 };
 
-// ── Draft Item Card ───────────────────────────────────────────────────────────
-function DraftItemCard({ item, priorityScore, pick, onDraft, onSkip, onPark, capacityLeft, isGM, onOverride, disabled }) {
-  const estimate = Number(item.final_estimate) || 0;
+// ── Mystery Card ──────────────────────────────────────────────────────────────
+function MysteryCard({ item, onFlip }) {
+  return (
+    <div style={{
+      padding: '16px', background: '#1a1a2e', border: '2px solid var(--epic-border)',
+      borderRadius: 'var(--radius)', textAlign: 'center', cursor: 'pointer',
+      minHeight: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        fontSize: 32, color: 'var(--epic)',
+        animation: 'mysteryGlow 2s ease-in-out infinite',
+        marginBottom: 8,
+      }}>?</div>
+      <p style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 8, fontFamily: "'Press Start 2P', monospace" }}>
+        {item.title}
+      </p>
+      <button onClick={() => onFlip(item)} style={{
+        padding: '6px 14px', background: 'var(--epic-dim)', border: '1px solid var(--epic)',
+        borderRadius: 'var(--radius)', color: 'var(--epic)', fontSize: 9,
+        fontFamily: "'Press Start 2P', monospace", cursor: 'pointer',
+      }}>
+        🃏 Flip Card
+      </button>
+    </div>
+  );
+}
+
+// ── Draft Item Card (enhanced with mystery + reveal animations) ───────────────
+function DraftItemCard({ item, priorityScore, pick, onDraft, onSkip, onPark, capacityLeft, isGM, onOverride, disabled, onFlipMystery, revealAnim }) {
+  const estimate = Number(item.final_estimate) || Number(item.estimated_hours) || 0;
+  const isMystery = !estimate && !pick;
   const wontFit = estimate > 0 && estimate > capacityLeft && !pick;
   const decision = pick?.decision;
 
   const borderColor = decision === 'drafted' ? 'var(--jade)' : decision === 'stretch' ? 'var(--gold)' :
     decision === 'skipped' ? 'var(--text3)' : decision === 'parked' ? 'var(--text3)' : 'var(--border)';
+
+  // Reveal animation state
+  const isSmall = revealAnim === 'small';
+  const isBig = revealAnim === 'big';
+  const isFlipping = revealAnim === 'flipping';
+
+  if (isMystery && !pick) {
+    return <MysteryCard item={item} onFlip={onFlipMystery} />;
+  }
 
   return (
     <div style={{
@@ -72,7 +294,20 @@ function DraftItemCard({ item, priorityScore, pick, onDraft, onSkip, onPark, cap
       border: `2px solid ${borderColor}`, borderRadius: 'var(--radius)',
       marginBottom: 8, opacity: wontFit ? 0.5 : decision ? 0.85 : 1,
       transition: 'all 0.3s ease',
+      animation: isFlipping ? 'cardFlip 0.6s ease-in-out' : isSmall ? 'greenFlash 1.5s ease-out' : isBig ? 'cameraShake 0.8s ease-in-out' : 'none',
+      position: 'relative',
     }}>
+      {(isSmall || isBig) && (
+        <div style={{
+          position: 'absolute', top: -8, right: 12, fontSize: 9,
+          color: isSmall ? 'var(--jade)' : 'var(--danger)',
+          fontFamily: "'Press Start 2P', monospace", fontWeight: 700,
+          animation: 'bounceIn 0.4s ease-out',
+        }}>
+          {isSmall ? 'Nice! Small one!' : "Whoa, that's a big one!"}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -89,8 +324,12 @@ function DraftItemCard({ item, priorityScore, pick, onDraft, onSkip, onPark, cap
           padding: '4px 10px', background: estimate ? 'var(--bg3)' : 'var(--danger)',
           borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700,
           color: estimate ? 'var(--text)' : '#fff', fontFamily: "'Press Start 2P', monospace",
+          display: 'flex', alignItems: 'center', gap: 4,
         }}>
           {estimate || '?'} SP
+          {pick?.estimate_source === 'quick' && (
+            <span style={{ fontSize: 8, color: 'var(--warn)' }}>⚠️ rough</span>
+          )}
         </div>
       </div>
 
@@ -112,7 +351,7 @@ function DraftItemCard({ item, priorityScore, pick, onDraft, onSkip, onPark, cap
         </div>
       )}
 
-      {!decision && !disabled && (
+      {!decision && !disabled && !isMystery && (
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
           <button onClick={onDraft} disabled={wontFit} style={{ ...actionBtn, background: wontFit ? 'var(--bg3)' : 'rgba(0,200,150,0.15)', color: wontFit ? 'var(--text3)' : 'var(--jade)', borderColor: wontFit ? 'var(--border)' : 'var(--jade)' }}>
             ✅ Draft
@@ -156,6 +395,11 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
   const [myConfidence, setMyConfidence] = useState(null);
   const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [mysteryFlipItem, setMysteryFlipItem] = useState(null);
+  const [revealAnims, setRevealAnims] = useState({});
+  const [overflowFlash, setOverflowFlash] = useState(false);
+  const [consensusItems, setConsensusItems] = useState({});
   const timerRef = useRef(null);
   const pickOrderRef = useRef(0);
 
@@ -169,12 +413,29 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
   }, [picks]);
 
   const capacityLeft = capacity - capacityUsed;
+  const capacityPct = capacity > 0 ? Math.round((capacityUsed / capacity) * 100) : 0;
 
   const tokensUsed = useMemo(() => {
     return Object.values(myTokens).reduce((sum, t) => sum + t, 0);
   }, [myTokens]);
 
   const tokensRemaining = PRIORITY_TOKENS - tokensUsed;
+
+  // Check consensus on priority votes (>70% of all tokens)
+  const totalTokensDistributed = useMemo(() => {
+    return Object.values(priorityScores).reduce((sum, s) => sum + s, 0);
+  }, [priorityScores]);
+
+  useEffect(() => {
+    if (totalTokensDistributed === 0) return;
+    const newConsensus = {};
+    for (const [itemId, score] of Object.entries(priorityScores)) {
+      if (score / totalTokensDistributed > 0.7) {
+        newConsensus[itemId] = true;
+      }
+    }
+    setConsensusItems(newConsensus);
+  }, [priorityScores, totalTokensDistributed]);
 
   // Sort items by priority score
   const sortedItems = useMemo(() => {
@@ -188,7 +449,6 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
       setSession(state.session);
       setItems(state.items || []);
       setPriorityScores(state.priorityScores || {});
-      // Rebuild picks map
       const pickMap = {};
       for (const p of (state.picks || [])) {
         pickMap[p.session_item_id] = p;
@@ -212,17 +472,12 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
       .then(({ data }) => setParticipants(data || []));
   }, [sessionId]);
 
-  // Realtime subscription for priority votes
+  // Realtime subscription
   useEffect(() => {
     if (!sessionId) return;
     const channel = supabase.channel(`draft-${sessionId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sprint_draft_priority_votes', filter: `session_id=eq.${sessionId}` }, () => {
-        // Reload scores on any change
-        loadState();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sprint_draft_picks', filter: `session_id=eq.${sessionId}` }, () => {
-        loadState();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sprint_draft_priority_votes', filter: `session_id=eq.${sessionId}` }, () => { loadState(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sprint_draft_picks', filter: `session_id=eq.${sessionId}` }, () => { loadState(); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [sessionId, loadState]);
@@ -248,7 +503,6 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
 
   async function handleEndPriorityVote() {
     setTimerActive(false);
-    // Submit my tokens
     const votes = Object.entries(myTokens)
       .filter(([, t]) => t > 0)
       .map(([session_item_id, tokens]) => ({ session_item_id, tokens }));
@@ -272,14 +526,22 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
 
   async function handleDraftDecision(itemId, decision, isOverride = false) {
     const item = items.find(i => i.id === itemId);
-    const estimate = Number(item?.final_estimate) || 0;
+    const estimate = Number(item?.final_estimate) || Number(item?.estimated_hours) || 0;
+
+    // Capacity overflow check
+    if (decision === 'drafted' && !isOverride && estimate > 0 && estimate > capacityLeft) {
+      setOverflowFlash(true);
+      setTimeout(() => setOverflowFlash(false), 600);
+      return;
+    }
+
     const order = pickOrderRef.current++;
     const newPick = {
       session_item_id: itemId,
       pick_order: order,
       decision,
       estimate_at_draft: estimate,
-      estimate_source: 'existing',
+      estimate_source: revealAnims[itemId] ? 'quick' : 'existing',
       voted_in: !isOverride,
       pm_override: isOverride,
       priority_score: priorityScores[itemId] || 0,
@@ -290,6 +552,37 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     } catch (e) {
       console.error('Draft pick error:', e);
     }
+  }
+
+  function handleMysteryFlip(item) {
+    setMysteryFlipItem(item);
+  }
+
+  function handleQuickEstimate(estimateValue) {
+    if (!mysteryFlipItem) return;
+    const itemId = mysteryFlipItem.id;
+    setMysteryFlipItem(null);
+
+    // Trigger flip animation
+    setRevealAnims(prev => ({ ...prev, [itemId]: 'flipping' }));
+
+    setTimeout(() => {
+      // Update item with estimate
+      setItems(prev => prev.map(it =>
+        it.id === itemId ? { ...it, final_estimate: estimateValue, estimated_hours: estimateValue } : it
+      ));
+
+      // Suspense pause then reveal reaction
+      setTimeout(() => {
+        const anim = estimateValue <= 5 ? 'small' : estimateValue >= 13 ? 'big' : null;
+        setRevealAnims(prev => ({ ...prev, [itemId]: anim }));
+
+        // Clear animation after display
+        setTimeout(() => {
+          setRevealAnims(prev => ({ ...prev, [itemId]: null }));
+        }, 1500);
+      }, 500);
+    }, 600);
   }
 
   function handleGoToSummary() {
@@ -305,7 +598,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     setFinalizing(true);
     try {
       await finalizeDraft(sessionId);
-      if (onBack) onBack();
+      setShowCelebration(true);
     } catch (e) {
       setError(e.message);
       setFinalizing(false);
@@ -321,7 +614,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     );
   }
 
-  if (error) {
+  if (error && !showCelebration) {
     return (
       <div style={screenStyles.container}>
         <div style={{ color: 'var(--danger)', padding: 32, textAlign: 'center' }}>
@@ -332,7 +625,16 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     );
   }
 
-  const draftConfig = session?.draft_config || {};
+  if (showCelebration) {
+    return (
+      <SprintCelebration
+        sprintName={session?.name}
+        capacityPct={capacityPct}
+        participants={participants}
+        onDone={() => { if (onBack) onBack(); }}
+      />
+    );
+  }
 
   // ── Step 1: Lobby ──
   if (step === 'lobby') {
@@ -420,14 +722,24 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
             {items.map(item => {
               const score = priorityScores[item.id] || 0;
-              const isConsensus = score > 0 && items.length > 0;
+              const isConsensus = consensusItems[item.id];
 
               return (
                 <div key={item.id} style={{
-                  padding: '12px', background: 'var(--bg2)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  animation: isConsensus && score >= 3 ? 'consensusFlash 2s ease-in-out' : 'none',
+                  padding: '12px', background: 'var(--bg2)',
+                  border: isConsensus ? '2px solid var(--gold)' : '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', position: 'relative', overflow: 'hidden',
+                  animation: isConsensus ? 'consensusGlow 2s ease-in-out' : 'none',
                 }}>
+                  {isConsensus && <ConfettiBurst active />}
+                  {isConsensus && (
+                    <div style={{
+                      position: 'absolute', top: 4, right: 8, fontSize: 8,
+                      color: 'var(--gold)', fontFamily: "'Press Start 2P', monospace", fontWeight: 700,
+                    }}>
+                      🔥 HIGH PRIORITY
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {item.item_code && <span style={{ fontSize: 9, color: 'var(--text3)', fontFamily: "'Press Start 2P', monospace" }}>{item.item_code}</span>}
@@ -473,7 +785,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
         <div style={screenStyles.panel}>
           <h2 style={screenStyles.title}>🎯 THE DRAFT</h2>
 
-          <CapacityGauge used={capacityUsed} total={capacity} />
+          <CapacityGauge used={capacityUsed} total={capacity} overflowFlash={overflowFlash} />
 
           <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
             {sortedItems.map(item => (
@@ -485,10 +797,12 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
                 capacityLeft={capacityLeft}
                 isGM={isGM}
                 disabled={false}
+                revealAnim={revealAnims[item.id]}
                 onDraft={() => handleDraftDecision(item.id, 'drafted')}
                 onSkip={() => handleDraftDecision(item.id, 'skipped')}
                 onPark={() => handleDraftDecision(item.id, 'parked')}
                 onOverride={() => handleDraftDecision(item.id, 'drafted', true)}
+                onFlipMystery={() => handleMysteryFlip(item)}
               />
             ))}
           </div>
@@ -504,6 +818,15 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
             </button>
           )}
         </div>
+
+        {/* Quick Estimate Modal */}
+        {mysteryFlipItem && (
+          <QuickEstimateModal
+            item={mysteryFlipItem}
+            onEstimate={handleQuickEstimate}
+            onCancel={() => setMysteryFlipItem(null)}
+          />
+        )}
       </div>
     );
   }
@@ -518,7 +841,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     const skippedItems = sortedItems.filter(item => picks[item.id]?.decision === 'skipped');
     const parkedItems = sortedItems.filter(item => picks[item.id]?.decision === 'parked');
 
-    const totalSP = draftedItems.reduce((sum, item) => sum + (Number(item.final_estimate) || 0), 0);
+    const totalSP = draftedItems.reduce((sum, item) => sum + (Number(item.final_estimate) || Number(item.estimated_hours) || 0), 0);
     const pct = capacity > 0 ? Math.round((totalSP / capacity) * 100) : 0;
 
     const confidenceEntries = Object.values(confidenceVotes);
@@ -558,7 +881,9 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
                 borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <span style={{ fontSize: 12, color: 'var(--text)' }}>{item.item_code ? `${item.item_code} — ` : ''}{item.title}</span>
-                <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: "'Press Start 2P', monospace" }}>{Number(item.final_estimate) || '?'} SP</span>
+                <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: "'Press Start 2P', monospace" }}>
+                  {Number(item.final_estimate) || Number(item.estimated_hours) || '?'} SP
+                </span>
               </div>
             ))}
             {stretchItems.length > 0 && (

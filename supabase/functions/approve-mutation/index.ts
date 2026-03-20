@@ -185,6 +185,111 @@ serve(async (req) => {
 
     if (action === 'apply') {
       const targetType = String(current.target_type || '').toLowerCase()
+
+      // ── Sprint Draft Finalization ──────────────────────────────────────
+      if (targetType === 'sprint_draft_finalization') {
+        const nextState = transitionState(current.state, APPROVAL_STATES.APPLIED, 'system')
+        const changes = current.requested_patch || {}
+        const { session_id, sprint_id: target_sprint_id, drafted_items } = changes
+
+        if (!session_id || !target_sprint_id) throw new Error('Missing session_id or sprint_id in requested_patch')
+
+        // Fetch all drafted/stretch picks
+        const { data: picks } = await supabase
+          .from('sprint_draft_picks')
+          .select('session_item_id, decision, estimate_at_draft, estimate_source')
+          .eq('session_id', session_id)
+          .in('decision', ['drafted', 'stretch'])
+
+        let totalEstimate = 0
+
+        // Assign each drafted item to the target sprint
+        for (const pick of (picks || [])) {
+          const { data: sessionItem } = await supabase
+            .from('session_items')
+            .select('id, source_item_id, title, estimated_hours')
+            .eq('id', pick.session_item_id)
+            .single()
+
+          if (!sessionItem) continue
+
+          const targetItemId = sessionItem.source_item_id || sessionItem.id
+          const isStretch = pick.decision === 'stretch'
+          const estimate = pick.estimate_at_draft || sessionItem.estimated_hours || 0
+          totalEstimate += Number(estimate) || 0
+
+          await supabase
+            .from('session_items')
+            .update({
+              sprint_id: target_sprint_id,
+              is_stretch: isStretch,
+              estimated_hours: estimate,
+              estimate_source: pick.estimate_source || 'existing',
+              item_status: 'backlog',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', targetItemId)
+        }
+
+        // Update sprint status to 'upcoming' if still in draft
+        await supabase
+          .from('sprints')
+          .update({
+            status: 'upcoming',
+            velocity_planned: totalEstimate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', target_sprint_id)
+          .eq('status', 'draft')
+
+        // Mark approval as applied
+        const { data: updatedApproval, error: approvalErr } = await supabase
+          .from('approval_requests')
+          .update({
+            state: nextState,
+            applied_at: new Date().toISOString(),
+            applied_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', approvalId)
+          .select('*')
+          .single()
+
+        if (approvalErr) throw new Error(approvalErr.message)
+
+        await supabase.from('audit_log').insert({
+          event_type: 'approval.request.state_transition',
+          actor: 'system',
+          source_layer: 'system',
+          organization_id: updatedApproval.organization_id,
+          team_id: updatedApproval.team_id,
+          target_type: updatedApproval.target_type,
+          target_id: updatedApproval.target_id,
+          approval_request_id: updatedApproval.id,
+          payload: {
+            from: current.state,
+            to: nextState,
+            items_assigned: (picks || []).length,
+            total_estimate: totalEstimate,
+            target_sprint_id,
+          },
+          outcome: 'accepted',
+        })
+
+        return new Response(JSON.stringify({
+          approval_request: updatedApproval,
+          applied_target: {
+            type: 'sprint_draft_finalization',
+            sprint_id: target_sprint_id,
+            items_assigned: (picks || []).length,
+            total_estimate: totalEstimate,
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // ── Generic apply (existing target types) ─────────────────────────
       const table = TARGET_TABLE[targetType]
       if (!table) throw new Error(`Unsupported target type: ${targetType}`)
 

@@ -69,3 +69,84 @@ html, body {
 }
 
 * { box-sizing: border-box; }
+
+/* ── Sprint Draft Animations ─────────────────────────────────────────────── */
+
+@keyframes cardFlip {
+  0%   { transform: perspective(600px) rotateY(0deg); }
+  49%  { transform: perspective(600px) rotateY(90deg); }
+  50%  { transform: perspective(600px) rotateY(90deg); }
+  100% { transform: perspective(600px) rotateY(0deg); }
+}
+
+@keyframes cameraShake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-4px) rotate(-0.5deg); }
+  40%       { transform: translateX(4px) rotate(0.5deg); }
+  60%       { transform: translateX(-3px); }
+  80%       { transform: translateX(3px); }
+}
+
+@keyframes greenFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(0,200,150,0.8); }
+  50%  { box-shadow: 0 0 20px 10px rgba(0,200,150,0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(0,200,150,0); }
+}
+
+@keyframes consensusGlow {
+  0%   { box-shadow: 0 0 0 0 rgba(200,168,75,0); border-color: var(--border); }
+  30%  { box-shadow: 0 0 25px 8px rgba(200,168,75,0.6); border-color: var(--gold); }
+  100% { box-shadow: 0 0 8px 2px rgba(200,168,75,0.2); border-color: var(--gold); }
+}
+
+@keyframes gaugePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; transform: scaleX(1.01); }
+}
+
+@keyframes overflowShake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-6px); }
+  75%       { transform: translateX(6px); }
+}
+
+@keyframes mysteryGlow {
+  0%, 100% { text-shadow: 0 0 8px rgba(139,92,246,0.4); }
+  50%       { text-shadow: 0 0 20px rgba(139,92,246,0.8), 0 0 40px rgba(139,92,246,0.3); }
+}
+
+@keyframes confettiPop {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3) rotate(720deg); }
+}
+
+@keyframes fadeOverlay {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes bounceIn {
+  0%   { transform: scale(0) translateY(20px); opacity: 0; }
+  60%  { transform: scale(1.15) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes lockSlam {
+  0%   { transform: scale(1.4); opacity: 0; }
+  50%  { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes perfectFill {
+  0%   { opacity: 0; transform: scale(0.8); }
+  20%  { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes timerCountdown {
+  0%   { color: var(--text); }
+  70%  { color: var(--warn); }
+  90%  { color: var(--danger); }
+}
