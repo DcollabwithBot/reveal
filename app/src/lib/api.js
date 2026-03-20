@@ -1570,6 +1570,106 @@ export async function applyEstimationResult(sessionItemId) {
   return { approval_request_id: approval.id };
 }
 
+// ── v3.1 Risk Cards ───────────────────────────────────────────────────────────
+export async function getSessionRiskCards(sessionId) {
+  const { data } = await supabase.from('session_risk_cards')
+    .select('id, card_type, note, played_by, acknowledged, created_at, profiles(display_name)')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function playRiskCard(sessionId, sessionItemId, cardType, note) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase.from('session_risk_cards').insert({
+    session_id: sessionId,
+    session_item_id: sessionItemId || null,
+    played_by: user?.id,
+    card_type: cardType,
+    note: note || null,
+  }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── v3.1 Truth Serum ──────────────────────────────────────────────────────────
+export async function submitTruthSerum(sessionId, sessionItemId, response) {
+  const { data, error } = await supabase.from('truth_serum_responses').insert({
+    session_id: sessionId,
+    session_item_id: sessionItemId || null,
+    response,
+  }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getTruthSerumResponses(sessionId) {
+  const { data } = await supabase.from('truth_serum_responses')
+    .select('id, response, created_at')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true });
+  return data || [];
+}
+
+// ── v3.1 Lifelines ────────────────────────────────────────────────────────────
+export async function useLifeline(sessionId, lifelineType, resultData = {}) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase.from('session_lifelines').insert({
+    session_id: sessionId,
+    lifeline_type: lifelineType,
+    used_by: user?.id,
+    result_data: resultData,
+  }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getSessionLifelines(sessionId) {
+  const { data } = await supabase.from('session_lifelines')
+    .select('id, lifeline_type, used_by, result_data, used_at')
+    .eq('session_id', sessionId);
+  return data || [];
+}
+
+// ── v3.1 Sprint Close ─────────────────────────────────────────────────────────
+export async function closeSprint(sprintId) {
+  const { data, error } = await supabase.from('sprints').update({
+    status: 'closed',
+    closed_at: new Date().toISOString(),
+  }).eq('id', sprintId).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getTeamAccuracyScores(organizationId) {
+  const { data } = await supabase.from('team_accuracy_scores')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('calculated_at', { ascending: false })
+    .limit(20);
+  return data || [];
+}
+
+// ── v3.1 XP / Badges ─────────────────────────────────────────────────────────
+export async function getUserBadges(userId) {
+  const { data } = await supabase.from('user_badges')
+    .select('badge_type, earned_at, session_id')
+    .eq('user_id', userId);
+  return data || [];
+}
+
+export async function getUserProfile(userId) {
+  const { data } = await supabase.from('profiles')
+    .select('id, display_name, avatar_class, xp, level, accuracy_score')
+    .eq('id', userId)
+    .maybeSingle();
+  return data;
+}
+
+export async function awardXpBadges(event, sessionId, sprintId) {
+  return edgeFn('award-xp-badges', { event, session_id: sessionId, sprint_id: sprintId });
+}
+
 // ── Snapshots ─────────────────────────────────────────────────────────────────
 export async function createSprintSnapshot(sprintId) {
   const { data: items } = await supabase

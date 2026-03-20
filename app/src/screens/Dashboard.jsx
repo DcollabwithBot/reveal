@@ -29,6 +29,9 @@ import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import GameStatsBar from '../components/GameStatsBar';
 import { KpiCard, Pill } from '../components/ui/Card';
+import { RoomsSection } from '../components/RoomCard';
+import SprintCloseModal from '../components/SprintCloseModal';
+import { UserProfileMini } from '../components/UserProfilePanel';
 
 function daysLeft(dateStr) {
   if (!dateStr) return null;
@@ -546,6 +549,7 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
   const [estName, setEstName] = useState('');
   const [estMode, setEstMode] = useState('fibonacci');
   const [estBusy, setEstBusy] = useState(false);
+  const [sprintCloseModal, setSprintCloseModal] = useState(null); // { sprintId, sprintName }
 
   useEffect(() => {
     refreshGovernance();
@@ -741,6 +745,16 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
     <div style={{ padding: '0', maxWidth: '100%', margin: '0 auto' }}>
       <GameStatsBar />
 
+      {/* Sprint Close Modal */}
+      {sprintCloseModal && (
+        <SprintCloseModal
+          sprintId={sprintCloseModal.sprintId}
+          sprintName={sprintCloseModal.sprintName}
+          onClose={() => setSprintCloseModal(null)}
+          onClosed={() => { refreshGovernance(); }}
+        />
+      )}
+
       {/* Estimation Modal */}
       {estimateModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center' }} onClick={() => setEstimateModal(null)}>
@@ -787,6 +801,16 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
       )}
 
       <div style={{ padding: '32px', maxWidth: 1140, margin: '0 auto' }}>
+      {/* v3.1 Rooms Section */}
+      <RoomsSection
+        projects={activeProjects}
+        onStartSession={(projectId) => {
+          // Navigate to estimation for this project
+          if (onWorkspace) onWorkspace(projectId);
+        }}
+        onOpenWorkspace={onWorkspace}
+      />
+
       <QuickCreatePanel projects={activeProjects} assignees={assignees} onCreated={() => { refreshGovernance(); loadRecentItems(); }} onOpenWorkspace={onWorkspace} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>

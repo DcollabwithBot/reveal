@@ -1,3 +1,8 @@
+import RiskCardPanel from '../RiskCardPanel.jsx';
+import TruthSerumPanel from '../TruthSerumPanel.jsx';
+import ConfidenceSignal from '../ConfidenceSignal.jsx';
+import LifelinesPanel from '../LifelinesPanel.jsx';
+
 export default function PokerRouletteSteps({
   step,
   rdy,
@@ -38,6 +43,12 @@ export default function PokerRouletteSteps({
   C,
   PF,
   showXpBadges = true,
+  // v3.1 props
+  sessionId,
+  sessionItemId,
+  userId,
+  displayName,
+  isGm,
 }) {
   return (
     <>
@@ -89,17 +100,59 @@ export default function PokerRouletteSteps({
             {pv === initialVote && <span style={{ color: C.grn }}> (INGEN ÆNDRING)</span>}
           </div>
         )}
+        {/* v3.1 Confidence Signal after reveal */}
+        {cv && pv && (
+          <ConfidenceSignal
+            estimate={typeof pv === 'number' ? pv : parseInt(pv) || 0}
+            maxEstimate={21}
+            avgConfidence={cv}
+            C={C}
+            PF={PF}
+          />
+        )}
         <Btn large color={C.blu} onClick={doDisc}>💬 DISKUSSION & POWER-UPS</Btn>
       </div>}
 
       {step === 2 && <div style={{ animation: 'slideUp 0.3s', textAlign: 'center' }}>
         {spread > 3 && <Box color={C.yel} glow={C.yel + '33'} style={{ padding: '7px', marginBottom: '8px' }}><div style={{ fontFamily: PF, fontSize: '6px', color: C.yel }}>⚠️ UENIGHED — {spread} PTS!</div></Box>}
-        <div style={{ fontFamily: PF, fontSize: '5px', color: C.dim, marginBottom: '5px' }}>RISK CARDS</div>
-        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+
+        {/* v3.1 DB-backed Risk Cards */}
+        <RiskCardPanel
+          sessionId={sessionId}
+          sessionItemId={sessionItemId}
+          userId={userId}
+          displayName={displayName}
+          isGm={isGm}
+          C={C}
+          PF={PF}
+        />
+
+        {/* v3.1 Truth Serum */}
+        <TruthSerumPanel
+          sessionId={sessionId}
+          sessionItemId={sessionItemId}
+          isGm={isGm}
+          C={C}
+          PF={PF}
+        />
+
+        {/* v3.1 DB-backed Lifelines */}
+        <LifelinesPanel
+          sessionId={sessionId}
+          userId={userId}
+          isGm={isGm}
+          C={C}
+          PF={PF}
+        />
+
+        {/* Legacy local risk cards (kept for backward compat) */}
+        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '10px', marginTop: 8 }}>
           {['🔥 Dependency', '🧱 Legacy', '🕳️ Unknown', '🧑💻 Single PoK'].map((c) => (
             <div key={c} onClick={() => { if (!rc.includes(c)) doDisc(c); }} style={{ fontFamily: PF, fontSize: '5px', padding: '5px 8px', cursor: 'pointer', background: rc.includes(c) ? C.acc : C.bgL + 'dd', color: rc.includes(c) ? C.wht : C.txt, border: `2px solid ${rc.includes(c) ? C.acc : C.brd}`, animation: rc.includes(c) ? 'pop 0.3s' : 'none' }}>{c}</div>
           ))}
         </div>
+
+        {/* Legacy power-ups (kept for game-mode backward compat) */}
         <div style={{ fontFamily: PF, fontSize: '5px', color: C.dim, marginBottom: '6px' }}>POWER-UPS</div>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '10px' }}>
           {[{ id: 'expert', i: '📞', n: 'Expert' }, { id: 'audience', i: '📊', n: 'Audience' }, { id: '5050', i: '✂️', n: 'Cut' }, { id: 'oracle', i: '🔮', n: 'Oracle' }].map((l) => (
