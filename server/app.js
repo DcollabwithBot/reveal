@@ -1,3 +1,4 @@
+/* eslint-env node */
 require('dotenv').config();
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
@@ -315,6 +316,8 @@ async function appendAuditLog({
   }
 }
 
+const GAME_SESSION_TELEMETRY_METRICS = ['readSuccess', 'readFailure', 'writeSuccess', 'writeFailure', 'exportSuccess', 'exportFailure'];
+
 function sanitizeTelemetryContext(context = {}) {
   return {
     organization_id: context.organizationId || null,
@@ -327,8 +330,32 @@ function sanitizeTelemetryContext(context = {}) {
   };
 }
 
-function recordGameSessionTelemetry(metric, context = {}) {
-  if (!gameSessionTelemetry.counters[metric] && gameSessionTelemetry.counters[metric] !== 0) return;
+async function persistGameSessionTelemetry(metric, context = {}) {
+  const safe = sanitizeTelemetryContext(context);
+  if (!safe.organization_id) return;
+
+  const { error } = await supabase
+    .from('game_session_telemetry_events')
+    .insert({
+      organization_id: safe.organization_id,
+      project_id: safe.project_id,
+      node_id: safe.node_id,
+      metric,
+      source: safe.source,
+      format: safe.format,
+      action: safe.action,
+      error: safe.error,
+      occurred_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('telemetry persist failed:', error.message || error);
+  }
+}
+
+async function recordGameSessionTelemetry(metric, context = {}) {
+  if (!GAME_SESSION_TELEMETRY_METRICS.includes(metric)) return;
+
   gameSessionTelemetry.counters[metric] += 1;
   gameSessionTelemetry.recent.push({
     metric,
@@ -338,13 +365,75 @@ function recordGameSessionTelemetry(metric, context = {}) {
   if (gameSessionTelemetry.recent.length > GAME_SESSION_TELEMETRY_WINDOW_LIMIT) {
     gameSessionTelemetry.recent.splice(0, gameSessionTelemetry.recent.length - GAME_SESSION_TELEMETRY_WINDOW_LIMIT);
   }
+
+  await persistGameSessionTelemetry(metric, context);
 }
 
-function buildGameSessionTelemetrySnapshot() {
-  return {
+async function buildGameSessionTelemetrySnapshot({ organizationId, projectId = null, nodeId = null, limit = 50 }) {
+  const fallback = {
     counters: { ...gameSessionTelemetry.counters },
     recent: [...gameSessionTelemetry.recent],
+    source: 'memory',
   };
+
+  if (!organizationId) return fallback;
+
+  let countersQuery = supabase
+    .from('game_session_telemetry_counters')
+    .select('metric,total')
+    .eq('organization_id', organizationId);
+
+  let recentQuery = supabase
+    .from('game_session_telemetry_events')
+    .select('metric,occurred_at,organization_id,project_id,node_id,source,format,action,error')
+    .eq('organization_id', organizationId)
+    .order('occurred_at', { ascending: false })
+    .limit(Math.min(Math.max(Number(limit) || 50, 1), GAME_SESSION_TELEMETRY_WINDOW_LIMIT));
+
+  if (projectId) {
+    countersQuery = countersQuery.eq('project_id', projectId);
+    recentQuery = recentQuery.eq('project_id', projectId);
+  }
+  if (nodeId) {
+    countersQuery = countersQuery.eq('node_id', nodeId);
+    recentQuery = recentQuery.eq('node_id', nodeId);
+  }
+
+  const [{ data: counterRows, error: countersError }, { data: recentRows, error: recentError }] = await Promise.all([
+    countersQuery,
+    recentQuery,
+  ]);
+
+  if (countersError || recentError) {
+    if (countersError) console.error('telemetry counters read failed:', countersError.message || countersError);
+    if (recentError) console.error('telemetry recent read failed:', recentError.message || recentError);
+    return fallback;
+  }
+
+  const counters = GAME_SESSION_TELEMETRY_METRICS.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+
+  for (const row of counterRows || []) {
+    if (GAME_SESSION_TELEMETRY_METRICS.includes(row.metric)) {
+      counters[row.metric] = Number(row.total) || 0;
+    }
+  }
+
+  const recent = (recentRows || []).map((row) => ({
+    metric: row.metric,
+    at: row.occurred_at,
+    organization_id: row.organization_id,
+    project_id: row.project_id,
+    node_id: row.node_id,
+    source: row.source,
+    format: row.format,
+    action: row.action,
+    error: row.error,
+  }));
+
+  return { counters, recent, source: 'persistent' };
 }
 
 async function appendLedgerEvent({ eventType, source, idempotencyKey, payload, direction = 'ingest' }) {
@@ -626,7 +715,7 @@ app.get('/api/game-session-state', async (req, res) => {
     .maybeSingle();
 
   if (error) {
-    recordGameSessionTelemetry('readFailure', {
+    await recordGameSessionTelemetry('readFailure', {
       organizationId: membership.organization_id,
       projectId,
       nodeId,
@@ -637,7 +726,7 @@ app.get('/api/game-session-state', async (req, res) => {
   }
 
   if (data?.state) {
-    recordGameSessionTelemetry('readSuccess', {
+    await recordGameSessionTelemetry('readSuccess', {
       organizationId: membership.organization_id,
       projectId,
       nodeId,
@@ -666,7 +755,7 @@ app.get('/api/game-session-state', async (req, res) => {
         userId: user.id
       });
 
-      recordGameSessionTelemetry('readSuccess', {
+      await recordGameSessionTelemetry('readSuccess', {
         organizationId: membership.organization_id,
         projectId,
         nodeId,
@@ -679,7 +768,7 @@ app.get('/api/game-session-state', async (req, res) => {
       });
     }
   } catch (fallbackErr) {
-    recordGameSessionTelemetry('readFailure', {
+    await recordGameSessionTelemetry('readFailure', {
       organizationId: membership.organization_id,
       projectId,
       nodeId,
@@ -689,7 +778,7 @@ app.get('/api/game-session-state', async (req, res) => {
     console.error('legacy game session state fallback failed:', fallbackErr.message);
   }
 
-  recordGameSessionTelemetry('readSuccess', {
+  await recordGameSessionTelemetry('readSuccess', {
     organizationId: membership.organization_id,
     projectId,
     nodeId,
@@ -742,7 +831,7 @@ app.post('/api/game-session-state', async (req, res) => {
       outcome: 'accepted'
     });
 
-    recordGameSessionTelemetry('writeSuccess', {
+    await recordGameSessionTelemetry('writeSuccess', {
       organizationId: membership.organization_id,
       projectId,
       nodeId,
@@ -750,7 +839,7 @@ app.post('/api/game-session-state', async (req, res) => {
     });
     return res.json({ ok: true, saved_at: persisted?.saved_at || null, source: 'game_session_states' });
   } catch (err) {
-    recordGameSessionTelemetry('writeFailure', {
+    await recordGameSessionTelemetry('writeFailure', {
       organizationId: membership.organization_id,
       projectId,
       nodeId,
@@ -811,7 +900,90 @@ app.get('/api/game-session-state/status', async (req, res) => {
         upserted: backfillMeta?.payload?.upserted ?? null,
       }
       : null,
-    telemetry: buildGameSessionTelemetrySnapshot(),
+    telemetry: await buildGameSessionTelemetrySnapshot({ organizationId: membership.organization_id, projectId, nodeId }),
+  });
+});
+
+app.get('/api/game-session-state/admin-status', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const projectId = String(req.query.project_id || '').trim() || null;
+  const nodeId = String(req.query.node_id || '').trim() || null;
+
+  let stateHealthQuery = supabase
+    .from('game_session_states')
+    .select('saved_at,status,step')
+    .eq('organization_id', membership.organization_id)
+    .order('saved_at', { ascending: false })
+    .limit(500);
+
+  if (projectId) stateHealthQuery = stateHealthQuery.eq('project_id', projectId);
+  if (nodeId) stateHealthQuery = stateHealthQuery.eq('node_id', nodeId);
+
+  let backfillQuery = supabase
+    .from('audit_log')
+    .select('created_at,payload')
+    .eq('organization_id', membership.organization_id)
+    .eq('event_type', 'game.session.state.backfill.completed')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (projectId) {
+    backfillQuery = backfillQuery.eq('payload->>project_id', projectId);
+  }
+
+  const [{ data: healthRows, error: healthErr }, { data: backfillMeta, error: backfillErr }, telemetry] = await Promise.all([
+    stateHealthQuery,
+    backfillQuery,
+    buildGameSessionTelemetrySnapshot({ organizationId: membership.organization_id, projectId, nodeId, limit: 100 }),
+  ]);
+
+  if (healthErr) return res.status(500).json({ error: healthErr.message || 'Unable to read session-state health' });
+  if (backfillErr) return res.status(500).json({ error: backfillErr.message || 'Unable to read backfill status' });
+
+  const nowMs = Date.now();
+  const staleThresholdMs = 1000 * 60 * 60 * 24;
+  const recentThresholdMs = 1000 * 60 * 60;
+
+  const rows = healthRows || [];
+  const staleCount = rows.filter((row) => row?.saved_at && nowMs - new Date(row.saved_at).getTime() > staleThresholdMs).length;
+  const activeFreshCount = rows.filter((row) => {
+    if (!row?.saved_at) return false;
+    if (row.status === 'completed') return false;
+    return nowMs - new Date(row.saved_at).getTime() <= recentThresholdMs;
+  }).length;
+
+  const latest = rows[0] || null;
+
+  return res.json({
+    scope: {
+      organization_id: membership.organization_id,
+      project_id: projectId,
+      node_id: nodeId,
+    },
+    session_state_health: {
+      tracked_records: rows.length,
+      stale_records_24h: staleCount,
+      active_recent_1h: activeFreshCount,
+      latest_saved_at: latest?.saved_at || null,
+      latest_status: latest?.status || null,
+      latest_step: latest?.step ?? null,
+    },
+    backfill: backfillMeta
+      ? {
+        last_run_at: backfillMeta.created_at,
+        scanned: backfillMeta?.payload?.scanned ?? null,
+        valid_legacy_records: backfillMeta?.payload?.valid_legacy_records ?? null,
+        unique_targets: backfillMeta?.payload?.unique_targets ?? null,
+        upserted: backfillMeta?.payload?.upserted ?? null,
+      }
+      : null,
+    telemetry,
   });
 });
 
@@ -834,7 +1006,7 @@ app.post('/api/telemetry/export-event', async (req, res) => {
   }
 
   const metricKey = ok ? 'exportSuccess' : 'exportFailure';
-  recordGameSessionTelemetry(metricKey, {
+  await recordGameSessionTelemetry(metricKey, {
     organizationId: membership.organization_id,
     projectId,
     action,
@@ -1498,7 +1670,7 @@ app.patch('/api/items/:id', async (req, res) => {
     return res.status(403).json({ error: err.message });
   }
 
-  const { id: _ignored, source_layer, approval_request_id, ...bodyPatch } = req.body || {};
+  const { id: _ignored, source_layer: _source_layer, approval_request_id: _approval_request_id, ...bodyPatch } = req.body || {};
   const allowed = ['assigned_to', 'estimated_hours', 'actual_hours', 'progress', 'item_status', 'title', 'description', 'priority'];
   const patch = {};
   for (const key of allowed) {
