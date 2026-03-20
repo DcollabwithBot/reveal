@@ -176,12 +176,21 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 
 ## Tech stack
 - React (hooks only) + Vite
-- Supabase (Auth + DB + Realtime)
+- Supabase (Auth + DB + Realtime + Edge Functions)
 - Web Audio API (lyd — ingen filer)
 - CSS animations inline
 - Press Start 2P + VT323 (Google Fonts)
-- Hosting: Nordicway
-- Backend: Express i `server/`
+- Hosting: Nordicway (static frontend)
+- Backend: **Supabase Edge Functions** (Deno) — INGEN Express server
+- Old Express server arkiveret i `server_deprecated/`
+
+## Supabase Edge Functions (deployed)
+- `supabase/functions/provision/` — Auto-provision org/team ved login
+- `supabase/functions/approve-mutation/` — PM approval lifecycle (approve/reject/apply)
+- `supabase/functions/start-estimation/` — Start estimation session (sprint/project/bulk/item)
+- `supabase/functions/finalize-draft/` — Sprint Draft finalization
+- `supabase/functions/promote-retro-action/` — Retro action → PM task promotion
+- `supabase/functions/create-session/` — Session creation med auto-provision
 
 ## Filer
 - `src/screens/SessionSetup.jsx` — NY: Admin UI til session oprettelse
