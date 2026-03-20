@@ -25,7 +25,16 @@ export default function App() {
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
+  const [isLight, setIsLight] = useState(false);
   const sound = useSound();
+
+  function toggleTheme() {
+    setIsLight(prev => {
+      const next = !prev;
+      document.body.classList.toggle('light', next);
+      return next;
+    });
+  }
 
   function syncAuthScreenFromPath(pathname, hasUser) {
     if (!hasUser) return;
@@ -151,6 +160,8 @@ export default function App() {
         <Suspense fallback={<LoadingScreen label="LOADING DASHBOARD..." />}>
           <Dashboard
             user={user}
+            isLight={isLight}
+            toggleTheme={toggleTheme}
             onBackToLobby={() => {
               window.history.pushState({}, document.title, '/');
               setAuthScreen("lobby");
