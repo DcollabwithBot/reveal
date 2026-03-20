@@ -660,3 +660,34 @@ export async function reportExportEvent({ projectId, sprintId, format, ok, error
     }),
   });
 }
+
+// ── Sprint Draft ──────────────────────────────────────────────────────────────
+
+export async function getVelocitySuggestion(projectId) {
+  return apiFetch(`/api/projects/${projectId}/velocity-suggestion`);
+}
+
+export async function getDraftState(sessionId) {
+  return apiFetch(`/api/sessions/${sessionId}/draft-state`);
+}
+
+export async function submitDraftPicks(sessionId, picks) {
+  return apiFetch(`/api/sessions/${sessionId}/draft-picks`, {
+    method: 'POST',
+    body: JSON.stringify({ picks }),
+  });
+}
+
+export async function submitPriorityVotes(sessionId, votes) {
+  return apiFetch(`/api/sessions/${sessionId}/priority-votes`, {
+    method: 'POST',
+    body: JSON.stringify({ votes }),
+  });
+}
+
+export async function finalizeDraft(sessionId) {
+  return apiFetch(`/api/sessions/${sessionId}/finalize-draft`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}

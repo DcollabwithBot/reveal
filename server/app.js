@@ -212,6 +212,9 @@ function normalizeSessionType(rawType) {
   if (['retro', 'retrospective', 'sprint_retro'].includes(val)) {
     return 'retro';
   }
+  if (['draft', 'sprint_draft', 'sprint_planning'].includes(val)) {
+    return 'sprint_draft';
+  }
 
   return 'estimation';
 }
@@ -1144,7 +1147,7 @@ app.post('/api/sessions', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
 
-  const { name, session_type, voting_mode, items, project_id, sprint_id } = req.body;
+  const { name, session_type, voting_mode, items, project_id, sprint_id, draft_config } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
 
   let membership = await resolveMembership(user.id);
@@ -1180,7 +1183,8 @@ app.post('/api/sessions', async (req, res) => {
       created_by: user.id,
       status: 'draft',
       project_id: project_id || null,
-      sprint_id: sprint_id || null
+      sprint_id: sprint_id || null,
+      ...(draft_config ? { draft_config } : {})
     })
     .select().single();
 
@@ -3556,6 +3560,173 @@ app.get('/api/org/game-stats', async (req, res) => {
       sessions_this_sprint,
       items_estimated_pct,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Sprint Draft endpoints ────────────────────────────────────────────────────
+
+app.get('/api/projects/:id/velocity-suggestion', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: sprints, error } = await supabase
+      .from('sprint_velocity')
+      .select('sprint_name, velocity_actual')
+      .eq('project_id', id)
+      .order('sprint_id', { ascending: false })
+      .limit(3);
+    if (error) return res.status(500).json({ error: error.message });
+    const velocities = (sprints || []).map(s => Number(s.velocity_actual) || 0);
+    const suggested_capacity = velocities.length
+      ? Math.round(velocities.reduce((a, b) => a + b, 0) / velocities.length)
+      : 0;
+    res.json({
+      suggested_capacity,
+      sprints: (sprints || []).map(s => ({ name: s.sprint_name, velocity_actual: Number(s.velocity_actual) || 0 }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sessions/:id/draft-picks', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  try {
+    const { id } = req.params;
+    const { picks } = req.body;
+    if (!picks || !Array.isArray(picks)) return res.status(400).json({ error: 'picks array required' });
+    const rows = picks.map(p => ({
+      session_id: id,
+      session_item_id: p.session_item_id,
+      pick_order: p.pick_order,
+      decision: p.decision,
+      estimate_at_draft: p.estimate_at_draft ?? null,
+      estimate_source: p.estimate_source || 'existing',
+      voted_in: p.voted_in ?? false,
+      pm_override: p.pm_override ?? false,
+      priority_score: p.priority_score ?? 0,
+    }));
+    const { data, error } = await supabase
+      .from('sprint_draft_picks')
+      .upsert(rows, { onConflict: 'session_id,session_item_id' })
+      .select('*');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sessions/:id/priority-votes', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  try {
+    const { id } = req.params;
+    const { votes } = req.body;
+    if (!votes || !Array.isArray(votes)) return res.status(400).json({ error: 'votes array required' });
+    const rows = votes.map(v => ({
+      session_id: id,
+      session_item_id: v.session_item_id,
+      user_id: user.id,
+      tokens: v.tokens,
+    }));
+    const { error } = await supabase
+      .from('sprint_draft_priority_votes')
+      .upsert(rows, { onConflict: 'session_id,session_item_id,user_id' });
+    if (error) return res.status(500).json({ error: error.message });
+    // Return aggregated scores
+    const { data: agg, error: aggErr } = await supabase
+      .from('sprint_draft_priority_votes')
+      .select('session_item_id, tokens')
+      .eq('session_id', id);
+    if (aggErr) return res.status(500).json({ error: aggErr.message });
+    const scores = {};
+    for (const row of agg || []) {
+      scores[row.session_item_id] = (scores[row.session_item_id] || 0) + row.tokens;
+    }
+    res.json({ scores });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sessions/:id/draft-state', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [sessionRes, itemsRes, picksRes, votesRes] = await Promise.all([
+      supabase.from('sessions').select('id,name,status,draft_config,sprint_id,project_id,game_master_id').eq('id', id).maybeSingle(),
+      supabase.from('session_items').select('*').eq('session_id', id).order('item_order'),
+      supabase.from('sprint_draft_picks').select('*').eq('session_id', id).order('pick_order'),
+      supabase.from('sprint_draft_priority_votes').select('session_item_id, tokens').eq('session_id', id),
+    ]);
+    if (sessionRes.error) return res.status(500).json({ error: sessionRes.error.message });
+    const session = sessionRes.data;
+    const items = itemsRes.data || [];
+    const picks = picksRes.data || [];
+    const votes = votesRes.data || [];
+    // Aggregate priority scores
+    const priorityScores = {};
+    for (const v of votes) {
+      priorityScores[v.session_item_id] = (priorityScores[v.session_item_id] || 0) + v.tokens;
+    }
+    // Calculate capacity used
+    const capacityUsed = picks
+      .filter(p => p.decision === 'drafted' || p.decision === 'stretch')
+      .reduce((sum, p) => sum + (Number(p.estimate_at_draft) || 0), 0);
+    const capacity = session?.draft_config?.capacity_points || 0;
+    res.json({
+      session,
+      items,
+      picks,
+      priorityScores,
+      capacityUsed,
+      capacity,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sessions/:id/finalize-draft', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  try {
+    const { id } = req.params;
+    const membership = await resolveMembership(user.id);
+    if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+    // Gather draft data
+    const { data: session } = await supabase.from('sessions').select('*').eq('id', id).maybeSingle();
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const { data: picks } = await supabase.from('sprint_draft_picks').select('*').eq('session_id', id);
+    const drafted = (picks || []).filter(p => p.decision === 'drafted' || p.decision === 'stretch');
+    const capacityUsed = drafted.reduce((sum, p) => sum + (Number(p.estimate_at_draft) || 0), 0);
+    const idempotencyKey = `sprint_draft_finalize_${id}_${Date.now()}`;
+    const { data: approval, error } = await supabase
+      .from('approval_requests')
+      .insert({
+        organization_id: membership.organization_id,
+        team_id: membership.team_id,
+        target_type: 'sprint_draft_finalization',
+        target_id: id,
+        requested_patch: {
+          session_id: id,
+          sprint_id: session.sprint_id,
+          drafted_items: drafted.map(p => ({ session_item_id: p.session_item_id, decision: p.decision, estimate: p.estimate_at_draft })),
+          capacity_used: capacityUsed,
+          capacity_target: session.draft_config?.capacity_points || 0,
+        },
+        requested_by: user.id,
+        state: 'pending_approval',
+        idempotency_key: idempotencyKey,
+      })
+      .select('*')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    // Mark session completed
+    await supabase.from('sessions').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', id);
+    res.json({ approval_request_id: approval.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

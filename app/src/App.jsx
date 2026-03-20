@@ -20,6 +20,7 @@ const WorkspaceSettings = lazy(() => import("./screens/WorkspaceSettings.jsx"));
 const TeamKanban = lazy(() => import("./screens/TeamKanban.jsx"));
 const RetroScreen = lazy(() => import("./screens/RetroScreen.jsx"));
 const ProjectWorkspace = lazy(() => import("./screens/ProjectWorkspace.jsx"));
+const SprintDraftScreen = lazy(() => import("./screens/SprintDraftScreen.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -29,6 +30,7 @@ export default function App() {
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [timelogProjectId, setTimelogProjectId] = useState(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState(null);
+  const [draftSessionId, setDraftSessionId] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -69,6 +71,12 @@ export default function App() {
     }
     if (pathname === '/settings') {
       setAuthScreen('settings');
+      return;
+    }
+    const draftMatch = pathname.match(/^\/sessions\/([^/]+)\/draft$/);
+    if (draftMatch) {
+      setDraftSessionId(draftMatch[1]);
+      setAuthScreen('sprint_draft');
       return;
     }
     const timelogMatch = pathname.match(/^\/projects\/([^/]+)\/timelog$/);
@@ -379,6 +387,24 @@ export default function App() {
             <RetroScreen onNavigate={handleShellNavigate} />
           </Suspense>
         </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "sprint_draft" && draftSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+          <SprintDraftScreen
+            sessionId={draftSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
       </GameModeProvider>
     );
   }

@@ -221,6 +221,7 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
     sprintProjectId: '', sprintName: '', sprintGoal: '', sprintStatus: 'upcoming',
     itemProjectId: '', itemSprintId: '', itemTitle: '', itemDescription: '', itemPriority: 'medium', itemEstimate: '', itemAssignee: '',
     estimationTaskId: '', estimationTaskTitle: '', estimationMode: 'fibonacci',
+    draftCapacity: '', draftEstimationMode: 'quick_estimate', draftItemIds: [],
   });
 
   const sprintProjectId = form.sprintProjectId || projects[0]?.id || '';
@@ -229,6 +230,11 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
     const project = projects.find(p => p.id === itemProjectId);
     return project?.sprints || [];
   }, [projects, itemProjectId]);
+
+  const backlogItems = useMemo(() => {
+    const sprint = sprintOptions.find(s => s.id === form.itemSprintId);
+    return (sprint?.items || sprint?.session_items || []);
+  }, [sprintOptions, form.itemSprintId]);
 
   useEffect(() => {
     if (!form.sprintProjectId && projects[0]?.id) setForm(prev => ({ ...prev, sprintProjectId: projects[0].id }));
@@ -310,6 +316,29 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
         });
         setMsg('Estimation-session oprettet');
       }
+
+      if (mode === 'sprint_draft') {
+        const targetSprint = sprintOptions.find(s => s.id === form.itemSprintId) || sprintOptions[0] || null;
+        const draftItems = backlogItems.filter(i => form.draftItemIds?.includes(i.id));
+        const session = await createSession({
+          name: `Sprint Draft · ${targetSprint?.name || 'Sprint'}`,
+          session_type: 'sprint_draft',
+          project_id: itemProjectId || null,
+          sprint_id: targetSprint?.id || null,
+          draft_config: {
+            target_sprint_id: targetSprint?.id || null,
+            capacity_points: Number(form.draftCapacity) || 0,
+            estimation_mode: form.draftEstimationMode || 'quick_estimate',
+            backlog_item_ids: draftItems.map(i => i.id),
+          },
+          items: draftItems.map(i => ({ title: i.title, description: i.description || null })),
+        });
+        if (session?.id) {
+          window.history.pushState({}, '', `/sessions/${session.id}/draft`);
+          window.location.reload();
+        }
+        setMsg('Sprint Draft session oprettet');
+      }
     } catch (err) {
       setMsg(err.message || 'Fejl');
     } finally {
@@ -330,6 +359,7 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
             ['sprint', 'Sprint'],
             ['item', 'Opgave'],
             ['estimation', 'Send til estimering'],
+            ['sprint_draft', '🎯 Sprint Draft'],
           ].map(([key, label]) => (
             <button key={key} onClick={() => setMode(key)} style={mode === key ? activeChip() : passiveChip()}>{label}</button>
           ))}
@@ -405,6 +435,27 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
               <option value="fibonacci">Fibonacci</option>
               <option value="tshirt">T-shirt</option>
             </select>
+          </>
+        )}
+
+        {mode === 'sprint_draft' && (
+          <>
+            <select value={itemProjectId} onChange={e => setForm(prev => ({ ...prev, itemProjectId: e.target.value, itemSprintId: '' }))} style={gridSelect('span 3')}>
+              {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <select value={form.itemSprintId} onChange={e => setForm(prev => ({ ...prev, itemSprintId: e.target.value }))} style={gridSelect('span 3')}>
+              {sprintOptions.map(sprint => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}
+            </select>
+            <input value={form.draftCapacity} onChange={e => setForm(prev => ({ ...prev, draftCapacity: e.target.value }))} placeholder="Capacity (SP)" type="number" style={gridInput('span 3')} />
+            <select value={form.draftEstimationMode} onChange={e => setForm(prev => ({ ...prev, draftEstimationMode: e.target.value }))} style={gridSelect('span 3')}>
+              <option value="quick_estimate">Quick Estimate</option>
+              <option value="strict">Strict (kun estimerede)</option>
+            </select>
+            {backlogItems.length > 0 && (
+              <div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--text3)' }}>
+                {backlogItems.length} items i valgt sprint — alle tilføjes til draft pool
+              </div>
+            )}
           </>
         )}
 
