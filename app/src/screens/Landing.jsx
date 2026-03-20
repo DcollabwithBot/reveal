@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { joinSessionByCode } from '../lib/api'
 
 export default function Landing({ onStartPlaying, onJoinSession }) {
   // "Sign In" navigates to /login
@@ -24,13 +25,11 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
     setJoining(true)
     setJoinError('')
     try {
-      const res = await fetch(`/api/sessions/join/${joinCode.trim().toUpperCase()}`)
-      if (!res.ok) {
-        const data = await res.json()
-        setJoinError(data.error || 'Session not found')
+      const session = await joinSessionByCode(joinCode.trim())
+      if (!session) {
+        setJoinError('Session not found')
         return
       }
-      const session = await res.json()
       if (onJoinSession) onJoinSession(session)
     } catch {
       setJoinError('Could not connect to server')

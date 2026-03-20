@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
+import { provisionUser } from "./lib/api";
 import { useSound } from "./shared/useSound.js";
 import Landing from "./screens/Landing.jsx";
 import Login from "./screens/Login.jsx";
@@ -104,15 +105,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/auth/provision', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: user.id,
-        display_name: user.user_metadata?.full_name || user.email
-      })
-    })
-      .then((r) => r.json())
+    provisionUser(user.id, user.user_metadata?.full_name || user.email)
       .then((data) => { if (data?.organization_id) setOrganizationId(data.organization_id); })
       .catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
