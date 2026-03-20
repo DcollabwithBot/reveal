@@ -265,6 +265,7 @@ export default function App() {
           <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
             <ProjectWorkspace
               projectId={workspaceProjectId}
+              organizationId={organizationId}
               onBack={() => {
                 window.history.pushState({}, '', '/dashboard');
                 setAuthScreen('dashboard');

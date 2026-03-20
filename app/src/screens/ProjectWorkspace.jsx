@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
-import { getProject, getProjectSprints, getSprintItems, updateItemStatus } from '../lib/api';
+import { supabase } from '../lib/supabase';
+import { getProject, getProjectSprints, getSprintItems, updateItem } from '../lib/api';
 import { useGameFeature } from '../shared/useGameFeature';
 
-export default function ProjectWorkspace({ projectId, onBack, onTimelog }) {
+export default function ProjectWorkspace({ projectId, organizationId, onBack, onTimelog }) {
   const [project, setProject] = useState(null);
   const [sprints, setSprints] = useState([]);
   const [activeSprint, setActiveSprint] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  // Drag state
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
 
   const showXpBadges = useGameFeature('xpBadges');
   const showRarityStrips = useGameFeature('rarityStrips');
@@ -16,6 +22,31 @@ export default function ProjectWorkspace({ projectId, onBack, onTimelog }) {
     if (!projectId) return;
     loadData();
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!organizationId) return;
+    loadTeamMembers(organizationId);
+  }, [organizationId]);
+
+  async function loadTeamMembers(orgId) {
+    try {
+      const { data: members } = await supabase
+        .from('organization_members')
+        .select('user_id, role')
+        .eq('organization_id', orgId);
+
+      if (members?.length) {
+        const userIds = members.map(m => m.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .in('id', userIds);
+        setTeamMembers(profiles || []);
+      }
+    } catch (err) {
+      console.error('[loadTeamMembers]', err);
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -42,10 +73,19 @@ export default function ProjectWorkspace({ projectId, onBack, onTimelog }) {
     setItems(sprintItems);
   }
 
+  async function handleDrop(e, targetStatus) {
+    e.preventDefault();
+    setDragOverCol(null);
+    if (!draggingId || !targetStatus) return;
+    setItems(prev => prev.map(i => i.id === draggingId ? { ...i, status: targetStatus } : i));
+    await updateItem(draggingId, { status: targetStatus });
+    setDraggingId(null);
+  }
+
   // Gruppér items
-  const backlog = items.filter(i => i.status === 'todo');
-  const inProgress = items.filter(i => i.status === 'in_progress' || i.status === 'review');
-  const done = items.filter(i => i.status === 'completed');
+  const backlog = items.filter(i => i.status === 'todo' || i.status === 'backlog');
+  const inProgress = items.filter(i => i.status === 'in_progress' || i.status === 'review' || i.status === 'active');
+  const done = items.filter(i => i.status === 'completed' || i.status === 'done');
 
   // Burndown simuleret
   const total = items.length;
@@ -78,6 +118,12 @@ export default function ProjectWorkspace({ projectId, onBack, onTimelog }) {
   if (!project) {
     return <div style={{ padding: 32, color: 'var(--text2)', fontSize: 13 }}>Project not found.</div>;
   }
+
+  const colDefs = [
+    { id: 'backlog', title: 'Backlog', items: backlog, targetStatus: 'backlog', nextStatus: 'in_progress', nextLabel: 'Start →', dimmed: false },
+    { id: 'in_progress', title: 'In Progress', titleColor: 'var(--jade)', items: inProgress, targetStatus: 'in_progress', nextStatus: 'completed', nextLabel: 'Done ✓', dimmed: false },
+    { id: 'done', title: 'Done', items: done, targetStatus: 'completed', dimmed: true },
+  ];
 
   return (
     <div style={{ padding: 32 }}>
@@ -148,50 +194,44 @@ export default function ProjectWorkspace({ projectId, onBack, onTimelog }) {
 
           {/* Kanban columns */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-            <KanbanColumn
-              title="Backlog"
-              count={backlog.length}
-              items={backlog}
-              showXp={showXpBadges}
-              showRarity={showRarityStrips}
-              getRarity={getRarity}
-              rarityColor={rarityColor}
-              xpForItem={xpForItem}
-              onStatusChange={async (itemId, newStatus) => {
-                await updateItemStatus(itemId, newStatus);
-                setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: newStatus } : i));
-              }}
-              nextStatus="in_progress"
-              nextLabel="Start →"
-            />
-            <KanbanColumn
-              title="In Progress"
-              titleColor="var(--jade)"
-              count={inProgress.length}
-              items={inProgress}
-              showXp={showXpBadges}
-              showRarity={showRarityStrips}
-              getRarity={getRarity}
-              rarityColor={rarityColor}
-              xpForItem={xpForItem}
-              onStatusChange={async (itemId, newStatus) => {
-                await updateItemStatus(itemId, newStatus);
-                setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: newStatus } : i));
-              }}
-              nextStatus="completed"
-              nextLabel="Done ✓"
-            />
-            <KanbanColumn
-              title="Done"
-              count={done.length}
-              items={done}
-              showXp={false}
-              showRarity={showRarityStrips}
-              getRarity={getRarity}
-              rarityColor={rarityColor}
-              xpForItem={xpForItem}
-              dimmed={true}
-            />
+            {colDefs.map(col => (
+              <KanbanColumn
+                key={col.id}
+                colId={col.id}
+                title={col.title}
+                titleColor={col.titleColor}
+                count={col.items.length}
+                items={col.items}
+                showXp={showXpBadges && !col.dimmed}
+                showRarity={showRarityStrips}
+                getRarity={getRarity}
+                rarityColor={rarityColor}
+                xpForItem={xpForItem}
+                dimmed={col.dimmed}
+                teamMembers={teamMembers}
+                draggingId={draggingId}
+                dragOverCol={dragOverCol}
+                onDragStart={(id) => setDraggingId(id)}
+                onDragEnd={() => setDraggingId(null)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.id); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={(e) => handleDrop(e, col.targetStatus)}
+                onStatusChange={col.nextStatus ? async (itemId, newStatus) => {
+                  setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: newStatus } : i));
+                  await updateItem(itemId, { status: newStatus });
+                } : null}
+                onAssigneeChange={async (itemId, val) => {
+                  setItems(prev => prev.map(i => i.id === itemId ? { ...i, assigned_to: val } : i));
+                  await updateItem(itemId, { assigned_to: val });
+                }}
+                onDueDateChange={async (itemId, val) => {
+                  setItems(prev => prev.map(i => i.id === itemId ? { ...i, due_date: val } : i));
+                  await updateItem(itemId, { due_date: val });
+                }}
+                nextStatus={col.nextStatus}
+                nextLabel={col.nextLabel}
+              />
+            ))}
           </div>
 
           {/* Burndown */}
@@ -254,20 +294,51 @@ export default function ProjectWorkspace({ projectId, onBack, onTimelog }) {
   );
 }
 
-function KanbanColumn({ title, titleColor, count, items, showXp, showRarity, getRarity, rarityColor, xpForItem, dimmed, onStatusChange, nextStatus, nextLabel }) {
+function KanbanColumn({
+  colId, title, titleColor, count, items,
+  showXp, showRarity, getRarity, rarityColor, xpForItem,
+  dimmed, teamMembers,
+  draggingId, dragOverCol,
+  onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
+  onStatusChange, onAssigneeChange, onDueDateChange,
+  nextStatus, nextLabel
+}) {
+  const isOver = dragOverCol === colId;
+
   return (
-    <div>
+    <div
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      style={{
+        border: isOver ? '2px solid var(--jade)' : '2px solid transparent',
+        background: isOver ? 'var(--jade-dim)' : 'transparent',
+        borderRadius: 'var(--radius-lg)',
+        padding: 8,
+        transition: 'border-color 0.15s, background 0.15s',
+        minHeight: 120,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 2px' }}>
         <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: titleColor || 'var(--text3)' }}>{title}</span>
         <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--border)', padding: '2px 6px', borderRadius: 8 }}>{count}</span>
       </div>
+
       {items.map(item => {
         const rarity = getRarity(item);
         const color = rarityColor(rarity);
         const xp = xpForItem(item);
+        const isDragging = draggingId === item.id;
+
         return (
           <div
             key={item.id}
+            draggable={!dimmed}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              onDragStart(item.id);
+            }}
+            onDragEnd={onDragEnd}
             style={{
               background: 'var(--bg2)',
               border: '1px solid var(--border)',
@@ -275,11 +346,13 @@ function KanbanColumn({ title, titleColor, count, items, showXp, showRarity, get
               borderRadius: 'var(--radius)',
               padding: '13px 13px 13px 16px',
               marginBottom: 7,
-              opacity: dimmed ? 0.55 : 1,
-              transition: 'transform 0.15s, box-shadow 0.15s',
-              cursor: onStatusChange ? 'pointer' : 'default',
+              opacity: isDragging ? 0.5 : (dimmed ? 0.55 : 1),
+              transform: isDragging ? 'rotate(2deg) scale(1.02)' : 'none',
+              cursor: dimmed ? 'default' : 'grab',
+              transition: 'transform 0.15s, box-shadow 0.15s, opacity 0.15s',
             }}
           >
+            {/* Rarity + XP row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
               {showRarity && (
                 <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color }}>{rarity}</span>
@@ -290,11 +363,62 @@ function KanbanColumn({ title, titleColor, count, items, showXp, showRarity, get
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 12.5, color: 'var(--text)', marginBottom: 8, lineHeight: 1.4 }}>
+
+            {/* Title */}
+            <div style={{ fontSize: 12.5, color: 'var(--text)', marginBottom: 4, lineHeight: 1.4 }}>
               {item.item_code && <span style={{ color: 'var(--text3)', marginRight: 6 }}>{item.item_code}</span>}
               {item.title}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+            {/* Assignee display */}
+            {item.assigned_to && (
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
+                👤 {teamMembers.find(m => m.id === item.assigned_to)?.display_name || item.assigned_to.slice(0, 8)}
+              </div>
+            )}
+
+            {/* Assignee dropdown (editable) */}
+            {!dimmed && (
+              <select
+                value={item.assigned_to || ''}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  onAssigneeChange(item.id, val);
+                }}
+                style={{
+                  marginTop: 5, fontSize: 10, background: 'var(--bg3)',
+                  border: '1px solid var(--border2)', borderRadius: 4,
+                  color: 'var(--text2)', padding: '2px 4px', cursor: 'pointer', width: '100%'
+                }}
+              >
+                <option value="">— Unassigned</option>
+                {teamMembers.map(m => (
+                  <option key={m.id} value={m.id}>{m.display_name || m.id.slice(0, 8)}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Due date */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+              <span style={{ fontSize: 10, color: 'var(--text3)' }}>📅</span>
+              <input
+                type="date"
+                value={item.due_date || ''}
+                disabled={dimmed}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  onDueDateChange(item.id, val);
+                }}
+                style={{
+                  fontSize: 10, background: 'var(--bg3)', border: '1px solid var(--border2)',
+                  borderRadius: 4, color: item.due_date ? 'var(--text2)' : 'var(--text3)',
+                  padding: '2px 4px', cursor: dimmed ? 'default' : 'pointer'
+                }}
+              />
+            </div>
+
+            {/* Bottom row: hours + action button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
               <span style={{ fontSize: 11, color: 'var(--text3)' }}>
                 {item.estimated_hours ? `${item.estimated_hours}h est.` : '—'}
               </span>
@@ -317,9 +441,10 @@ function KanbanColumn({ title, titleColor, count, items, showXp, showRarity, get
           </div>
         );
       })}
+
       {items.length === 0 && (
         <div style={{ border: '1px dashed var(--border2)', borderRadius: 'var(--radius)', padding: 14, textAlign: 'center', fontSize: 11, color: 'var(--text3)' }}>
-          Empty
+          {isOver ? 'Drop here' : 'Empty'}
         </div>
       )}
     </div>

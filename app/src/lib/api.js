@@ -20,7 +20,7 @@ export async function provisionUser(_userId, _displayName) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function getMembership() {
+export async function getMembership() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
@@ -341,7 +341,7 @@ export async function getProjectSprints(projectId) {
 export async function getSprintItems(sprintId) {
   const { data } = await supabase
     .from('session_items')
-    .select('id, item_code, parent_code, title, status, estimated_hours, hours_fak, hours_int, invoiced_dkk, to_invoice_dkk, assigned_to')
+    .select('id, item_code, parent_code, title, status, estimated_hours, hours_fak, hours_int, invoiced_dkk, to_invoice_dkk, assigned_to, priority, due_date, notes')
     .eq('sprint_id', sprintId)
     .order('item_code', { ascending: true });
   return data || [];
@@ -351,6 +351,16 @@ export async function updateItemStatus(itemId, status) {
   const { data } = await supabase
     .from('session_items')
     .update({ status })
+    .eq('id', itemId)
+    .select()
+    .single();
+  return data;
+}
+
+export async function updateItem(itemId, updates) {
+  const { data } = await supabase
+    .from('session_items')
+    .update(updates)
     .eq('id', itemId)
     .select()
     .single();
