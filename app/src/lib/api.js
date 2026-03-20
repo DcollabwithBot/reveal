@@ -418,6 +418,16 @@ export async function addItemComment(itemId, body, authorName) {
   return data;
 }
 
+export async function updateProjectStatus(projectId, status) {
+  const { data } = await supabase
+    .from('projects')
+    .update({ status })
+    .eq('id', projectId)
+    .select('id, status')
+    .single();
+  return data;
+}
+
 export async function closeItem(itemId) {
   const { data } = await supabase
     .from('session_items')

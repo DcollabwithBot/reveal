@@ -4,7 +4,8 @@ import {
   approveRequest,
   createConflictResolutionRequest,
   getDashboardGovernance,
-  rejectRequest
+  rejectRequest,
+  updateProjectStatus
 } from '../lib/api';
 import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
@@ -88,7 +89,15 @@ function RiskBand({ projects, conflicts }) {
   );
 }
 
-function ProjectTable({ projects, onWorkspace, onTimelog }) {
+const PROJECT_STATUSES = [
+  { value: 'active',    label: 'On Track',  color: 'var(--jade)' },
+  { value: 'review',    label: 'Review',    color: 'var(--warn)' },
+  { value: 'at_risk',   label: 'At Risk',   color: 'var(--danger)' },
+  { value: 'completed', label: 'Completed', color: 'var(--text3)' },
+  { value: 'paused',    label: 'Paused',    color: 'var(--text3)' },
+];
+
+function ProjectTable({ projects, onWorkspace, onTimelog, onProjectStatusChange }) {
   if (!projects.length) return (
     <div style={{ color: 'var(--text3)', fontSize: 13, padding: '16px 0' }}>Ingen aktive projekter endnu.</div>
   );
@@ -149,9 +158,26 @@ function ProjectTable({ projects, onWorkspace, onTimelog }) {
               <div style={{ fontSize: 10, color: 'var(--text3)' }}>{progress}%</div>
             </div>
 
-            {/* Status pill */}
-            <div>
-              <Pill variant={pillVariant(project.status)}>{pillLabel(project.status)}</Pill>
+            {/* Status select */}
+            <div onClick={e => e.stopPropagation()}>
+              {(() => {
+                const opt = PROJECT_STATUSES.find(s => s.value === project.status) || PROJECT_STATUSES[0];
+                return (
+                  <select
+                    value={project.status}
+                    onChange={e => onProjectStatusChange && onProjectStatusChange(project.id, e.target.value)}
+                    style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 20,
+                      background: 'transparent', border: `1px solid ${opt.color}`,
+                      color: opt.color, cursor: 'pointer', outline: 'none',
+                    }}
+                  >
+                    {PROJECT_STATUSES.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                );
+              })()}
             </div>
 
             {/* Sprint label */}
@@ -245,6 +271,20 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
     }
   }
 
+  async function handleProjectStatusChange(projectId, newStatus) {
+    // Optimistisk update
+    setDashboard(prev => ({
+      ...prev,
+      projects: (prev.projects || []).map(p => p.id === projectId ? { ...p, status: newStatus } : p)
+    }));
+    try {
+      await updateProjectStatus(projectId, newStatus);
+    } catch {
+      // Rollback ved fejl
+      await refreshGovernance();
+    }
+  }
+
   const totalProjects = (dashboard.projects || []).length;
   const activeCount = activeProjects.length;
   const pendingCount = pending.length;
@@ -304,6 +344,7 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
         projects={activeProjects}
         onWorkspace={onWorkspace}
         onTimelog={onTimelog}
+        onProjectStatusChange={handleProjectStatusChange}
       />
 
       {/* ── Governance workspace (approval queue, conflicts) ── */}
