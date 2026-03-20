@@ -477,6 +477,90 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+function extractNumericVotes(state) {
+  if (!state || typeof state !== 'object') return [];
+  const fromPov = state?.pv == null ? [] : [Number(state.pv)];
+  const fromVotes = Array.isArray(state?.votes)
+    ? state.votes.map((vote) => Number(vote?.val))
+    : [];
+  return [...fromPov, ...fromVotes].filter((value) => Number.isFinite(value));
+}
+
+function deriveGameSessionStatus(state) {
+  const step = Number(state?.step);
+  if (Number.isFinite(step) && step >= 5) return 'completed';
+  if (state?.rdy || state?.rev) return 'ready_for_review';
+  return 'in_progress';
+}
+
+function buildGameSessionPersistencePatch({ membership, projectId, nodeId, state, userId }) {
+  const numericVotes = extractNumericVotes(state);
+  const voteCount = numericVotes.length;
+  const voteAvg = voteCount
+    ? Number((numericVotes.reduce((sum, value) => sum + value, 0) / voteCount).toFixed(2))
+    : null;
+
+  const finalEstimate = state?.finalEstimate == null
+    ? null
+    : Number.isFinite(Number(state.finalEstimate))
+      ? Number(state.finalEstimate)
+      : null;
+
+  return {
+    organization_id: membership.organization_id,
+    team_id: membership.team_id || null,
+    project_id: projectId,
+    node_id: nodeId,
+    status: deriveGameSessionStatus(state),
+    step: Number.isInteger(state?.step) ? state.step : 0,
+    final_estimate: finalEstimate,
+    vote_count: voteCount,
+    vote_min: voteCount ? Math.min(...numericVotes) : null,
+    vote_max: voteCount ? Math.max(...numericVotes) : null,
+    vote_avg: voteAvg,
+    state,
+    saved_by: userId,
+    saved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+}
+
+async function upsertGameSessionState({ membership, projectId, nodeId, state, userId }) {
+  const patch = buildGameSessionPersistencePatch({ membership, projectId, nodeId, state, userId });
+  const { data, error } = await supabase
+    .from('game_session_states')
+    .upsert(patch, { onConflict: 'organization_id,project_id,node_id' })
+    .select('state,saved_at')
+    .single();
+
+  if (error) {
+    throw new Error(error.message || 'Unable to persist game session state');
+  }
+
+  return data;
+}
+
+async function readLegacyGameSessionState({ organizationId, projectId, nodeId }) {
+  const targetId = `${projectId}:${nodeId}`;
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('payload,created_at')
+    .eq('organization_id', organizationId)
+    .eq('event_type', 'game.session.state.saved')
+    .eq('target_type', 'game_session')
+    .eq('target_id', targetId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Unable to read legacy state');
+
+  return {
+    state: data?.payload?.state || null,
+    saved_at: data?.created_at || null
+  };
+}
+
 app.get('/api/game-session-state', async (req, res) => {
   const user = await getUserFromAuth(req, res);
   if (!user) return;
@@ -488,24 +572,51 @@ app.get('/api/game-session-state', async (req, res) => {
   const nodeId = String(req.query.node_id || '').trim();
   if (!projectId || !nodeId) return res.status(400).json({ error: 'project_id and node_id required' });
 
-  const targetId = `${projectId}:${nodeId}`;
   const { data, error } = await supabase
-    .from('audit_log')
-    .select('payload,created_at')
+    .from('game_session_states')
+    .select('state,saved_at')
     .eq('organization_id', membership.organization_id)
-    .eq('event_type', 'game.session.state.saved')
-    .eq('target_type', 'game_session')
-    .eq('target_id', targetId)
-    .order('created_at', { ascending: false })
-    .limit(1)
+    .eq('project_id', projectId)
+    .eq('node_id', nodeId)
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: error.message });
 
-  return res.json({
-    state: data?.payload?.state || null,
-    saved_at: data?.created_at || null
-  });
+  if (data?.state) {
+    return res.json({
+      state: data.state,
+      saved_at: data.saved_at || null,
+      source: 'game_session_states'
+    });
+  }
+
+  try {
+    const legacy = await readLegacyGameSessionState({
+      organizationId: membership.organization_id,
+      projectId,
+      nodeId
+    });
+
+    if (legacy?.state) {
+      await upsertGameSessionState({
+        membership,
+        projectId,
+        nodeId,
+        state: legacy.state,
+        userId: user.id
+      });
+
+      return res.json({
+        state: legacy.state,
+        saved_at: legacy.saved_at,
+        source: 'audit_log_fallback'
+      });
+    }
+  } catch (fallbackErr) {
+    console.error('legacy game session state fallback failed:', fallbackErr.message);
+  }
+
+  return res.json({ state: null, saved_at: null, source: 'none' });
 });
 
 app.post('/api/game-session-state', async (req, res) => {
@@ -523,26 +634,39 @@ app.post('/api/game-session-state', async (req, res) => {
     return res.status(400).json({ error: 'project_id, node_id and state required' });
   }
 
-  const targetId = `${projectId}:${nodeId}`;
-  await appendAuditLog({
-    eventType: 'game.session.state.saved',
-    actor: 'game',
-    sourceLayer: 'game',
-    organizationId: membership.organization_id,
-    teamId: membership.team_id,
-    targetType: 'game_session',
-    targetId,
-    payload: {
-      project_id: projectId,
-      node_id: nodeId,
+  try {
+    const persisted = await upsertGameSessionState({
+      membership,
+      projectId,
+      nodeId,
       state,
-      saved_by: user.id,
-      saved_at: new Date().toISOString()
-    },
-    outcome: 'accepted'
-  });
+      userId: user.id
+    });
 
-  return res.json({ ok: true });
+    const targetId = `${projectId}:${nodeId}`;
+    await appendAuditLog({
+      eventType: 'game.session.state.saved',
+      actor: 'game',
+      sourceLayer: 'game',
+      organizationId: membership.organization_id,
+      teamId: membership.team_id,
+      targetType: 'game_session',
+      targetId,
+      payload: {
+        project_id: projectId,
+        node_id: nodeId,
+        state,
+        storage: 'game_session_states',
+        saved_by: user.id,
+        saved_at: persisted?.saved_at || new Date().toISOString()
+      },
+      outcome: 'accepted'
+    });
+
+    return res.json({ ok: true, saved_at: persisted?.saved_at || null, source: 'game_session_states' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/sessions/join/:code', async (req, res) => {

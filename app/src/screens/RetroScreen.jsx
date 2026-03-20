@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMembership } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { buildSprintExportPayload, buildSprintItemsCsv, resolveNextSprint } from '../domain/session/retro/sprintFlow';
 
 const RETRO_COLS = [
   { key: 'well',    label: '↑ What went well',   color: 'var(--jade)',   bg: 'rgba(0,200,150,0.08)',   border: 'rgba(0,200,150,0.25)' },
@@ -111,7 +112,7 @@ export default function RetroScreen({ onNavigate }) {
       if (!projIds.length) { setLoading(false); return; }
 
       const { data: sprintData } = await supabase
-        .from('sprints').select('id,name,project_id,status').in('project_id', projIds)
+        .from('sprints').select('id,name,project_id,status,sprint_code,start_date,created_at,updated_at').in('project_id', projIds)
         .order('status', { ascending: true });
       setSprints(sprintData || []);
       if (sprintData?.length) setSelectedSprintId(sprintData[0].id);
@@ -153,16 +154,12 @@ export default function RetroScreen({ onNavigate }) {
 
     try {
       const currentSprint = sprints.find(s => s.id === selectedSprintId) || null;
-      const inSameProject = sprints.filter(s => s.project_id === currentSprint?.project_id);
-      const preferredStatuses = ['planned', 'upcoming', 'active'];
-      const nextSprint = inSameProject.find(s => s.id !== selectedSprintId && preferredStatuses.includes(s.status))
-        || inSameProject.find(s => s.id !== selectedSprintId)
-        || currentSprint;
+      const nextSprint = resolveNextSprint({ allSprints: sprints, currentSprintId: selectedSprintId });
 
-      if (!nextSprint?.id) throw new Error('Ingen sprint fundet til overførsel');
+      if (!nextSprint?.id) throw new Error('Ingen næste sprint fundet i sekvensen');
 
       const title = note.body.trim().slice(0, 180) || 'Action fra retro';
-      const description = `Auto-oprettet fra retro note ${note.id} (${selectedSprint?.name || selectedSprintId}).\n\nOriginal note:\n${note.body}`;
+      const description = `Auto-oprettet fra retro note ${note.id} (${currentSprint?.name || selectedSprintId}).\n\nOriginal note:\n${note.body}`;
 
       const { error } = await supabase
         .from('session_items')
@@ -187,63 +184,73 @@ export default function RetroScreen({ onNavigate }) {
     }
   }
 
-  function handleExportSprintReport() {
+  function downloadTextFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExportSprintReport(format = 'markdown') {
     if (!selectedSprint) return;
     setExporting(true);
     setActionMessage(null);
 
     try {
-      const now = new Date();
-      const actionNotes = notes.filter(n => n.cat === 'action');
-      const wellNotes = notes.filter(n => n.cat === 'well');
-      const improveNotes = notes.filter(n => n.cat === 'improve');
-      const doneItems = items.filter(i => i.item_status === 'done');
-      const openItems = items.filter(i => i.item_status !== 'done');
-      const totalHours = items.reduce((sum, i) => sum + (i.hours_fak || 0) + (i.hours_int || 0) + (i.hours_ub || 0), 0);
-
-      const report = [
-        `# Sprint rapport — ${selectedSprint.name}`,
-        '',
-        `Eksporteret: ${now.toISOString()}`,
-        `Projekt: ${project?.name || 'Ukendt'}`,
-        '',
-        '## Summary',
-        `- Leveret: ${doneItems.length}/${items.length}`,
-        `- Rolled over: ${openItems.length}`,
-        `- Timer logget: ${totalHours.toFixed(1)}h`,
-        `- Retro noter: ${notes.length}`,
-        '',
-        '## What went well',
-        ...(wellNotes.length ? wellNotes.map(n => `- ${n.body} (${n.author_name})`) : ['- Ingen noter']),
-        '',
-        '## Improve',
-        ...(improveNotes.length ? improveNotes.map(n => `- ${n.body} (${n.author_name})`) : ['- Ingen noter']),
-        '',
-        '## Actions til næste sprint',
-        ...(actionNotes.length ? actionNotes.map(n => `- ${n.body} (${n.author_name})`) : ['- Ingen actions']),
-        '',
-        '## Sprint items',
-        ...(items.length
-          ? items.map(item => {
-              const h = (item.hours_fak || 0) + (item.hours_int || 0) + (item.hours_ub || 0);
-              return `- [${item.item_status === 'done' ? 'x' : ' '}] ${item.item_code || 'ITEM'} ${item.title} · est ${item.estimated_hours || '-'}h · log ${h || 0}h`;
-            })
-          : ['- Ingen items']),
-        '',
-      ].join('\n');
-
-      const blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
+      const payload = buildSprintExportPayload({ sprint: selectedSprint, project, notes, items });
       const safeSprint = selectedSprint.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sprint-rapport-${safeSprint || selectedSprint.id}.md`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const fileBase = `sprint-rapport-${safeSprint || selectedSprint.id}`;
 
-      setActionMessage('✅ Sprint rapport eksporteret');
+      if (format === 'json') {
+        downloadTextFile(JSON.stringify(payload, null, 2), `${fileBase}.json`, 'application/json;charset=utf-8');
+      } else if (format === 'csv') {
+        downloadTextFile(buildSprintItemsCsv(items), `${fileBase}.csv`, 'text/csv;charset=utf-8');
+      } else {
+        const report = [
+          `# Sprint rapport — ${selectedSprint.name}`,
+          '',
+          `Eksporteret: ${payload.exported_at}`,
+          `Projekt: ${project?.name || 'Ukendt'}`,
+          '',
+          '## Summary',
+          `- Leveret: ${payload.summary.items_done}/${payload.summary.items_total}`,
+          `- Rolled over: ${payload.summary.items_open}`,
+          `- Timer logget: ${payload.summary.total_hours.toFixed(1)}h`,
+          `- Retro noter: ${payload.summary.notes_total}`,
+          '',
+          '## What went well',
+          ...(payload.notes.filter(n => n.category === 'well').length
+            ? payload.notes.filter(n => n.category === 'well').map(n => `- ${n.body} (${n.author_name})`)
+            : ['- Ingen noter']),
+          '',
+          '## Improve',
+          ...(payload.notes.filter(n => n.category === 'improve').length
+            ? payload.notes.filter(n => n.category === 'improve').map(n => `- ${n.body} (${n.author_name})`)
+            : ['- Ingen noter']),
+          '',
+          '## Actions til næste sprint',
+          ...(payload.notes.filter(n => n.category === 'action').length
+            ? payload.notes.filter(n => n.category === 'action').map(n => `- ${n.body} (${n.author_name})`)
+            : ['- Ingen actions']),
+          '',
+          '## Sprint items',
+          ...(payload.items.length
+            ? payload.items.map(item => {
+                const h = (item.hours_fak || 0) + (item.hours_int || 0) + (item.hours_ub || 0);
+                return `- [${item.status === 'done' ? 'x' : ' '}] ${item.code || 'ITEM'} ${item.title} · est ${item.estimated_hours || '-'}h · log ${h || 0}h`;
+              })
+            : ['- Ingen items']),
+          '',
+        ].join('\n');
+        downloadTextFile(report, `${fileBase}.md`, 'text/markdown;charset=utf-8');
+      }
+
+      setActionMessage(`✅ Sprint rapport eksporteret (${format.toUpperCase()})`);
     } catch (err) {
       setActionMessage(`❌ Kunne ikke eksportere rapport: ${err.message}`);
     } finally {
@@ -459,11 +466,25 @@ export default function RetroScreen({ onNavigate }) {
           ⚡ Start næste sprint estimation
         </button>
         <button
-          onClick={handleExportSprintReport}
+          onClick={() => handleExportSprintReport('markdown')}
           disabled={exporting || !selectedSprint}
           style={{ padding: '11px 20px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', fontSize: 13, cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.7 : 1 }}
         >
-          {exporting ? 'Eksporterer…' : 'Export sprint rapport'}
+          {exporting ? 'Eksporterer…' : 'Export MD'}
+        </button>
+        <button
+          onClick={() => handleExportSprintReport('json')}
+          disabled={exporting || !selectedSprint}
+          style={{ padding: '11px 20px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', fontSize: 13, cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.7 : 1 }}
+        >
+          Export JSON
+        </button>
+        <button
+          onClick={() => handleExportSprintReport('csv')}
+          disabled={exporting || !selectedSprint}
+          style={{ padding: '11px 20px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', fontSize: 13, cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.7 : 1 }}
+        >
+          Export CSV
         </button>
       </div>
     </div>
