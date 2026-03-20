@@ -209,3 +209,30 @@ er — ingen statiske elementer
 
 ## Lokation
 `/root/.openclaw/workspace/projects/reveal/`
+
+## ⚠️ Arkitektur-beslutning: Supabase-native (INGEN Express)
+
+**Besluttet: 2026-03-20 af Danny**
+
+Reveal bruger **Supabase direkte** — ingen Express-backend.
+
+- Al data-adgang: Supabase JS client fra frontend
+- Auth: Supabase Auth (Google OAuth)
+- Realtid: Supabase Realtime (already in use)
+- Business logic / server-side: **Supabase Edge Functions** (Deno)
+- Row-level security: **RLS policies** på alle tabeller
+- Ingen PM2, ingen Node-server, ingen cPanel-friktion
+
+### Hvad Edge Functions bruges til
+- Governance / approval pipeline (PM mutation guard)
+- Notifikations-dispatch (send email via Resend)
+- Kompleks game logic der ikke må ligge i frontend
+- Sync-operationer (når Jira/TopDesk aktiveres)
+
+### Deploy-model
+- Frontend: Nordicway static hosting (rsync dist/)
+- Backend: **Supabase Edge Functions** (auto-hosted, ingen server)
+- DB: Supabase (Postgres + RLS)
+
+### Fejl der ikke må gentages
+Agents må ALDRIG oprette en Express-server til Reveal. Hvis noget kræver server-side logik → brug Supabase Edge Function.
