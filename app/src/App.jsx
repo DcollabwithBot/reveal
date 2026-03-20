@@ -75,29 +75,29 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && (hash.includes('access_token') || hash.includes('error'))) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+  // Hash cleanup sker automatisk af Supabase — vi fjerner ikke mere
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const nextUser = data?.user ?? null;
-      setUser(nextUser);
-      if (nextUser) syncAuthScreenFromPath(window.location.pathname, true);
-      setLoading(false);
-    });
-
+    // Lad onAuthStateChange håndtere alt — inkl. OAuth-callback hash
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       if (u) {
         syncAuthScreenFromPath(window.location.pathname, true);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setAuthScreen("landing");
       }
+      // Sæt loading false første gang vi får et svar
+      setLoading(false);
+    });
+
+    // Initialiser session fra storage (håndterer refresh + eksisterende session)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        syncAuthScreenFromPath(window.location.pathname, true);
+      }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -134,8 +134,12 @@ export default function App() {
     if (authScreen === "login" || window.location.pathname.startsWith('/game')) {
       return (
         <Login
-          onGuestPlay={() => {
-            setAuthScreen("game");
+          onGuestPlay={() => setAuthScreen("game")}
+          onNavigate={(screen) => {
+            if (screen === 'dashboard') {
+              window.history.pushState({}, document.title, '/dashboard');
+              setAuthScreen('dashboard');
+            }
           }}
         />
       );

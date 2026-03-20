@@ -2,10 +2,7 @@ import { useState, useEffect } from 'react'
 import { joinSessionByCode } from '../lib/api'
 
 export default function Landing({ onStartPlaying, onJoinSession }) {
-  // "Sign In" navigates to /login
-  const handleSignIn = () => {
-    window.location.href = '/login'
-  }
+
 
   const [joinCode, setJoinCode] = useState('')
   const [showJoin, setShowJoin] = useState(false)
@@ -78,7 +75,7 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
               🎮 Join a Session
             </button>
 
-            <button style={s.ctaSignIn} onClick={handleSignIn}>
+            <button style={s.ctaSignIn} onClick={onStartPlaying}>
               🔑 Sign In
             </button>
           </div>

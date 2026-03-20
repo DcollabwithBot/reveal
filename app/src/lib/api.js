@@ -24,11 +24,31 @@ async function getMembership() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: member } = await supabase
+  // Prøv direkte organization_members først
+  const { data: orgMember, error: orgError } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (orgError) {
+    console.error('[getMembership] organization_members query failed:', orgError.message);
+  }
+
+  if (orgMember?.organization_id) {
+    return { organization_id: orgMember.organization_id, role: orgMember.role };
+  }
+
+  // Fallback: via team_members
+  const { data: member, error: teamError } = await supabase
     .from('team_members')
     .select('team_id, role')
     .eq('user_id', user.id)
     .maybeSingle();
+
+  if (teamError) {
+    console.error('[getMembership] team_members query failed:', teamError.message);
+  }
 
   if (!member?.team_id) return null;
 
@@ -51,7 +71,7 @@ export async function getDashboard() {
   const [{ data: sessions }, { data: projects }] = await Promise.all([
     supabase
       .from('sessions')
-      .select('id,name,status,join_code,created_at,started_at,ended_at,current_item_index,session_type,project_id,session_items(count),session_participants(count)')
+      .select('id,name,status,join_code,created_at,started_at,ended_at,session_type,project_id')
       .eq('organization_id', membership.organization_id)
       .order('created_at', { ascending: false })
       .limit(100),
