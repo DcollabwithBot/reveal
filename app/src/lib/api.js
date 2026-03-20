@@ -592,6 +592,61 @@ export async function getGameSessionStateStatus({ projectId, nodeId }) {
   return apiFetch(`/api/game-session-state/status?project_id=${encodeURIComponent(projectId)}&node_id=${encodeURIComponent(nodeId)}`);
 }
 
+// ── Game-PM Bridge (Fase 3) ───────────────────────────────────────────────────
+export async function startSprintEstimation(sprintId, { session_name, voting_mode } = {}) {
+  return apiFetch(`/api/sprints/${sprintId}/start-estimation`, {
+    method: 'POST',
+    body: JSON.stringify({ session_name, voting_mode }),
+  });
+}
+
+export async function startProjectEstimation(projectId, { session_name, voting_mode } = {}) {
+  return apiFetch(`/api/projects/${projectId}/start-estimation`, {
+    method: 'POST',
+    body: JSON.stringify({ session_name, voting_mode }),
+  });
+}
+
+export async function startBulkEstimation({ item_ids, session_name, voting_mode }) {
+  return apiFetch('/api/items/bulk-estimation-session', {
+    method: 'POST',
+    body: JSON.stringify({ item_ids, session_name, voting_mode }),
+  });
+}
+
+export async function getOrgSettings() {
+  return apiFetch('/api/org/settings');
+}
+
+export async function updateOrgSettings(patch) {
+  return apiFetch('/api/org/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function saveRetroActions(sessionId, actions) {
+  return apiFetch(`/api/sessions/${sessionId}/retro-actions`, {
+    method: 'POST',
+    body: JSON.stringify({ actions }),
+  });
+}
+
+export async function getRetroActions() {
+  return apiFetch('/api/retro-actions');
+}
+
+export async function promoteRetroAction(actionId, { sprint_id } = {}) {
+  return apiFetch(`/api/retro-actions/${actionId}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ sprint_id }),
+  });
+}
+
+export async function getGameStats() {
+  return apiFetch('/api/org/game-stats');
+}
+
 export async function reportExportEvent({ projectId, sprintId, format, ok, error }) {
   return apiFetch('/api/telemetry/export-event', {
     method: 'POST',

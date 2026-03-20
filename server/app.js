@@ -3084,6 +3084,483 @@ app.get('/api/notifications/unread-count', async (req, res) => {
   res.json({ count: count || 0 });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// Feature: Game ↔ PM Bridge (Fase 3)
+// ══════════════════════════════════════════════════════════════════
+
+// POST /api/sprints/:id/start-estimation
+// Start estimation session with all unestimated items from a sprint
+app.post('/api/sprints/:id/start-estimation', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id: sprintId } = req.params;
+  const { session_name, voting_mode } = req.body || {};
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.status(400).json({ error: 'No team membership' });
+
+  // Hent sprint info
+  const { data: sprint, error: sprintErr } = await supabase
+    .from('sprints')
+    .select('id, name, project_id, organization_id')
+    .eq('id', sprintId)
+    .maybeSingle();
+
+  if (sprintErr || !sprint) return res.status(404).json({ error: 'Sprint not found' });
+
+  // Hent unestimererede items
+  const { data: items, error: itemsErr } = await supabase
+    .from('session_items')
+    .select('id, title, sprint_id')
+    .eq('sprint_id', sprintId)
+    .is('estimated_hours', null)
+    .order('item_order', { ascending: true });
+
+  if (itemsErr) return res.status(500).json({ error: itemsErr.message });
+
+  if (!items?.length) return res.status(400).json({ error: 'Alle items i dette sprint er allerede estimeret' });
+
+  const join_code = Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  const { data: session, error: sessErr } = await supabase
+    .from('sessions')
+    .insert({
+      name: session_name || `Estimer: ${sprint.name}`,
+      session_type: 'estimation',
+      voting_mode: voting_mode || 'fibonacci',
+      team_id: membership.team_id,
+      organization_id: membership.organization_id,
+      game_master_id: user.id,
+      created_by: user.id,
+      status: 'draft',
+      join_code,
+      project_id: sprint.project_id || null,
+      sprint_id: sprintId,
+    })
+    .select()
+    .single();
+
+  if (sessErr) return res.status(500).json({ error: sessErr.message });
+
+  const itemRows = items.map((it, i) => ({
+    session_id: session.id,
+    sprint_id: sprintId,
+    title: it.title,
+    item_order: i,
+    status: 'pending',
+    source_item_id: it.id,
+  }));
+
+  const { error: insertErr } = await supabase.from('session_items').insert(itemRows);
+  if (insertErr) console.error('Sprint estimation items insert error:', insertErr.message);
+
+  return res.status(201).json({ session_id: session.id, join_code });
+});
+
+// POST /api/projects/:id/start-estimation
+// Start estimation session with all unestimated items from all sprints in a project
+app.post('/api/projects/:id/start-estimation', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id: projectId } = req.params;
+  const { session_name, voting_mode } = req.body || {};
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.status(400).json({ error: 'No team membership' });
+
+  const { data: project, error: projErr } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  if (projErr || !project) return res.status(404).json({ error: 'Project not found' });
+
+  // Hent alle sprints for projektet
+  const { data: sprints } = await supabase
+    .from('sprints')
+    .select('id')
+    .eq('project_id', projectId);
+
+  const sprintIds = (sprints || []).map(s => s.id);
+  if (!sprintIds.length) return res.status(400).json({ error: 'Ingen sprints i projektet' });
+
+  // Hent unestimererede items
+  const { data: items, error: itemsErr } = await supabase
+    .from('session_items')
+    .select('id, title, sprint_id')
+    .in('sprint_id', sprintIds)
+    .is('estimated_hours', null)
+    .order('item_order', { ascending: true });
+
+  if (itemsErr) return res.status(500).json({ error: itemsErr.message });
+  if (!items?.length) return res.status(400).json({ error: 'Alle items i projektet er allerede estimeret' });
+
+  const join_code = Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  const { data: session, error: sessErr } = await supabase
+    .from('sessions')
+    .insert({
+      name: session_name || `Bulk estimer: ${project.name}`,
+      session_type: 'estimation',
+      voting_mode: voting_mode || 'fibonacci',
+      team_id: membership.team_id,
+      organization_id: membership.organization_id,
+      game_master_id: user.id,
+      created_by: user.id,
+      status: 'draft',
+      join_code,
+      project_id: projectId,
+    })
+    .select()
+    .single();
+
+  if (sessErr) return res.status(500).json({ error: sessErr.message });
+
+  const itemRows = items.map((it, i) => ({
+    session_id: session.id,
+    sprint_id: it.sprint_id,
+    title: it.title,
+    item_order: i,
+    status: 'pending',
+    source_item_id: it.id,
+  }));
+
+  const { error: insertErr } = await supabase.from('session_items').insert(itemRows);
+  if (insertErr) console.error('Project estimation items insert error:', insertErr.message);
+
+  return res.status(201).json({ session_id: session.id, join_code });
+});
+
+// POST /api/items/bulk-estimation-session
+// Create estimation session for specific selected items
+app.post('/api/items/bulk-estimation-session', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { item_ids, session_name, voting_mode } = req.body || {};
+  if (!Array.isArray(item_ids) || !item_ids.length) return res.status(400).json({ error: 'item_ids required' });
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.status(400).json({ error: 'No team membership' });
+
+  const { data: items, error: itemsErr } = await supabase
+    .from('session_items')
+    .select('id, title, sprint_id')
+    .in('id', item_ids);
+
+  if (itemsErr) return res.status(500).json({ error: itemsErr.message });
+  if (!items?.length) return res.status(404).json({ error: 'No items found' });
+
+  const join_code = Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  const { data: session, error: sessErr } = await supabase
+    .from('sessions')
+    .insert({
+      name: session_name || `Estimering: ${items.length} items`,
+      session_type: 'estimation',
+      voting_mode: voting_mode || 'fibonacci',
+      team_id: membership.team_id,
+      organization_id: membership.organization_id,
+      game_master_id: user.id,
+      created_by: user.id,
+      status: 'draft',
+      join_code,
+    })
+    .select()
+    .single();
+
+  if (sessErr) return res.status(500).json({ error: sessErr.message });
+
+  const itemRows = items.map((it, i) => ({
+    session_id: session.id,
+    sprint_id: it.sprint_id || null,
+    title: it.title,
+    item_order: i,
+    status: 'pending',
+    source_item_id: it.id,
+  }));
+
+  const { error: insertErr } = await supabase.from('session_items').insert(itemRows);
+  if (insertErr) console.error('Bulk estimation items insert error:', insertErr.message);
+
+  return res.status(201).json({ session_id: session.id, join_code });
+});
+
+// GET /api/org/settings — get org settings (auto_approve_estimates)
+app.get('/api/org/settings', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id, auto_approve_estimates')
+    .eq('id', membership.organization_id)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ auto_approve_estimates: data?.auto_approve_estimates || false });
+});
+
+// PATCH /api/org/settings — update org settings
+app.patch('/api/org/settings', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const myPerms = getPermissionsForRole(membership.role);
+  if (!myPerms.includes('manage_members')) {
+    return res.status(403).json({ error: 'Kun admin/owner kan ændre org settings' });
+  }
+
+  const { auto_approve_estimates } = req.body;
+  const update = {};
+  if (typeof auto_approve_estimates === 'boolean') update.auto_approve_estimates = auto_approve_estimates;
+
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(update)
+    .eq('id', membership.organization_id)
+    .select('id, auto_approve_estimates')
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ auto_approve_estimates: data?.auto_approve_estimates || false });
+});
+
+// ── Retro Actions ─────────────────────────────────────────────────────────────
+
+// POST /api/sessions/:id/retro-actions — save retro action items
+app.post('/api/sessions/:id/retro-actions', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id: sessionId } = req.params;
+  const { actions } = req.body || {};
+  if (!Array.isArray(actions) || !actions.length) return res.status(400).json({ error: 'actions array required' });
+
+  const rows = actions.map(a => ({
+    session_id: sessionId,
+    title: a.title,
+    description: a.description || null,
+    suggested_assignee: a.suggested_assignee || null,
+    suggested_sprint_id: a.suggested_sprint_id || null,
+    created_by: user.id,
+  })).filter(r => r.title?.trim());
+
+  if (!rows.length) return res.status(400).json({ error: 'At least one action with title required' });
+
+  const { data, error } = await supabase.from('retro_actions').insert(rows).select();
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.status(201).json(data);
+});
+
+// GET /api/retro-actions — list unpromoted retro actions for org
+app.get('/api/retro-actions', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.json([]);
+
+  // Get all sessions for this org, then their retro_actions
+  const { data: sessions } = await supabase
+    .from('sessions')
+    .select('id, name')
+    .eq('organization_id', membership.organization_id);
+
+  const sessionIds = (sessions || []).map(s => s.id);
+  if (!sessionIds.length) return res.json([]);
+
+  const sessionMap = new Map((sessions || []).map(s => [s.id, s.name]));
+
+  const { data, error } = await supabase
+    .from('retro_actions')
+    .select('*')
+    .in('session_id', sessionIds)
+    .is('promoted_at', null)
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const enriched = (data || []).map(a => ({
+    ...a,
+    session_name: sessionMap.get(a.session_id) || 'Unknown session',
+  }));
+
+  res.json(enriched);
+});
+
+// POST /api/retro-actions/:id/promote — promote to PM task via approval
+app.post('/api/retro-actions/:id/promote', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+  const { sprint_id } = req.body || {};
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const { data: action, error: actionErr } = await supabase
+    .from('retro_actions')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (actionErr || !action) return res.status(404).json({ error: 'Retro action not found' });
+  if (action.promoted_at) return res.status(409).json({ error: 'Already promoted' });
+
+  const idempotency_key = `retro_promote:${id}:${Date.now()}`;
+
+  const { data: approval, error: apErr } = await supabase
+    .from('approval_requests')
+    .insert({
+      organization_id: membership.organization_id,
+      team_id: membership.team_id,
+      target_type: 'retro_promotion',
+      target_id: id,
+      requested_patch: {
+        title: action.title,
+        description: action.description,
+        sprint_id: sprint_id || action.suggested_sprint_id || null,
+        source_type: 'retro',
+        source_session_id: action.session_id,
+      },
+      requested_by: user.id,
+      state: APPROVAL_STATES.PENDING_APPROVAL,
+      idempotency_key,
+    })
+    .select('*')
+    .single();
+
+  if (apErr) return res.status(500).json({ error: apErr.message });
+
+  res.status(201).json({ approval_request_id: approval.id });
+});
+
+// ── Game Stats ────────────────────────────────────────────────────────────────
+
+// GET /api/org/game-stats — gamification signals for dashboard
+app.get('/api/org/game-stats', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const orgId = membership.organization_id;
+
+  try {
+    // Get sprints ordered by end_date desc
+    const { data: sprints } = await supabase
+      .from('sprints')
+      .select('id, name, status, end_date, project_id')
+      .eq('organization_id', orgId)
+      .order('end_date', { ascending: false })
+      .limit(20);
+
+    const completedSprints = (sprints || []).filter(s => s.status === 'completed');
+    const activeSprint = (sprints || []).find(s => s.status === 'active');
+
+    // Sprint streak: count consecutive completed sprints (completed before end_date)
+    let sprint_streak = 0;
+    for (const s of completedSprints) {
+      // Consider completed = on time for simplicity
+      sprint_streak++;
+      // Break if we find a gap (could be enhanced with actual date comparison)
+      if (sprint_streak >= 10) break;
+    }
+
+    // Estimation accuracy: compare estimated vs actual hours for recent completed sprints
+    let estimation_accuracy = null;
+    const recentCompletedIds = completedSprints.slice(0, 5).map(s => s.id);
+    if (recentCompletedIds.length) {
+      const { data: estItems } = await supabase
+        .from('session_items')
+        .select('estimated_hours, actual_hours')
+        .in('sprint_id', recentCompletedIds)
+        .not('estimated_hours', 'is', null)
+        .not('actual_hours', 'is', null);
+
+      const pairs = (estItems || []).filter(i => i.estimated_hours > 0 && i.actual_hours > 0);
+      if (pairs.length) {
+        const accuracies = pairs.map(i => {
+          const ratio = i.actual_hours / i.estimated_hours;
+          return ratio > 1 ? 1 / ratio : ratio; // Symmetric accuracy
+        });
+        estimation_accuracy = Number((accuracies.reduce((s, v) => s + v, 0) / accuracies.length).toFixed(2));
+      }
+    }
+
+    // Team velocity trend: compare points of last 3 completed sprints
+    let team_velocity_trend = 'stable';
+    if (completedSprints.length >= 3) {
+      const lastThreeIds = completedSprints.slice(0, 3).map(s => s.id);
+      const { data: velItems } = await supabase
+        .from('session_items')
+        .select('sprint_id, estimated_hours')
+        .in('sprint_id', lastThreeIds)
+        .eq('item_status', 'done');
+
+      const pointsBySprint = {};
+      for (const item of velItems || []) {
+        pointsBySprint[item.sprint_id] = (pointsBySprint[item.sprint_id] || 0) + (item.estimated_hours || 1);
+      }
+
+      const velocities = lastThreeIds.map(id => pointsBySprint[id] || 0);
+      if (velocities[0] > velocities[1] && velocities[1] > velocities[2]) {
+        team_velocity_trend = 'down'; // Most recent first, so [0] is latest — if latest < prev, it's down
+      }
+      // Wait — sprints are ordered desc, so [0]=latest. If latest > prev > prev-prev = up
+      if (velocities[0] > velocities[1]) {
+        team_velocity_trend = 'up';
+      } else if (velocities[0] < velocities[1]) {
+        team_velocity_trend = 'down';
+      }
+    }
+
+    // Sessions this sprint
+    let sessions_this_sprint = 0;
+    if (activeSprint) {
+      const { count } = await supabase
+        .from('sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', orgId)
+        .eq('sprint_id', activeSprint.id)
+        .eq('session_type', 'estimation');
+      sessions_this_sprint = count || 0;
+    }
+
+    // Items estimated %
+    let items_estimated_pct = 0;
+    if (activeSprint) {
+      const { data: allItems } = await supabase
+        .from('session_items')
+        .select('id, estimated_hours')
+        .eq('sprint_id', activeSprint.id);
+
+      const total = (allItems || []).length;
+      const estimated = (allItems || []).filter(i => i.estimated_hours != null).length;
+      items_estimated_pct = total > 0 ? Number((estimated / total).toFixed(2)) : 0;
+    }
+
+    res.json({
+      sprint_streak,
+      estimation_accuracy,
+      team_velocity_trend,
+      sessions_this_sprint,
+      items_estimated_pct,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(staticRoot, 'index.html'));
 });

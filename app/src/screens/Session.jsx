@@ -23,7 +23,7 @@ import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
 import { useGameFeature } from "../shared/useGameFeature.js";
 import { dk } from "../shared/utils.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
-import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState } from "../lib/api.js";
+import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState, saveRetroActions } from "../lib/api.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -434,6 +434,16 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
               sound("reveal");
             }}
             onFinish={() => safeComplete(node?.id)}
+            onSaveRetroActions={async (actions) => {
+              // We need a session ID from the URL/context. Use project+node as fallback session lookup.
+              try {
+                // Try to find the session ID from the current context
+                const sessionId = project?.currentSessionId || node?.sessionId;
+                if (sessionId) {
+                  await saveRetroActions(sessionId, actions);
+                }
+              } catch { /* best-effort */ }
+            }}
           />
         </div>
       </Scene>

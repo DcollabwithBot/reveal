@@ -146,6 +146,81 @@ function TeamRoles({ myPermissions }) {
   );
 }
 
+function GovernanceSettings({ myPermissions }) {
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const canManage = myPermissions.includes('manage_members');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const r = await fetch('/api/org/settings', { headers });
+        if (r.ok) {
+          const data = await r.json();
+          setAutoApprove(data.auto_approve_estimates || false);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleToggle() {
+    if (!canManage) return;
+    const newVal = !autoApprove;
+    setSaving(true);
+    try {
+      const headers = await authHeaders();
+      const r = await fetch('/api/org/settings', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ auto_approve_estimates: newVal }),
+      });
+      if (r.ok) setAutoApprove(newVal);
+    } catch { /* ignore */ }
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>⚙ Governance</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)' }}>Indstillinger for estimation og godkendelsesflow.</div>
+      </div>
+
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 18px', background: 'var(--bg2)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)', opacity: loading ? 0.5 : 1,
+      }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>Auto-godkend estimater fra sessioner</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+            Når aktiveret skrives estimater direkte til PM-opgaver uden godkendelse
+          </div>
+        </div>
+        <button
+          onClick={handleToggle}
+          disabled={!canManage || saving || loading}
+          style={{
+            width: 44, height: 24, borderRadius: 12, border: 'none', cursor: canManage ? 'pointer' : 'default',
+            background: autoApprove ? 'var(--jade)' : 'var(--bg3)',
+            position: 'relative', transition: 'background 0.2s',
+          }}
+        >
+          <div style={{
+            width: 18, height: 18, borderRadius: '50%', background: '#fff',
+            position: 'absolute', top: 3,
+            left: autoApprove ? 23 : 3,
+            transition: 'left 0.2s',
+          }} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const MODES = [
   {
     key: 'focus',
@@ -257,6 +332,9 @@ export default function WorkspaceSettings({ onBack }) {
             );
           })}
         </div>
+
+        {/* Governance Settings */}
+        <GovernanceSettings myPermissions={myPermissions} />
 
         {/* Team & Roller section */}
         <div style={{ marginTop: 48 }}>

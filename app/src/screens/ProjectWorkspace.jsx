@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { getProject, getProjectSprints, getSprintItems, updateItem } from '../lib/api';
+import { getProject, getProjectSprints, getSprintItems, updateItem, startSprintEstimation, startBulkEstimation } from '../lib/api';
 import { useGameFeature } from '../shared/useGameFeature';
 import ItemDetailModal from '../components/ItemDetailModal';
 import SprintCharts from '../components/SprintCharts';
@@ -199,6 +199,41 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
 
   const showXpBadges = useGameFeature('xpBadges');
   const showRarityStrips = useGameFeature('rarityStrips');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [estModal, setEstModal] = useState(null); // { type: 'sprint'|'bulk', sprintId?, sprintName? }
+  const [estName, setEstName] = useState('');
+  const [estMode, setEstMode] = useState('fibonacci');
+  const [estBusy, setEstBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleEstimation() {
+    if (!estModal) return;
+    setEstBusy(true);
+    try {
+      let result;
+      if (estModal.type === 'sprint') {
+        result = await startSprintEstimation(estModal.sprintId, { session_name: estName || undefined, voting_mode: estMode });
+      } else {
+        result = await startBulkEstimation({ item_ids: [...selectedIds], session_name: estName || undefined, voting_mode: estMode });
+      }
+      setEstModal(null);
+      setSelectedIds(new Set());
+      if (result?.session_id) {
+        window.location.hash = `#/lobby/${result.session_id}`;
+      }
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
+    setEstBusy(false);
+  }
 
   useEffect(() => {
     if (!projectId) return;
@@ -331,6 +366,36 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
 
   return (
     <div style={{ padding: 32 }}>
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+
+      {/* Estimation Modal */}
+      {estModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center' }} onClick={() => setEstModal(null)}>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, minWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+              {estModal.type === 'sprint' ? '⚔ Estimer sprint' : `⚔ Estimer ${selectedIds.size} items`}
+            </div>
+            <input value={estName} onChange={e => setEstName(e.target.value)} placeholder="Session navn" style={{ width: '100%', boxSizing: 'border-box', marginBottom: 10, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13, padding: '8px 12px' }} />
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {['fibonacci', 't-shirt'].map(m => (
+                <button key={m} onClick={() => setEstMode(m)} style={{
+                  fontSize: 11, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', border: 'none',
+                  background: estMode === m ? 'var(--jade-dim)' : 'var(--bg3)',
+                  color: estMode === m ? 'var(--jade)' : 'var(--text2)',
+                  outline: estMode === m ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
+                }}>{m === 'fibonacci' ? 'Fibonacci' : 'T-shirt'}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleEstimation} disabled={estBusy} style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 6, cursor: estBusy ? 'wait' : 'pointer', border: 'none', background: estBusy ? 'var(--bg3)' : 'var(--jade)', color: estBusy ? 'var(--text3)' : '#0c0c0f' }}>
+                {estBusy ? 'Opretter...' : 'Start session →'}
+              </button>
+              <button onClick={() => setEstModal(null)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 6, background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>Annuller</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -354,6 +419,14 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
             }}>
               {activeSprint.name}
             </span>
+          )}
+          {activeSprint && (
+            <button
+              onClick={() => { setEstModal({ type: 'sprint', sprintId: activeSprint.id, sprintName: activeSprint.name }); setEstName(activeSprint.name); }}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 16, cursor: 'pointer', border: '1px solid rgba(200,168,75,0.3)', background: 'rgba(200,168,75,0.08)', color: 'var(--gold)', fontWeight: 600 }}
+            >
+              ⚔ Estimer sprint
+            </button>
           )}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>
@@ -435,9 +508,36 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
                 nextStatus={col.nextStatus}
                 nextLabel={col.nextLabel}
                 onCardClick={(item) => setSelectedItem(item)}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </div>
+
+          {/* Floating action bar for bulk estimation */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 100, display: 'flex', alignItems: 'center', gap: 12,
+              background: 'var(--bg2)', border: '1px solid var(--jade)',
+              borderRadius: 'var(--radius-lg)', padding: '10px 20px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text2)' }}>{selectedIds.size} valgt</span>
+              <button
+                onClick={() => { setEstModal({ type: 'bulk' }); setEstName(`Estimering: ${selectedIds.size} items`); }}
+                style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 'var(--radius)', cursor: 'pointer', border: 'none', background: 'var(--jade)', color: '#0c0c0f' }}
+              >
+                ⚔ Estimer valgte ({selectedIds.size})
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                style={{ fontSize: 11, padding: '5px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)' }}
+              >
+                Ryd
+              </button>
+            </div>
+          )}
 
           {/* Charts — Burndown + Velocity */}
           <SprintCharts sprintId={activeSprint?.id} projectId={projectId} />
@@ -600,7 +700,8 @@ function KanbanColumn({
   draggingId, dragOverCol,
   onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
   onStatusChange, onAssigneeChange, onDueDateChange,
-  nextStatus, nextLabel, onCardClick
+  nextStatus, nextLabel, onCardClick,
+  selectedIds, onToggleSelect
 }) {
   const isOver = dragOverCol === colId;
 
@@ -652,11 +753,22 @@ function KanbanColumn({
               transition: 'transform 0.15s, box-shadow 0.15s, opacity 0.15s',
             }}
           >
-            {/* Rarity + XP row */}
+            {/* Rarity + XP + Checkbox row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-              {showRarity && (
-                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color }}>{rarity}</span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {onToggleSelect && !dimmed && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds?.has(item.id) || false}
+                    onChange={(e) => { e.stopPropagation(); onToggleSelect(item.id); }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: 13, height: 13, cursor: 'pointer', accentColor: 'var(--jade)' }}
+                  />
+                )}
+                {showRarity && (
+                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color }}>{rarity}</span>
+                )}
+              </div>
               {showXp && (
                 <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold)', background: 'var(--gold-dim)', border: '1px solid rgba(200,168,75,0.18)', padding: '2px 6px', borderRadius: 8 }}>
                   +{xp} XP

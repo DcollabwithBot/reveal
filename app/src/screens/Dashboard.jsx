@@ -14,16 +14,20 @@ import {
   getDashboardGovernance,
   getMembership,
   getOrgMetrics,
+  getRetroActions,
   getRiskItems,
   getTeamAssignees,
+  promoteRetroAction,
   rejectRequest,
   resolveRiskItem,
+  startSprintEstimation,
   updateProjectStatus,
   updateRiskItem,
   upsertOrgMetric,
 } from '../lib/api';
 import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
+import GameStatsBar from '../components/GameStatsBar';
 import { KpiCard, Pill } from '../components/ui/Card';
 
 function daysLeft(dateStr) {
@@ -482,11 +486,21 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
   const [recentItems, setRecentItems] = useState([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [assignees, setAssignees] = useState([]);
+  const [retroActions, setRetroActions] = useState([]);
+  const [retroLoading, setRetroLoading] = useState(false);
+  const [promoteModal, setPromoteModal] = useState(null); // { actionId, sprintOptions }
+  const [promoteSprint, setPromoteSprint] = useState('');
+  const [promoteBusy, setPromoteBusy] = useState(false);
+  const [estimateModal, setEstimateModal] = useState(null); // { sprintId, sprintName }
+  const [estName, setEstName] = useState('');
+  const [estMode, setEstMode] = useState('fibonacci');
+  const [estBusy, setEstBusy] = useState(false);
 
   useEffect(() => {
     refreshGovernance();
     loadRecentItems();
     loadAssignees();
+    loadRetroActions();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function refreshGovernance() {
@@ -523,6 +537,44 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
     } catch {
       setAssignees([]);
     }
+  }
+
+  async function loadRetroActions() {
+    setRetroLoading(true);
+    try {
+      const data = await getRetroActions();
+      setRetroActions(data || []);
+    } catch { /* silent */ }
+    setRetroLoading(false);
+  }
+
+  async function handlePromoteRetro() {
+    if (!promoteModal) return;
+    setPromoteBusy(true);
+    try {
+      await promoteRetroAction(promoteModal.actionId, { sprint_id: promoteSprint || null });
+      setRetroActions(prev => prev.map(a => a.id === promoteModal.actionId ? { ...a, _promoted: true } : a));
+      setPromoteModal(null);
+      setPromoteSprint('');
+    } catch { /* silent */ }
+    setPromoteBusy(false);
+  }
+
+  async function handleStartSprintEstimation() {
+    if (!estimateModal) return;
+    setEstBusy(true);
+    try {
+      const result = await startSprintEstimation(estimateModal.sprintId, {
+        session_name: estName || undefined,
+        voting_mode: estMode,
+      });
+      setEstimateModal(null);
+      if (result?.session_id && onWorkspace) {
+        // Navigate to lobby — for now just refresh
+        window.location.hash = `#/lobby/${result.session_id}`;
+      }
+    } catch { /* silent */ }
+    setEstBusy(false);
   }
 
   async function handleAddRisk(payload) {
@@ -635,7 +687,55 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
   const blockerLabel = blockedCount > 0 ? ` · ${blockedCount} blokkere` : '';
 
   return (
-    <div style={{ padding: '32px', maxWidth: 1140, margin: '0 auto' }}>
+    <div style={{ padding: '0', maxWidth: '100%', margin: '0 auto' }}>
+      <GameStatsBar />
+
+      {/* Estimation Modal */}
+      {estimateModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center' }} onClick={() => setEstimateModal(null)}>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, minWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>⚔ Estimer sprint</div>
+            <input value={estName} onChange={e => setEstName(e.target.value)} placeholder={estimateModal.sprintName} style={inputStyle(13, 12, '100%', 10)} />
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {['fibonacci', 't-shirt'].map(m => (
+                <button key={m} onClick={() => setEstMode(m)} style={{
+                  fontSize: 11, padding: '5px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', border: 'none',
+                  background: estMode === m ? 'var(--jade-dim)' : 'var(--bg3)',
+                  color: estMode === m ? 'var(--jade)' : 'var(--text2)',
+                  outline: estMode === m ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
+                }}>{m === 'fibonacci' ? 'Fibonacci' : 'T-shirt'}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleStartSprintEstimation} disabled={estBusy} style={primaryButton('var(--jade)', false, estBusy)}>
+                {estBusy ? 'Opretter...' : 'Start session →'}
+              </button>
+              <button onClick={() => setEstimateModal(null)} style={secondaryButton()}>Annuller</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Promote Retro Modal */}
+      {promoteModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center' }} onClick={() => setPromoteModal(null)}>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, minWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Lav til opgave</div>
+            <select value={promoteSprint} onChange={e => setPromoteSprint(e.target.value)} style={{ ...selectStyle(), width: '100%', marginBottom: 14 }}>
+              <option value="">Vælg sprint (valgfri)</option>
+              {(promoteModal.sprintOptions || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handlePromoteRetro} disabled={promoteBusy} style={primaryButton('var(--jade)', false, promoteBusy)}>
+                {promoteBusy ? 'Sender...' : 'Promovér →'}
+              </button>
+              <button onClick={() => setPromoteModal(null)} style={secondaryButton()}>Annuller</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: '32px', maxWidth: 1140, margin: '0 auto' }}>
       <QuickCreatePanel projects={activeProjects} assignees={assignees} onCreated={() => { refreshGovernance(); loadRecentItems(); }} onOpenWorkspace={onWorkspace} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
@@ -694,6 +794,40 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
           </div>
         )}
         {!recentLoading && recentItems.length === 0 && <div style={{ color: 'var(--text3)', fontSize: 13 }}>Ingen opgaver endnu.</div>}
+      </div>
+
+      {/* Retro Action Items */}
+      {retroActions.filter(a => !a._promoted).length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
+            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>Retro Action Items</h2>
+            <span style={{ fontSize: 12, color: 'var(--text2)' }}>fra retrospektiver</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {retroActions.filter(a => !a._promoted).map(action => (
+              <div key={action.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{action.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                    {action.session_name} · {new Date(action.created_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
+                    {action.description && <span> · {action.description.slice(0, 60)}</span>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const allSprints = (dashboard.projects || []).flatMap(p => p.sprints || []);
+                    setPromoteModal({ actionId: action.id, sprintOptions: allSprints });
+                    setPromoteSprint(action.suggested_sprint_id || '');
+                  }}
+                  style={{ fontSize: 11, padding: '5px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', border: '1px solid rgba(0,200,150,0.3)', background: 'var(--jade-dim)', color: 'var(--jade)', fontWeight: 600, flexShrink: 0 }}
+                >
+                  Lav til opgave
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
