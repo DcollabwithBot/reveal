@@ -192,32 +192,21 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - `supabase/functions/promote-retro-action/` — Retro action → PM task promotion
 - `supabase/functions/create-session/` — Session creation med auto-provision
 
-## Filer
-- `src/screens/SessionSetup.jsx` — NY: Admin UI til session oprettelse
-- `src/screens/ActiveSession.jsx` — Opdateret: voting_mode, DB challenges/retro
-- `src/screens/Session.jsx` — Opdateret: DB writes på completion
-- `src/screens/SessionLobby.jsx` — Opdateret: Setup button
-- `src/App.jsx` — Opdateret: /setup route
-- `server/app.js` — Opdateret: voting_mode i session INSERT
-- `supabase/migrations/sprint5.sql` — NY: Schema changes
-- `supabase/seed/sprint5-defaults.sql` — NY: Default data
+## Edge Functions (supabase/functions/)
+- `approve-mutation/` — PM approval lifecycle (approve/reject/apply) + PM mutation guard
+- `start-estimation/` — Start estimation session fra sprint/projekt/bulk/items
+- `finalize-draft/` — Sprint Draft finalization → approval request
+- `promote-retro-action/` — Retro action item → PM task via approval
+- `create-session/` — Session oprettelse med auto-provisioning
 
-## Design-principper (rør ikke)
-- Pixel art æstetik
-- Alt lever — ingen statiske elementer
-- Lyd på alt
-- Boss battle = opgaven der skal estimeres
-- Tavern hub = world select
-
-## Lokation
-`/root/.openclaw/workspace/projects/reveal/`
-er — ingen statiske elementer
-- Lyd på alt
-- Boss battle = opgaven der skal estimeres
-- Tavern hub = world select
-
-## Lokation
-`/root/.openclaw/workspace/projects/reveal/`
+## Vigtige filer (frontend)
+- `app/src/lib/api.js` — AL API-kommunikation. Supabase direkte + edgeFn() helper til Edge Functions
+- `app/src/lib/supabase.js` — Supabase client (auth + DB + realtime)
+- `app/src/screens/` — Alle skærme (Session, Dashboard, ProjectWorkspace, SprintDraftScreen, etc.)
+- `app/src/components/` — Delte komponenter (CommentsPanel, NotificationBell, SprintCharts, SearchModal, GameStatsBar, etc.)
+- `supabase/migrations/` — Alle DB-migrationer i kronologisk rækkefølge
+- `supabase/functions/` — Edge Functions (Deno, hosted på Supabase)
+- `server_deprecated/` — Gammel Express-server (arkiveret, BRUGES IKKE)
 
 ## ⚠️ Arkitektur-beslutning: Supabase-native (INGEN Express)
 
@@ -227,21 +216,28 @@ Reveal bruger **Supabase direkte** — ingen Express-backend.
 
 - Al data-adgang: Supabase JS client fra frontend
 - Auth: Supabase Auth (Google OAuth)
-- Realtid: Supabase Realtime (already in use)
+- Realtid: Supabase Realtime
 - Business logic / server-side: **Supabase Edge Functions** (Deno)
 - Row-level security: **RLS policies** på alle tabeller
 - Ingen PM2, ingen Node-server, ingen cPanel-friktion
 
-### Hvad Edge Functions bruges til
-- Governance / approval pipeline (PM mutation guard)
-- Notifikations-dispatch (send email via Resend)
-- Kompleks game logic der ikke må ligge i frontend
-- Sync-operationer (når Jira/TopDesk aktiveres)
+**Deploy-model:**
+- Frontend: Nordicway static hosting (rsync dist/ → ~/reveal.blichert.net/)
+- Backend: Supabase Edge Functions (auto-hosted, ingen server at starte)
+- DB: Supabase Postgres + RLS
 
-### Deploy-model
-- Frontend: Nordicway static hosting (rsync dist/)
-- Backend: **Supabase Edge Functions** (auto-hosted, ingen server)
-- DB: Supabase (Postgres + RLS)
+**⛔ Fejl der ikke må gentages:**
+Agents må ALDRIG oprette en Express-server til Reveal.
+Hvis noget kræver server-side logik → brug Supabase Edge Function.
+Ny function → opret i `supabase/functions/<navn>/index.ts` (Deno).
 
-### Fejl der ikke må gentages
-Agents må ALDRIG oprette en Express-server til Reveal. Hvis noget kræver server-side logik → brug Supabase Edge Function.
+## Design-principper (rør ikke)
+- Pixel art æstetik i game-modes
+- Alt lever — ingen statiske elementer i spillet
+- Lyd på alt (game-lag)
+- Boss battle = opgaven der skal estimeres
+- Tavern hub = world select
+- PM-fladen er professionel og rolig — game er overlay/advisory
+
+## Lokation
+`/root/.openclaw/workspace/projects/reveal/`
