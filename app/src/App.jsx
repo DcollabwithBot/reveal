@@ -4,6 +4,7 @@ import { useSound } from "./shared/useSound.js";
 import Landing from "./screens/Landing.jsx";
 import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
+import AppShell from "./components/AppShell.jsx";
 import { GameModeProvider } from "./shared/GameModeContext.jsx";
 import "./shared/animations.css";
 
@@ -14,11 +15,12 @@ const Overworld = lazy(() => import("./screens/Overworld.jsx"));
 const Session = lazy(() => import("./screens/Session.jsx"));
 const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
 const WorkspaceSettings = lazy(() => import("./screens/WorkspaceSettings.jsx"));
+const TeamKanban = lazy(() => import("./screens/TeamKanban.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | timelog | settings | game
+  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | timelog | settings | teamkanban | game
   const [organizationId, setOrganizationId] = useState(null);
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [timelogProjectId, setTimelogProjectId] = useState(null);
@@ -34,6 +36,21 @@ export default function App() {
       document.body.classList.toggle('light', next);
       return next;
     });
+  }
+
+  function handleShellNavigate(screen) {
+    if (screen === 'settings') {
+      window.history.pushState({}, '', '/settings');
+      setAuthScreen('settings');
+    } else if (screen === 'game') {
+      setAuthScreen('game');
+    } else if (screen === 'dashboard') {
+      window.history.pushState({}, '', '/dashboard');
+      setAuthScreen('dashboard');
+    } else {
+      // teamkanban, retro, etc.
+      setAuthScreen(screen);
+    }
   }
 
   function syncAuthScreenFromPath(pathname, hasUser) {
@@ -157,27 +174,29 @@ export default function App() {
   if (user && authScreen === "dashboard") {
     return (
       <GameModeProvider organizationId={organizationId}>
-        <Suspense fallback={<LoadingScreen label="LOADING DASHBOARD..." />}>
-          <Dashboard
-            user={user}
-            isLight={isLight}
-            toggleTheme={toggleTheme}
-            onBackToLobby={() => {
-              window.history.pushState({}, document.title, '/');
-              setAuthScreen("lobby");
-            }}
-            onContinue={() => setAuthScreen("game")}
-            onTimelog={(projectId) => {
-              window.history.pushState({}, document.title, `/projects/${projectId}/timelog`);
-              setTimelogProjectId(projectId);
-              setAuthScreen("timelog");
-            }}
-            onSettings={() => {
-              window.history.pushState({}, document.title, '/settings');
-              setAuthScreen("settings");
-            }}
-          />
-        </Suspense>
+        <AppShell
+          user={user}
+          activeScreen="dashboard"
+          onNavigate={handleShellNavigate}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <Dashboard
+              user={user}
+              onBackToLobby={() => {
+                window.history.pushState({}, document.title, '/');
+                setAuthScreen("lobby");
+              }}
+              onContinue={() => setAuthScreen("game")}
+              onTimelog={(projectId) => {
+                window.history.pushState({}, document.title, `/projects/${projectId}/timelog`);
+                setTimelogProjectId(projectId);
+                setAuthScreen("timelog");
+              }}
+            />
+          </Suspense>
+        </AppShell>
       </GameModeProvider>
     );
   }
@@ -185,29 +204,65 @@ export default function App() {
   if (user && authScreen === "settings") {
     return (
       <GameModeProvider organizationId={organizationId}>
-        <Suspense fallback={<LoadingScreen label="LOADING SETTINGS..." />}>
-          <WorkspaceSettings
-            onBack={() => {
-              window.history.pushState({}, document.title, '/dashboard');
-              setAuthScreen("dashboard");
-            }}
-          />
-        </Suspense>
+        <AppShell
+          user={user}
+          activeScreen="settings"
+          onNavigate={handleShellNavigate}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <WorkspaceSettings
+              onBack={() => {
+                window.history.pushState({}, document.title, '/dashboard');
+                setAuthScreen("dashboard");
+              }}
+            />
+          </Suspense>
+        </AppShell>
       </GameModeProvider>
     );
   }
 
   if (user && authScreen === "timelog" && timelogProjectId) {
     return (
-      <Suspense fallback={<LoadingScreen label="LOADING TIMELOG..." />}>
-        <TimelogScreen
-          projectId={timelogProjectId}
-          onBack={() => {
-            window.history.pushState({}, document.title, '/dashboard');
-            setAuthScreen("dashboard");
-          }}
-        />
-      </Suspense>
+      <GameModeProvider organizationId={organizationId}>
+        <AppShell
+          user={user}
+          activeScreen="timelog"
+          onNavigate={handleShellNavigate}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <TimelogScreen
+              projectId={timelogProjectId}
+              onBack={() => {
+                window.history.pushState({}, document.title, '/dashboard');
+                setAuthScreen("dashboard");
+              }}
+            />
+          </Suspense>
+        </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "teamkanban") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <AppShell
+          user={user}
+          activeScreen="teamkanban"
+          onNavigate={handleShellNavigate}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <TeamKanban />
+          </Suspense>
+        </AppShell>
+      </GameModeProvider>
     );
   }
 
