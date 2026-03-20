@@ -83,9 +83,9 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - Integration readiness: `external_id` + `external_source` tilføjet på `projects`, `sprints`, `session_items`
 - Oprydning: `reveal-session.jsx` fjernet, duplikat challenge-array ryddet, `avatar_class` render i ActiveSession
 
-## Governance sprint status (2026-03-19)
+## Governance sprint status (2026-03-19) ✅ MERGED
 
-**Landed på branch `feature/reveal-sprint1-contract-approval-guards`:**
+**Landet og merget til `main`:**
 - Approval request lifecycle: create / approve / reject / apply
 - PM mutation guard på runtime endpoints
 - Event ledger + audit log v1
@@ -94,11 +94,39 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - Apply pipeline med target-specifik whitelist + normalisering/validering
 - Lobby/dashboard viser nu governance-sektioner for PM actions, conflicts, active projects og recent activity
 
-**Stadig TODO i governance-sporet:**
-- Conflict Center er stadig feed/overblik — ikke fuld resolution workflow
-- PM actions lever i lobby/dashboard, men ikke som dedikeret dashboard-rute/komponenthierarki endnu
-- Apply pipeline er strammet, men ikke fuldt domænespecifik pr. target/business rule
-- Docs/review/hardening mangler før merge til main
+**Åbne items (næste fase):**
+- Conflict Center er feed/overblik — ikke fuld resolution workflow endnu
+- PM actions lever i lobby/dashboard, ikke dedikeret dashboard-rute
+- Apply pipeline ikke fuldt domænespecifik pr. target/business rule
+
+## Integration-arkitektur beslutninger (2026-03-19)
+
+**Dual-mode arkitektur vedtaget:**
+- Mode A = Standalone Reveal (default, kør nu)
+- Mode B = Connected sync (Jira/Azure DevOps/TopDesk/Planner, aktiveres via gates)
+- Shared work-fields ejes default af eksternt system i connected mode
+- Write-back blokeret indtil INT-G1 + INT-G2 + INT-G3 er PASS
+- Første pilot = Jira read-only shadow sync
+
+**Integration docs:**
+- `docs/integration/integration-strategy-v1.md`
+- `docs/integration/field-mapping-matrix-v1.md`
+- `docs/integration/sync-policy-v1.md`
+- `docs/integration/standalone-bootstrap-v1.md`
+
+## UX retning (2026-03-19)
+
+**V7: "Serious execution platform with a game soul"**
+- Professionel PM-flade er default; game-layer er advisory/overlay
+- 3 hero screens: `dashboard-v7`, `workspace-v7`, `session-v7`
+- V7 approval-preview live: `https://reveal.blichert.net/approval/v7/`
+
+## Projection hardening (2026-03-19)
+
+- Migration `sprint9_projection_config.sql`: `game_profiles`, `boss_profiles`, `reward_rules`, `achievement_definitions` med default seed
+- Ny read-path `/api/projection/config` + helper `app/src/shared/projection.js`
+- `Session.jsx` delvist decouplet fra inline reward/boss-logik
+- Sprint A (audit) / Sprint B (ownership/writeback) / Sprint C (projection decoupling) defineret
 
 ## Hvad mangler (Sprint 7+)
 

@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reveal V8+ — Game Soul</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Dark mode (default) */
+      --bg: #0c0c0f;
+      --bg2: #111116;
+      --bg3: #16161d;
+      --bg4: #1c1c25;
+      --border: #1e1e26;
+      --border2: #2a2a36;
+      --jade: #00c896;
+      --jade-dim: rgba(0,200,150,0.10);
+      --jade-mid: rgba(0,200,150,0.22);
+      --gold: #b8932e;
+      --gold-dim: rgba(184,147,46,0.10);
+      --gold-mid: rgba(184,147,46,0.22);
+      --danger: #e85454;
+      --danger-dim: rgba(232,84,84,0.10);
+      --warn: #e8a020;
+      --warn-dim: rgba(232,160,32,0.10);
+      --common: #00c896;
+      --uncommon: #e8a020;
+      --rare: #e85454;
+      --epic: #8b5cf6;
+      --epic-dim: rgba(139,92,246,0.10);
+      --epic-mid: rgba(139,92,246,0.20);
+      --epic-border: rgba(139,92,246,0.28);
+      --text: #f4f4f6;
+      --text2: #8888a0;
+      --text3: #55556a;
+      --serif: 'Instrument Serif', Georgia, serif;
+      --sans: 'DM Sans', system-ui, sans-serif;
+      --radius: 8px;
+      --radius-lg: 14px;
+    }
+
+    /* Light mode */
+    body.light {
+      --bg: #f5f5f7;
+      --bg2: #ffffff;
+      --bg3: #f0f0f4;
+      --bg4: #e8e8ef;
+      --border: #e2e2ea;
+      --border2: #d0d0dc;
+      --jade: #009970;
+      --jade-dim: rgba(0,153,112,0.08);
+      --jade-mid: rgba(0,153,112,0.18);
+      --gold: #9a6f1a;
+      --gold-dim: rgba(154,111,26,0.08);
+      --gold-mid: rgba(154,111,26,0.18);
+      --danger: #c93a3a;
+      --danger-dim: rgba(201,58,58,0.08);
+      --warn: #c47a10;
+      --warn-dim: rgba(196,122,16,0.08);
+      --common: #009970;
+      --uncommon: #c47a10;
+      --rare: #c93a3a;
+      --epic: #7c3aed;
+      --epic-dim: rgba(124,58,237,0.08);
+      --epic-mid: rgba(124,58,237,0.16);
+      --epic-border: rgba(124,58,237,0.22);
+      --text: #111118;
+      --text2: #5a5a72;
+      --text3: #9898b0;
+    }
+
+    body.session-mode .game-widget {
+      box-shadow: 0 0 14px rgba(0,200,150,0.12);
+      transition: box-shadow 0.5s;
+    }
+
+    /* Light mode overrides — elements that need explicit adjustment */
+    body.light .topbar {
+      background: rgba(245,245,247,0.94);
+      border-bottom-color: var(--border);
+    }
+    body.light .card { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    body.light .card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.10); }
+    body.light .sidebar { box-shadow: 1px 0 0 var(--border); }
+    body.light .project-list { background: var(--border); }
+    body.light .burn-bar { background: rgba(0,153,112,0.15); }
+    body.light .burn-bar:hover { background: var(--jade); }
+    body.light .game-widget { border-color: rgba(154,111,26,0.18); }
+    body.light .nav-item:hover { background: var(--bg3); }
+    body.light .nav-item.active { background: rgba(0,153,112,0.10); }
+    body.light .topbar { backdrop-filter: blur(12px); }
+    body.light .k-card { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    body.light .k-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.10); }
+    body.light .sticky { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    body.light .kanban-drop-zone { background: var(--bg3); }
+    body.light .person-header { background: var(--bg2); }
+
+    /* Theme toggle button */
+    .theme-toggle {
+      width: 32px; height: 32px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border2);
+      background: var(--bg3);
+      color: var(--text2);
+      font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .theme-toggle:hover { background: var(--border2); color: var(--text); }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.7s ease;
+    }
+
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 232px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0 16px;
+      overflow-y: auto;
+      transition: border-color 0.7s, background 0.7s;
+    }
+
+    .brand {
+      padding: 0 18px 20px;
+      font-family: var(--serif);
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-dot { color: var(--jade); font-style: italic; transition: color 0.7s; }
+    .brand-version {
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--text3);
+      background: var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 3px;
+    }
+
+    .nav-section { padding: 0 10px; margin-bottom: 2px; }
+    .nav-label {
+      padding: 0 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 4px;
+      margin-top: 14px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 9px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text2);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--border); color: var(--text); }
+    .nav-item.active { background: var(--jade-dim); color: var(--jade); font-weight: 500; }
+    .nav-item.active.epic-mode { background: var(--epic-dim); color: var(--epic); }
+    .nav-icon { font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--danger);
+      color: #fff;
+      border-radius: 10px;
+      padding: 1px 5px;
+      line-height: 1.4;
+    }
+    .nav-badge.muted { background: var(--border2); color: var(--text3); }
+    .nav-badge.live {
+      background: var(--epic);
+      animation: pulseDot 2s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .nav-tree { margin: 4px 0 0; }
+    .nav-tree-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 9px 6px 22px;
+      font-size: 12px; color: var(--text3);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-tree-item:hover { background: var(--border); color: var(--text2); }
+    .nav-tree-item.active { color: var(--jade); }
+    .nav-tree-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.5; flex-shrink: 0; }
+    .nav-tree-sub {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 9px 5px 34px;
+      font-size: 11px; color: var(--text3);
+      cursor: pointer; border-radius: var(--radius);
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-tree-sub:hover { background: var(--border); color: var(--text2); }
+    .nav-tree-sub.sidequest { color: var(--epic); opacity: 0.75; }
+    .nav-tree-sub.sidequest:hover { opacity: 1; }
+
+    .sidebar-divider { border: none; border-top: 1px solid var(--border); margin: 14px 18px; }
+
+    .xp-header-bar { display: none; }
+
+    .game-widget {
+      margin: auto 10px 0;
+      padding: 12px;
+      background: var(--gold-dim);
+      border: 1px solid rgba(200,168,75,0.18);
+      border-radius: var(--radius);
+    }
+    .game-widget-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .game-icon { font-size: 15px; }
+    .game-level { font-size: 12px; font-weight: 600; color: var(--gold); }
+    .game-xp { font-size: 11px; color: var(--text3); }
+    .xp-bar-bg { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .xp-bar-fill { height: 100%; background: var(--gold); border-radius: 2px; width: 68%; transition: width 1s ease; }
+    .game-next { font-size: 10px; color: var(--text3); margin-top: 5px; }
+
+    /* ── Main ── */
+    .main { flex: 1; overflow-y: auto; overflow-x: hidden; }
+
+    /* Topbar */
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(12,12,15,0.93);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: border-color 0.7s, background 0.7s;
+    }
+
+    .topbar-left h1 {
+      font-family: var(--serif);
+      font-size: 24px; font-weight: 400;
+      letter-spacing: -0.02em; color: var(--text); line-height: 1.1;
+    }
+    .topbar-left p { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .topbar-right { display: flex; align-items: center; gap: 9px; }
+
+    .pill { padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 1px solid; }
+    .pill-jade { background: var(--jade-dim); border-color: rgba(0,200,150,0.28); color: var(--jade); }
+    .pill-warn { background: var(--warn-dim); border-color: rgba(232,160,32,0.28); color: var(--warn); }
+    .pill-danger { background: var(--danger-dim); border-color: rgba(232,84,84,0.28); color: var(--danger); }
+    .pill-muted { background: var(--border); border-color: var(--border2); color: var(--text2); }
+    .pill-epic { background: var(--epic-dim); border-color: var(--epic-border); color: var(--epic); }
+    .pill-gold { background: var(--gold-dim); border-color: rgba(200,168,75,0.28); color: var(--gold); }
+
+    /* Screens */
+    .screen { display: none; padding: 32px; animation: fadeUp 0.35s ease forwards; }
+    .screen.active { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .card:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,0,0,0.35); border-color: var(--border2); }
+
+    /* KPI */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 28px; }
+    .kpi-card { padding: 22px; }
+    .kpi-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 10px; }
+    .kpi-value { font-family: var(--serif); font-size: 38px; line-height: 1; color: var(--text); letter-spacing: -0.02em; }
+    .kpi-value.jade { color: var(--jade); }
+    .kpi-value.danger { color: var(--danger); }
+    .kpi-sub { font-size: 12px; color: var(--text2); margin-top: 7px; }
+
+    /* Risk band */
+    .risk-band {
+      background: var(--danger-dim);
+      border: 1px solid rgba(232,84,84,0.18);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px; margin-bottom: 28px;
+    }
+    .risk-band-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .risk-band-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--danger); }
+    .risk-item { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(232,84,84,0.08); }
+    .risk-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--danger); flex-shrink: 0; margin-top: 6px; }
+    .risk-text { font-size: 13px; color: var(--text); }
+    .risk-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+    .section-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+    .section-heading h2 { font-family: var(--serif); font-size: 20px; font-weight: 400; letter-spacing: -0.01em; }
+    .section-heading span { font-size: 12px; color: var(--text2); }
+
+    /* Project list */
+    .project-list {
+      display: flex; flex-direction: column; gap: 1px;
+      background: var(--border); border-radius: var(--radius-lg);
+      overflow: hidden; margin-bottom: 28px;
+    }
+    .project-row {
+      display: grid; grid-template-columns: 1fr 110px 130px 80px 80px;
+      align-items: center; gap: 14px; padding: 14px 18px;
+      background: var(--bg2); transition: background 0.15s; cursor: pointer;
+    }
+    .project-row:hover { background: var(--bg3); }
+    .project-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .project-sprint { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .project-bar-bg { height: 3px; background: var(--border2); border-radius: 2px; }
+    .project-bar-fill { height: 3px; border-radius: 2px; transition: width 0.8s ease; }
+    .bar-jade { background: var(--jade); }
+    .bar-warn { background: var(--warn); }
+    .bar-danger { background: var(--danger); }
+    .avatars { display: flex; }
+    .avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--bg3); border: 2px solid var(--bg2);
+      font-size: 9px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text2); margin-right: -5px;
+    }
+    .delivery-date { font-size: 12px; color: var(--text2); text-align: right; }
+
+    /* Workspace */
+    .workspace-grid { display: grid; grid-template-columns: 1fr 268px; gap: 22px; }
+    .board-columns { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+    .col-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 2px; }
+    .col-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text3); }
+    .col-count { font-size: 10px; color: var(--text3); background: var(--border); padding: 2px 6px; border-radius: 8px; }
+
+    .task-card {
+      padding: 13px 13px 13px 16px;
+      margin-bottom: 7px; cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .task-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.3); }
+    .task-card.rarity-common { border-left-color: var(--common); }
+    .task-card.rarity-uncommon { border-left-color: var(--uncommon); }
+    .task-card.rarity-rare { border-left-color: var(--rare); }
+    .task-card.rarity-epic { border-left-color: var(--epic); background: rgba(139,92,246,0.04); }
+    .task-card.rarity-epic:hover { box-shadow: 0 6px 18px rgba(139,92,246,0.15); }
+
+    .task-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+    .rarity-label { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .rarity-label.common { color: var(--common); }
+    .rarity-label.uncommon { color: var(--uncommon); }
+    .rarity-label.rare { color: var(--rare); }
+    .rarity-label.epic { color: var(--epic); }
+
+    .xp-badge {
+      font-size: 10px; font-weight: 600;
+      color: var(--gold); background: var(--gold-dim);
+      border: 1px solid rgba(200,168,75,0.18);
+      padding: 2px 6px; border-radius: 8px;
+    }
+    .xp-badge.epic { color: var(--epic); background: var(--epic-dim); border-color: var(--epic-border); }
+
+    .task-title { font-size: 12.5px; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
+    .task-bottom { display: flex; align-items: center; justify-content: space-between; }
+    .task-assignee { font-size: 11px; color: var(--text3); }
+    .task-pts { font-size: 11px; color: var(--text2); }
+
+    .sidequest-section { margin-top: 16px; }
+    .sidequest-header {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em;
+      color: var(--epic); margin-bottom: 8px; padding: 0 2px;
+    }
+
+    .team-card { padding: 18px; margin-bottom: 12px; }
+    .team-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 14px; }
+    .team-member-row { display: flex; align-items: center; gap: 10px; margin-bottom: 13px; }
+    .team-member-row:last-child { margin-bottom: 0; }
+    .member-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--bg3); border: 1px solid var(--border2);
+      font-size: 11px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text2); flex-shrink: 0; position: relative;
+    }
+    .mood-dot { position: absolute; bottom: -1px; right: -1px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--bg2); }
+    .mood-green { background: var(--jade); }
+    .mood-yellow { background: var(--warn); }
+    .mood-red { background: var(--danger); }
+    .member-name { font-size: 12px; font-weight: 500; color: var(--text); }
+    .member-task { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+    .health-card { padding: 22px; margin-bottom: 12px; text-align: center; }
+    .health-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 7px; }
+    .health-value { font-family: var(--serif); font-size: 58px; line-height: 1; color: var(--jade); letter-spacing: -0.03em; }
+    .health-sub { font-size: 11px; color: var(--text2); margin-top: 5px; }
+
+    .burndown-card { padding: 18px; }
+    .burndown-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 12px; }
+    .burndown-bars { display: flex; align-items: flex-end; gap: 3px; height: 44px; }
+    .burn-bar { flex: 1; border-radius: 2px 2px 0 0; background: var(--jade-mid); transition: background 0.2s; }
+    .burn-bar:hover { background: var(--jade); }
+
+    /* Session */
+    .session-header {
+      background: var(--bg2);
+      border: 1px solid var(--epic-border);
+      border-radius: var(--radius-lg);
+      padding: 22px 26px; margin-bottom: 22px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 0 32px rgba(139,92,246,0.08);
+    }
+    .session-title { font-family: var(--serif); font-size: 26px; letter-spacing: -0.02em; }
+    .session-timer { font-family: var(--serif); font-size: 34px; letter-spacing: -0.03em; color: var(--epic); }
+    .session-progress { margin-top: 10px; }
+    .progress-bar-bg { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .progress-bar-fill { height: 3px; background: var(--epic); border-radius: 2px; width: 67%; transition: width 1s ease; }
+    .progress-label { font-size: 11px; color: var(--text2); margin-top: 5px; }
+    .session-grid { display: grid; grid-template-columns: 1fr 268px; gap: 22px; }
+
+    .boss-hp-bar {
+      background: var(--bg2);
+      border: 1px solid var(--epic-border);
+      border-radius: var(--radius);
+      padding: 14px 18px; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .boss-hp-icon { font-size: 22px; }
+    .boss-hp-info { flex: 1; }
+    .boss-hp-name { font-size: 12px; font-weight: 600; color: var(--epic); margin-bottom: 5px; }
+    .boss-hp-bg { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .boss-hp-fill { height: 100%; background: linear-gradient(90deg, var(--epic), #c084fc); border-radius: 3px; width: 44%; transition: width 1s ease; }
+    .boss-hp-val { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+    .voting-card { padding: 22px; }
+    .voting-item {
+      background: var(--bg3); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 13px 16px; margin-bottom: 18px;
+    }
+    .voting-item-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 5px; }
+    .voting-item-title { font-size: 14px; font-weight: 500; color: var(--text); }
+    .voting-cards { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
+    .vote-card {
+      background: var(--bg3); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 18px 10px; text-align: center;
+      transition: transform 0.2s, border-color 0.2s; cursor: pointer;
+    }
+    .vote-card:hover { transform: translateY(-3px); border-color: var(--epic-border); }
+    .vote-card.revealed { background: var(--jade-dim); border-color: rgba(0,200,150,0.35); }
+    .vote-player { font-size: 10px; color: var(--text3); margin-bottom: 7px; }
+    .vote-value { font-family: var(--serif); font-size: 26px; color: var(--jade); }
+    .vote-hidden { font-size: 18px; color: var(--text3); }
+    .consensus-result {
+      background: var(--epic-dim); border: 1px solid var(--epic-border);
+      border-radius: var(--radius); padding: 15px 18px;
+      display: flex; align-items: center; gap: 18px;
+    }
+    .consensus-pts { font-family: var(--serif); font-size: 44px; color: var(--epic); line-height: 1; letter-spacing: -0.03em; }
+    .consensus-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--epic); opacity: 0.7; }
+    .consensus-conf { font-size: 20px; font-weight: 500; color: var(--text); margin-top: 2px; }
+
+    .feed-card { padding: 18px; }
+    .feed-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 14px; }
+    .feed-item { display: flex; gap: 9px; margin-bottom: 13px; }
+    .feed-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border2); flex-shrink: 0; margin-top: 6px; }
+    .feed-dot.jade { background: var(--jade); }
+    .feed-dot.gold { background: var(--gold); }
+    .feed-dot.epic { background: var(--epic); }
+    .feed-text { font-size: 12px; color: var(--text); line-height: 1.4; }
+    .feed-time { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+    .xp-banner {
+      background: var(--epic-dim); border: 1px solid var(--epic-border);
+      border-radius: var(--radius); padding: 11px 14px;
+      display: flex; align-items: center; gap: 9px; margin-bottom: 12px;
+      animation: pulseEpic 2.5s ease-in-out infinite;
+    }
+    @keyframes pulseEpic {
+      0%,100% { box-shadow: 0 0 0 0 rgba(139,92,246,0); }
+      50% { box-shadow: 0 0 14px rgba(139,92,246,0.22); }
+    }
+    .xp-label { font-size: 12px; color: var(--epic); font-weight: 600; }
+    .xp-sub { font-size: 10px; color: var(--text3); }
+
+    /* Retro */
+    .retro-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 28px; }
+    .stat-card { padding: 18px 22px; }
+    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 7px; }
+    .stat-value { font-family: var(--serif); font-size: 32px; color: var(--text); letter-spacing: -0.02em; }
+    .stat-value.jade { color: var(--jade); }
+
+    .boss-defeat-card {
+      background: var(--gold-dim); border: 1px solid rgba(200,168,75,0.22);
+      border-radius: var(--radius-lg); padding: 22px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px; position: relative; overflow: hidden;
+    }
+    .boss-defeat-card::before {
+      content: ''; position: absolute; top:0;left:0;right:0;bottom:0;
+      background: radial-gradient(ellipse at 80% 50%, rgba(200,168,75,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .boss-title { font-family: var(--serif); font-size: 18px; color: var(--gold); }
+    .boss-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
+    .boss-xp { font-family: var(--serif); font-size: 30px; color: var(--gold); }
+    .boss-xp-label { font-size: 10px; color: var(--text3); text-align: right; margin-top: 2px; }
+
+    .retro-board { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 24px; }
+    .retro-col-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text3); padding: 0 2px; margin-bottom: 9px; }
+    .retro-col-header.good { color: var(--jade); }
+    .retro-col-header.improve { color: var(--warn); }
+    .retro-col-header.action { color: #6b8cff; }
+    .sticky {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 14px; margin-bottom: 7px;
+      font-size: 12.5px; color: var(--text); line-height: 1.4;
+      cursor: pointer; transition: transform 0.15s, border-color 0.15s;
+    }
+    .sticky:hover { transform: translateY(-1px); border-color: var(--border2); }
+    .sticky.good { border-left: 3px solid var(--jade); }
+    .sticky.improve { border-left: 3px solid var(--warn); }
+    .sticky.action { border-left: 3px solid #6b8cff; }
+    .sticky-author { font-size: 10px; color: var(--text3); margin-top: 5px; }
+
+    .cta-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 22px; background: var(--jade); color: #0c0c0f;
+      font-family: var(--sans); font-size: 13px; font-weight: 600;
+      border: none; border-radius: var(--radius);
+      cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,200,150,0.3); }
+    .cta-btn.epic-btn { background: var(--epic); color: #fff; }
+    .cta-btn.epic-btn:hover { box-shadow: 0 8px 20px rgba(139,92,246,0.3); }
+    .cta-btn.ghost { background: var(--border2); color: var(--text2); }
+
+    .sprint-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; background: var(--jade-dim);
+      border: 1px solid rgba(0,200,150,0.22);
+      border-radius: 16px; font-size: 11px; color: var(--jade);
+      font-weight: 500; margin-left: 12px; vertical-align: middle;
+    }
+
+    /* ═══════════════════════════════════════
+       TEAM KANBAN — New screen
+    ═══════════════════════════════════════ */
+    .team-kanban-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    /* Person column */
+    .person-col {
+      display: flex; flex-direction: column; gap: 0;
+    }
+
+    /* Person header */
+    .person-header {
+      padding: 14px 16px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      border-bottom: none;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .person-avatar-lg {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      flex-shrink: 0; position: relative;
+    }
+    .person-name-block { flex: 1; }
+    .person-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .person-role { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+    /* Workload indicator */
+    .workload-bar-wrap { margin-top: 6px; }
+    .workload-bar-bg { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .workload-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+    .workload-fill.ok { background: var(--jade); }
+    .workload-fill.warn { background: var(--warn); }
+    .workload-fill.overload { background: var(--danger); }
+    .workload-label { font-size: 10px; margin-top: 3px; }
+    .workload-label.ok { color: var(--jade); }
+    .workload-label.warn { color: var(--warn); }
+    .workload-label.overload { color: var(--danger); }
+
+    /* Level badge on avatar */
+    .lvl-badge {
+      position: absolute; bottom: -3px; right: -3px;
+      font-size: 8px; font-weight: 800;
+      background: var(--gold); color: #0c0c0f;
+      border-radius: 6px; padding: 1px 4px;
+      border: 1.5px solid var(--bg2);
+      letter-spacing: 0;
+    }
+
+    /* Card drop zone */
+    .kanban-drop-zone {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      min-height: 240px;
+      padding: 10px;
+      flex: 1;
+    }
+
+    /* Kanban task card */
+    .k-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 7px;
+      cursor: grab;
+      position: relative;
+      border-left: 3px solid transparent;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .k-card:hover {
+      transform: translateY(-2px) rotate(0.3deg);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      border-color: var(--border2);
+    }
+    .k-card:active { cursor: grabbing; transform: rotate(1.5deg) scale(1.02); }
+    .k-card.rarity-common { border-left-color: var(--common); }
+    .k-card.rarity-uncommon { border-left-color: var(--uncommon); }
+    .k-card.rarity-rare { border-left-color: var(--rare); }
+    .k-card.rarity-epic { border-left-color: var(--epic); background: rgba(139,92,246,0.04); }
+
+    .k-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .k-rarity { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+    .k-rarity.common { color: var(--common); }
+    .k-rarity.uncommon { color: var(--uncommon); }
+    .k-rarity.rare { color: var(--rare); }
+    .k-rarity.epic { color: var(--epic); }
+    .k-xp { font-size: 10px; font-weight: 600; color: var(--gold); }
+
+    .k-title { font-size: 12px; color: var(--text); line-height: 1.4; margin-bottom: 8px; }
+
+    .k-footer {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .k-project { font-size: 10px; color: var(--text3); }
+    .k-pts { font-size: 10px; color: var(--text2); }
+
+    /* Sync chip on card */
+    .k-sync-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; font-weight: 600;
+      padding: 2px 6px; border-radius: 6px;
+      border: 1px solid;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-top: 6px;
+    }
+    .k-sync-chip:hover { opacity: 0.7; }
+    .k-sync-chip.jira { color: #2684ff; border-color: rgba(38,132,255,0.3); background: rgba(38,132,255,0.08); }
+    .k-sync-chip.topdesk { color: #e8a020; border-color: rgba(232,160,32,0.3); background: rgba(232,160,32,0.08); }
+    .k-sync-chip.devops { color: #0078d4; border-color: rgba(0,120,212,0.3); background: rgba(0,120,212,0.08); }
+    .k-sync-chip.none { color: var(--text3); border-color: var(--border2); background: transparent; }
+
+    /* Comment indicator */
+    .k-comments {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 10px; color: var(--text3);
+    }
+
+    /* Drop zone highlight */
+    .kanban-drop-zone.drag-over {
+      border-color: var(--jade);
+      background: var(--jade-dim);
+    }
+
+    /* Kanban toolbar */
+    .kanban-toolbar {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 18px;
+    }
+    .kanban-filter {
+      display: flex; gap: 6px;
+    }
+    .filter-chip {
+      padding: 4px 10px; border-radius: 16px;
+      font-size: 11px; font-weight: 500;
+      border: 1px solid var(--border2);
+      background: none; color: var(--text2);
+      cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .filter-chip.active { background: var(--jade-dim); color: var(--jade); border-color: rgba(0,200,150,0.3); }
+    .filter-chip:hover { border-color: var(--border2); color: var(--text); }
+
+    /* Sprint badge inline */
+    .sprint-badge-sm {
+      display: inline-flex; align-items: center;
+      padding: 3px 8px; background: var(--jade-dim);
+      border: 1px solid rgba(0,200,150,0.2);
+      border-radius: 12px; font-size: 10px; color: var(--jade); font-weight: 500;
+    }
+
+    /* ── Floating particles (game soul) ── */
+    .particle-canvas {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0;
+      transition: opacity 1s ease;
+    }
+    body.session-mode .particle-canvas { opacity: 1; }
+
+    /* Floating XP pop */
+    .xp-pop {
+      position: fixed;
+      font-size: 13px; font-weight: 700;
+      color: var(--gold);
+      pointer-events: none;
+      z-index: 999;
+      animation: xpFloat 1.6s ease forwards;
+    }
+    @keyframes xpFloat {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-40px) scale(0.8); }
+    }
+
+    /* Mode hint toast */
+    .mode-hint {
+      display: none; position: fixed; bottom: 24px; right: 24px;
+      background: var(--bg2); border: 1px solid var(--epic-border);
+      border-radius: var(--radius-lg); padding: 14px 18px;
+      font-size: 12px; color: var(--epic);
+      box-shadow: 0 8px 32px rgba(139,92,246,0.2);
+      animation: fadeUp 0.4s ease forwards; z-index: 100;
+    }
+    .mode-hint.visible { display: block; }
+    .mode-hint-title { font-weight: 600; margin-bottom: 4px; }
+    .mode-hint-sub { font-size: 11px; color: var(--text2); }
+
+    /* Streak badge */
+    .streak-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 16px;
+      background: rgba(232,84,84,0.12); border: 1px solid rgba(232,84,84,0.25);
+      font-size: 11px; font-weight: 600; color: var(--danger);
+    }
+
+    /* fade-in stagger */
+    .fade-in { opacity: 0; transform: translateY(14px); animation: fadeUp 0.45s ease forwards; }
+    .fade-in:nth-child(1) { animation-delay: 0.04s; }
+    .fade-in:nth-child(2) { animation-delay: 0.08s; }
+    .fade-in:nth-child(3) { animation-delay: 0.12s; }
+    .fade-in:nth-child(4) { animation-delay: 0.16s; }
+    .fade-in:nth-child(5) { animation-delay: 0.20s; }
+  </style>
+</head>
+<body>
+
+<!-- Subtle ambient particles for session mode -->
+<canvas class="particle-canvas" id="particles"></canvas>
+
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="brand">Reveal<span class="brand-dot">.</span><span class="brand-version">v0.8</span></div>
+
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <button class="nav-item active" data-screen="portfolio">
+        <span class="nav-icon">◈</span> Portfolio
+        <span class="nav-badge muted">6</span>
+      </button>
+      <button class="nav-item" data-screen="teamkanban">
+        <span class="nav-icon">⊞</span> Team Kanban
+      </button>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Projects</div>
+      <button class="nav-item" data-screen="workspace">
+        <span class="nav-icon">▸</span> Reveal Platform
+      </button>
+      <div class="nav-tree">
+        <div class="nav-tree-item active" data-screen="workspace">
+          <div class="nav-tree-dot"></div> Sprint 26 · Active
+        </div>
+        <div class="nav-tree-sub">Tasks (21)</div>
+        <div class="nav-tree-sub sidequest">⚔ Side Quests (2)</div>
+      </div>
+      <button class="nav-item" style="margin-top:4px">
+        <span class="nav-icon">▸</span> NetIP Mobile
+      </button>
+      <div class="nav-tree">
+        <div class="nav-tree-item" style="color:var(--danger)">
+          <div class="nav-tree-dot"></div> Sprint 14 · At Risk
+        </div>
+        <div class="nav-tree-sub">Tasks (14)</div>
+      </div>
+    </div>
+
+    <div class="nav-section" style="margin-top:4px">
+      <div class="nav-label">Sprint Rituals</div>
+      <button class="nav-item" data-screen="session">
+        <span class="nav-icon">⚡</span> Estimation
+        <span class="nav-badge live">Live</span>
+      </button>
+      <button class="nav-item" data-screen="retro">
+        <span class="nav-icon">◎</span> Retro &amp; Close
+      </button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="game-widget">
+      <div class="game-widget-top">
+        <span class="game-icon">⚔️</span>
+        <div>
+          <div class="game-level">Team Level 7</div>
+          <div class="game-xp">2,840 / 4,200 XP</div>
+        </div>
+        <div style="margin-left:auto"><span class="streak-badge">🔥 4</span></div>
+      </div>
+      <div class="xp-bar-bg"><div class="xp-bar-fill"></div></div>
+      <div class="game-next">Next: Lv.8 · Speed Round achievement</div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <div class="topbar" id="topbar">
+      <div class="topbar-left">
+        <h1 id="screen-title">Portfolio</h1>
+        <p id="screen-subtitle">8 active sprints · 3 at risk</p>
+      </div>
+      <div class="topbar-right">
+        <span class="pill pill-jade" id="topbar-pill1">Delivery: Controlled</span>
+        <span class="pill pill-warn" id="topbar-pill2">2 Blockers</span>
+        <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
+          <span id="theme-icon">☀︎</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ══ PORTFOLIO ══ -->
+    <div class="screen active" id="screen-portfolio">
+      <div class="kpi-grid">
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">Active Projects</div>
+          <div class="kpi-value">6</div>
+          <div class="kpi-sub">2 entering release phase</div>
+        </div>
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">At Risk</div>
+          <div class="kpi-value danger">2</div>
+          <div class="kpi-sub">API migration · Staffing</div>
+        </div>
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">Total Blocked</div>
+          <div class="kpi-value">11</div>
+          <div class="kpi-sub">Avg MTTR 7.2h</div>
+        </div>
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">Portfolio Confidence</div>
+          <div class="kpi-value jade">78%</div>
+          <div class="kpi-sub">+4% vs last sprint</div>
+        </div>
+      </div>
+
+      <div class="risk-band fade-in">
+        <div class="risk-band-header"><div class="risk-band-title">⚠ 2 items need your attention</div></div>
+        <div class="risk-item">
+          <div class="risk-dot"></div>
+          <div>
+            <div class="risk-text">API migration dependency blocking 3 downstream tasks in Reveal Platform</div>
+            <div class="risk-meta">Assigned to ML · Escalated 2h ago · Unblocked by EOD to stay on track</div>
+          </div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-dot"></div>
+          <div>
+            <div class="risk-text">Staffing gap: Senior dev vacancy on NetIP Mobile — sprint velocity -35%</div>
+            <div class="risk-meta">Reported by Sprint 26 team · Needs decision: hire vs. scope reduction</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading fade-in">
+        <h2>Active Projects</h2><span>sorted by delivery pressure</span>
+      </div>
+
+      <div class="project-list fade-in">
+        <div class="project-row" style="background:var(--bg3);font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3);padding:8px 18px;cursor:default">
+          <span>Project</span><span>Progress</span><span>Status</span><span>Team</span><span style="text-align:right">Delivery</span>
+        </div>
+        <div class="project-row" onclick="switchScreen('workspace')">
+          <div><div class="project-name">Reveal Platform</div><div class="project-sprint">Sprint 26 · 8 days left</div></div>
+          <div><div class="project-bar-bg"><div class="project-bar-fill bar-jade" style="width:67%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px">67%</div></div>
+          <div><span class="pill pill-jade">On Track</span></div>
+          <div class="avatars"><div class="avatar">ML</div><div class="avatar">SK</div><div class="avatar">JK</div></div>
+          <div class="delivery-date">Apr 12</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">NetIP Mobile</div><div class="project-sprint">Sprint 14 · 3 days left</div></div>
+          <div><div class="project-bar-bg"><div class="project-bar-fill bar-danger" style="width:42%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px">42%</div></div>
+          <div><span class="pill pill-danger">At Risk</span></div>
+          <div class="avatars"><div class="avatar">AR</div><div class="avatar">BT</div></div>
+          <div class="delivery-date" style="color:var(--danger)">Apr 5 ⚠</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">Analytics Dashboard</div><div class="project-sprint">Sprint 9 · 12 days left</div></div>
+          <div><div class="project-bar-bg"><div class="project-bar-fill bar-jade" style="width:81%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px">81%</div></div>
+          <div><span class="pill pill-jade">On Track</span></div>
+          <div class="avatars"><div class="avatar">PK</div><div class="avatar">NM</div><div class="avatar">LR</div></div>
+          <div class="delivery-date">Apr 18</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">Kombit WiFi</div><div class="project-sprint">Sprint 22 · 15 days left</div></div>
+          <div><div class="project-bar-bg"><div class="project-bar-fill bar-jade" style="width:91%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px">91%</div></div>
+          <div><span class="pill pill-jade">Near Done</span></div>
+          <div class="avatars"><div class="avatar">TB</div><div class="avatar">FR</div><div class="avatar">AS</div></div>
+          <div class="delivery-date">Apr 25</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TEAM KANBAN ══ -->
+    <div class="screen" id="screen-teamkanban">
+
+      <!-- Toolbar -->
+      <div class="kanban-toolbar fade-in">
+        <div class="kanban-filter">
+          <button class="filter-chip active">All projects</button>
+          <button class="filter-chip">Reveal Platform</button>
+          <button class="filter-chip">NetIP Mobile</button>
+          <button class="filter-chip">Kombit WiFi</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span style="font-size:11px;color:var(--text3)">Sync:</span>
+          <span class="k-sync-chip jira">Jira ✓</span>
+          <span class="k-sync-chip topdesk">TopDesk ✓</span>
+          <span class="k-sync-chip devops">DevOps —</span>
+        </div>
+      </div>
+
+      <div class="team-kanban-grid fade-in">
+
+        <!-- ── Person: Mads L. ── -->
+        <div class="person-col">
+          <div class="person-header">
+            <div class="person-avatar-lg" style="background:rgba(0,200,150,0.15);color:var(--jade)">
+              ML
+              <div class="lvl-badge">Lv6</div>
+            </div>
+            <div class="person-name-block">
+              <div class="person-name">Mads L.</div>
+              <div class="person-role">Senior Dev · Reveal Platform</div>
+              <div class="workload-bar-wrap">
+                <div class="workload-bar-bg"><div class="workload-fill warn" style="width:82%"></div></div>
+                <div class="workload-label warn">82% capacity · 5 tasks</div>
+              </div>
+            </div>
+          </div>
+          <div class="kanban-drop-zone" id="drop-ml" ondragover="dragOver(event)" ondrop="drop(event,'ml')">
+            <div class="k-card rarity-rare" draggable="true" ondragstart="dragStart(event,'card-ml-1')">
+              <div class="k-card-top"><span class="k-rarity rare">Rare</span><span class="k-xp">+35 XP</span></div>
+              <div class="k-title">Extract BossRetroStage from Session.jsx</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">8 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip jira">↕ Jira #1482</span>
+                <span class="k-comments">💬 3</span>
+              </div>
+            </div>
+            <div class="k-card rarity-uncommon" draggable="true" ondragstart="dragStart(event,'card-ml-2')">
+              <div class="k-card-top"><span class="k-rarity uncommon">Uncommon</span><span class="k-xp">+20 XP</span></div>
+              <div class="k-title">RootState selectors layer extraction</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">✓ 8 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip jira">↕ Jira #1477</span>
+                <span class="k-comments">💬 1</span>
+              </div>
+            </div>
+            <div class="k-card rarity-common" draggable="true" ondragstart="dragStart(event,'card-ml-3')">
+              <div class="k-card-top"><span class="k-rarity common">Common</span><span class="k-xp">+15 XP</span></div>
+              <div class="k-title">Architecture doc review — world/challenge</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">3 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip none">+ Push to Jira</span>
+                <span class="k-comments">💬 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Person: Sara K. ── -->
+        <div class="person-col">
+          <div class="person-header">
+            <div class="person-avatar-lg" style="background:rgba(139,92,246,0.15);color:var(--epic)">
+              SK
+              <div class="lvl-badge">Lv7</div>
+            </div>
+            <div class="person-name-block">
+              <div class="person-name">Sara K.</div>
+              <div class="person-role">Tech Lead · Reveal + Mobile</div>
+              <div class="workload-bar-wrap">
+                <div class="workload-bar-bg"><div class="workload-fill overload" style="width:130%"></div></div>
+                <div class="workload-label overload">⚠ 130% — overloaded · 7 tasks</div>
+              </div>
+            </div>
+          </div>
+          <div class="kanban-drop-zone" id="drop-sk" ondragover="dragOver(event)" ondrop="drop(event,'sk')">
+            <div style="background:var(--danger-dim);border:1px solid rgba(232,84,84,0.2);border-radius:var(--radius);padding:8px 12px;margin-bottom:8px;font-size:11px;color:var(--danger)">
+              ⚠ Overloaded — consider reassigning 2+ tasks
+            </div>
+            <div class="k-card rarity-rare" draggable="true" ondragstart="dragStart(event,'card-sk-1')">
+              <div class="k-card-top"><span class="k-rarity rare">Rare</span><span class="k-xp">+30 XP</span></div>
+              <div class="k-title">API blocker: fix downstream dependency mapping</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">5 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip topdesk">↕ TD #8821</span>
+                <span class="k-comments">💬 5</span>
+              </div>
+            </div>
+            <div class="k-card rarity-rare" draggable="true" ondragstart="dragStart(event,'card-sk-2')">
+              <div class="k-card-top"><span class="k-rarity rare">Rare</span><span class="k-xp">+25 XP</span></div>
+              <div class="k-title">NetIP Mobile: Auth flow regression fix</div>
+              <div class="k-footer">
+                <span class="k-project">NetIP Mobile · Sprint 14</span>
+                <span class="k-pts">5 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip topdesk">↕ TD #8803</span>
+                <span class="k-comments">💬 2</span>
+              </div>
+            </div>
+            <div class="k-card rarity-uncommon" draggable="true" ondragstart="dragStart(event,'card-sk-3')">
+              <div class="k-card-top"><span class="k-rarity uncommon">Uncommon</span><span></span></div>
+              <div class="k-title">Review projection config migration SQL</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">2 pts</span>
+              </div>
+              <div style="margin-top:6px">
+                <span class="k-sync-chip none">+ Push to Jira</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Person: Jonas K. ── -->
+        <div class="person-col">
+          <div class="person-header">
+            <div class="person-avatar-lg" style="background:rgba(232,160,32,0.15);color:var(--gold)">
+              JK
+              <div class="lvl-badge">Lv5</div>
+            </div>
+            <div class="person-name-block">
+              <div class="person-name">Jonas K.</div>
+              <div class="person-role">Backend Dev · Reveal</div>
+              <div class="workload-bar-wrap">
+                <div class="workload-bar-bg"><div class="workload-fill ok" style="width:60%"></div></div>
+                <div class="workload-label ok">60% capacity · 3 tasks</div>
+              </div>
+            </div>
+          </div>
+          <div class="kanban-drop-zone" id="drop-jk" ondragover="dragOver(event)" ondrop="drop(event,'jk')">
+            <div class="k-card rarity-uncommon" draggable="true" ondragstart="dragStart(event,'card-jk-1')">
+              <div class="k-card-top"><span class="k-rarity uncommon">Uncommon</span><span class="k-xp">+25 XP</span></div>
+              <div class="k-title">Jira shadow sync — read-only pilot connector</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">5 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip jira">↕ Jira #1490</span>
+                <span class="k-comments">💬 4</span>
+              </div>
+            </div>
+            <div class="k-card rarity-common" draggable="true" ondragstart="dragStart(event,'card-jk-2')">
+              <div class="k-card-top"><span class="k-rarity common">Common</span><span class="k-xp">+15 XP</span></div>
+              <div class="k-title">Migrate retro decisions to domain module</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">2 pts</span>
+              </div>
+              <div style="margin-top:6px">
+                <span class="k-sync-chip none">+ Push to Jira</span>
+              </div>
+            </div>
+            <div style="border:1px dashed var(--border2);border-radius:var(--radius);padding:14px;text-align:center;font-size:11px;color:var(--text3);margin-top:4px;cursor:pointer" ondragover="dragOver(event)">
+              + Drop task here
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Person: Line R. ── -->
+        <div class="person-col">
+          <div class="person-header">
+            <div class="person-avatar-lg" style="background:rgba(0,200,150,0.10);color:var(--jade)">
+              LR
+              <div class="lvl-badge">Lv4</div>
+            </div>
+            <div class="person-name-block">
+              <div class="person-name">Line R.</div>
+              <div class="person-role">Frontend Dev · Reveal</div>
+              <div class="workload-bar-wrap">
+                <div class="workload-bar-bg"><div class="workload-fill ok" style="width:45%"></div></div>
+                <div class="workload-label ok">45% capacity · 2 tasks — bandwidth available</div>
+              </div>
+            </div>
+          </div>
+          <div class="kanban-drop-zone" id="drop-lr" ondragover="dragOver(event)" ondrop="drop(event,'lr')">
+            <div class="k-card rarity-uncommon" draggable="true" ondragstart="dragStart(event,'card-lr-1')">
+              <div class="k-card-top"><span class="k-rarity uncommon">Uncommon</span><span class="k-xp">+20 XP</span></div>
+              <div class="k-title">Write integration tests for approval flow</div>
+              <div class="k-footer">
+                <span class="k-project">Reveal · Sprint 26</span>
+                <span class="k-pts">5 pts</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span class="k-sync-chip jira">↕ Jira #1488</span>
+                <span class="k-comments">💬 1</span>
+              </div>
+            </div>
+            <div style="background:var(--jade-dim);border:1px dashed rgba(0,200,150,0.25);border-radius:var(--radius);padding:10px 12px;font-size:11px;color:var(--jade);margin-top:4px;cursor:pointer" ondragover="dragOver(event)">
+              💡 Sara is overloaded — drag tasks here to rebalance
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ WORKSPACE ══ -->
+    <div class="screen" id="screen-workspace">
+      <div class="workspace-grid">
+        <div>
+          <div style="margin-bottom:22px">
+            <div style="font-family:var(--serif);font-size:30px;letter-spacing:-0.02em;margin-bottom:5px">
+              Reveal Platform <span class="sprint-badge">Sprint 26 · 8 days left</span>
+            </div>
+            <div style="font-size:12px;color:var(--text2)">Task board · 21 items · 2 active side quests</div>
+          </div>
+
+          <div style="display:flex;gap:14px;margin-bottom:14px;font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase">
+            <span style="color:var(--common)">◈ Common</span>
+            <span style="color:var(--uncommon)">◈ Uncommon</span>
+            <span style="color:var(--rare)">◈ Rare</span>
+            <span style="color:var(--epic)">◈ Epic / Side Quest</span>
+          </div>
+
+          <div class="board-columns">
+            <div>
+              <div class="col-header"><span class="col-title">Backlog</span><span class="col-count">5</span></div>
+              <div class="card task-card rarity-common fade-in">
+                <div class="task-top"><span class="rarity-label common">Common</span><span class="xp-badge">+20 XP</span></div>
+                <div class="task-title">Add projection config endpoint for reward thresholds</div>
+                <div class="task-bottom"><span class="task-assignee">— Unassigned</span><span class="task-pts">3 pts</span></div>
+              </div>
+              <div class="card task-card rarity-common fade-in">
+                <div class="task-top"><span class="rarity-label common">Common</span><span class="xp-badge">+15 XP</span></div>
+                <div class="task-title">Migrate retro decisions to domain module</div>
+                <div class="task-bottom"><span class="task-assignee">JK</span><span class="task-pts">2 pts</span></div>
+              </div>
+              <div class="card task-card rarity-uncommon fade-in">
+                <div class="task-top"><span class="rarity-label uncommon">Uncommon</span><span class="xp-badge">+25 XP</span></div>
+                <div class="task-title">Write integration tests for approval flow</div>
+                <div class="task-bottom"><span class="task-assignee">— Unassigned</span><span class="task-pts">5 pts</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="col-header"><span class="col-title" style="color:var(--jade)">In Progress</span><span class="col-count">3</span></div>
+              <div class="card task-card rarity-rare fade-in" style="border-left-color:var(--rare)">
+                <div class="task-top"><span class="rarity-label rare">Rare</span><span class="xp-badge">+35 XP</span></div>
+                <div class="task-title">Extract BossRetroStage from Session.jsx</div>
+                <div class="task-bottom"><span class="task-assignee">ML</span><span class="task-pts">8 pts</span></div>
+              </div>
+              <div class="card task-card rarity-rare fade-in" style="border-left-color:var(--rare)">
+                <div class="task-top"><span class="rarity-label rare">Rare</span><span class="xp-badge">+30 XP</span></div>
+                <div class="task-title">API blocker: fix downstream dependency mapping</div>
+                <div class="task-bottom"><span class="task-assignee">SK</span><span class="task-pts">5 pts</span></div>
+              </div>
+              <div class="card task-card rarity-uncommon fade-in">
+                <div class="task-top"><span class="rarity-label uncommon">Uncommon</span><span class="xp-badge">+25 XP</span></div>
+                <div class="task-title">Jira shadow sync — read-only pilot connector</div>
+                <div class="task-bottom"><span class="task-assignee">JK</span><span class="task-pts">5 pts</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="col-header"><span class="col-title">Done</span><span class="col-count">11</span></div>
+              <div class="card task-card rarity-rare fade-in" style="opacity:0.55">
+                <div class="task-top"><span class="rarity-label rare">Rare</span></div>
+                <div class="task-title">RootState / selectors layer extraction</div>
+                <div class="task-bottom"><span class="task-assignee">ML</span><span class="task-pts">✓ 8 pts</span></div>
+              </div>
+              <div class="card task-card rarity-common fade-in" style="opacity:0.55">
+                <div class="task-top"><span class="rarity-label common">Common</span></div>
+                <div class="task-title">World/Challenge/Root architecture doc</div>
+                <div class="task-bottom"><span class="task-assignee">ML</span><span class="task-pts">✓ 3 pts</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidequest-section">
+            <div class="sidequest-header"><span>⚔</span> Side Quests</div>
+            <div class="card task-card rarity-epic" style="margin-bottom:7px">
+              <div class="task-top"><span class="rarity-label epic">⚔ Epic · Side Quest</span><span class="xp-badge epic">+80 XP</span></div>
+              <div class="task-title">Zero blocker sprint — no blocker lasting more than 8h</div>
+              <div class="task-bottom"><span class="task-assignee" style="color:var(--epic);font-size:10px">Team challenge · 5 days left</span><span style="font-size:10px;color:var(--text3)">Auto-tracked</span></div>
+            </div>
+            <div class="card task-card rarity-epic">
+              <div class="task-top"><span class="rarity-label epic">⚔ Epic · Side Quest</span><span class="xp-badge epic">+55 XP</span></div>
+              <div class="task-title">Jira connector shipped without rollback — read-only pilot</div>
+              <div class="task-bottom"><span class="task-assignee" style="color:var(--epic);font-size:10px">Owner: JK · PM approved</span><span style="font-size:10px;color:var(--text3)">Linked to task #18</span></div>
+            </div>
+          </div>
+
+          <div class="card burndown-card" style="margin-top:18px">
+            <div class="burndown-title">Burndown — Sprint 26</div>
+            <div class="burndown-bars">
+              <div class="burn-bar" style="height:85%"></div><div class="burn-bar" style="height:78%"></div>
+              <div class="burn-bar" style="height:72%"></div><div class="burn-bar" style="height:69%"></div>
+              <div class="burn-bar" style="height:61%"></div><div class="burn-bar" style="height:55%"></div>
+              <div class="burn-bar" style="height:50%"></div><div class="burn-bar" style="height:43%"></div>
+              <div class="burn-bar" style="height:37%"></div><div class="burn-bar" style="height:33%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:6px">
+              <span>Day 1</span><span>Today — Day 8</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card health-card">
+            <div class="health-label">Sprint Health</div>
+            <div class="health-value">82</div>
+            <div class="health-sub">Good momentum · API blocker is critical path</div>
+          </div>
+          <div class="card team-card">
+            <div class="team-section-label">Team</div>
+            <div class="team-member-row">
+              <div class="member-avatar">ML<div class="mood-dot mood-green"></div></div>
+              <div><div class="member-name">Mads L.</div><div class="member-task">BossRetroStage extraction</div></div>
+            </div>
+            <div class="team-member-row">
+              <div class="member-avatar" style="border-color:var(--danger)">SK<div class="mood-dot mood-red"></div></div>
+              <div><div class="member-name">Sara K.</div><div class="member-task" style="color:var(--danger)">⚠ Overloaded</div></div>
+            </div>
+            <div class="team-member-row">
+              <div class="member-avatar">JK<div class="mood-dot mood-yellow"></div></div>
+              <div><div class="member-name">Jonas K.</div><div class="member-task">Jira pilot — in progress</div></div>
+            </div>
+            <div class="team-member-row">
+              <div class="member-avatar">LR<div class="mood-dot mood-green"></div></div>
+              <div><div class="member-name">Line R.</div><div class="member-task">Integration tests</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:16px;background:var(--epic-dim);border-color:var(--epic-border)">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--epic);margin-bottom:10px">⚔ Active challenges</div>
+            <div style="font-size:12px;color:var(--text);margin-bottom:4px">Zero blocker sprint</div>
+            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:6px">
+              <div style="height:100%;background:var(--epic);border-radius:2px;width:60%"></div>
+            </div>
+            <div style="font-size:10px;color:var(--text3)">3 of 5 days clear · +80 XP on completion</div>
+          </div>
+          <div style="margin-top:14px">
+            <button class="cta-btn epic-btn" style="width:100%;justify-content:center" onclick="switchScreen('session')">
+              ⚡ Start Estimation Session
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SESSION ══ -->
+    <div class="screen" id="screen-session">
+      <div class="boss-hp-bar fade-in">
+        <div class="boss-hp-icon">👾</div>
+        <div class="boss-hp-info">
+          <div class="boss-hp-name">SPRINT BOSS — Dual-Mode Architecture · 21 items</div>
+          <div class="boss-hp-bg"><div class="boss-hp-fill"></div></div>
+          <div class="boss-hp-val">HP: 44% remaining · 14/21 items estimated</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--serif);font-size:22px;color:var(--epic)">⚔️ Battle</div>
+          <div style="font-size:10px;color:var(--text3)">Sprint 26</div>
+        </div>
+      </div>
+
+      <div class="session-header fade-in">
+        <div>
+          <div class="session-title">Sprint Planning · Session 3</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">Reveal Platform · Sprint 26 · 4 participants</div>
+          <div class="session-progress">
+            <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+            <div class="progress-label">14 of 21 items estimated · 7 remaining</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="session-timer">23:14</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">session time</div>
+        </div>
+      </div>
+
+      <div class="session-grid">
+        <div>
+          <div class="card voting-card fade-in">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--epic);margin-bottom:10px">⚡ Currently Estimating</div>
+            <div class="voting-item">
+              <div class="voting-item-label">Feature · High priority · <span style="color:var(--rare)">Rare task</span></div>
+              <div class="voting-item-title">Implement dual-mode architecture — Mode A standalone baseline + Mode B connector scaffold</div>
+            </div>
+            <div class="voting-cards">
+              <div class="vote-card revealed"><div class="vote-player">Mads</div><div class="vote-value">5</div></div>
+              <div class="vote-card revealed"><div class="vote-player">Sara</div><div class="vote-value">5</div></div>
+              <div class="vote-card" style="border-style:dashed"><div class="vote-player">Jonas</div><div class="vote-hidden">?</div></div>
+              <div class="vote-card revealed" style="background:var(--warn-dim);border-color:rgba(232,160,32,0.35)"><div class="vote-player">Line</div><div class="vote-value" style="color:var(--warn)">8</div></div>
+            </div>
+            <div class="consensus-result">
+              <div class="consensus-pts">5</div>
+              <div>
+                <div class="consensus-label">Consensus</div>
+                <div class="consensus-conf">High confidence</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:3px">3/4 agreement · Line outlier (8) — discuss?</div>
+              </div>
+              <div style="margin-left:auto"><button class="cta-btn" style="padding:8px 16px;font-size:12px">Accept 5 pts →</button></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="xp-banner fade-in">
+            <div style="font-size:16px">✦</div>
+            <div>
+              <div class="xp-label">+45 XP — Consensus Bonus</div>
+              <div class="xp-sub">Team agreed in under 90 seconds on item #14</div>
+            </div>
+          </div>
+          <div class="card feed-card fade-in">
+            <div class="feed-title">Activity Feed</div>
+            <div class="feed-item"><div class="feed-dot gold"></div><div><div class="feed-text">+45 XP — Consensus Bonus on item #14</div><div class="feed-time">Just now</div></div></div>
+            <div class="feed-item"><div class="feed-dot jade"></div><div><div class="feed-text">Sara voted 5 on "Dual-mode architecture"</div><div class="feed-time">1 min ago</div></div></div>
+            <div class="feed-item"><div class="feed-dot jade"></div><div><div class="feed-text">Item #13 locked at 3 pts — accepted</div><div class="feed-time">4 min ago</div></div></div>
+            <div class="feed-item"><div class="feed-dot epic"></div><div><div class="feed-text">⚔ Side Quest triggered: "Zero blocker sprint" day 3 clear</div><div class="feed-time">8 min ago</div></div></div>
+            <div class="feed-item"><div class="feed-dot"></div><div><div class="feed-text">Session started — 4 participants joined</div><div class="feed-time">23 min ago</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ RETRO ══ -->
+    <div class="screen" id="screen-retro">
+      <div style="font-family:var(--serif);font-size:34px;letter-spacing:-0.02em;margin-bottom:5px">Sprint 25 — Complete</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:28px">Closed March 22, 2026 · 18/21 items delivered</div>
+
+      <div class="retro-stats fade-in">
+        <div class="card stat-card fade-in"><div class="stat-label">Velocity</div><div class="stat-value jade">42</div><div style="font-size:11px;color:var(--text2);margin-top:5px">pts delivered</div></div>
+        <div class="card stat-card fade-in"><div class="stat-label">Completed</div><div class="stat-value">18/21</div><div style="font-size:11px;color:var(--text2);margin-top:5px">3 rolled over</div></div>
+        <div class="card stat-card fade-in"><div class="stat-label">Blockers Resolved</div><div class="stat-value">4</div><div style="font-size:11px;color:var(--text2);margin-top:5px">avg 5.8h MTTR</div></div>
+        <div class="card stat-card fade-in"><div class="stat-label">Team Mood</div><div class="stat-value jade">4.2</div><div style="font-size:11px;color:var(--text2);margin-top:5px">out of 5</div></div>
+      </div>
+
+      <div class="boss-defeat-card fade-in">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="font-size:28px">🏆</div>
+          <div><div class="boss-title">Challenge Defeated: Zero-blocker sprint</div><div class="boss-sub">No blocker lasted longer than 8 hours · All resolved internally</div></div>
+        </div>
+        <div style="text-align:right">
+          <div class="boss-xp">+380 XP</div>
+          <div class="boss-xp-label">Team reward</div>
+          <div style="margin-top:8px"><span class="pill pill-gold">Lv.7 → Lv.8 progress</span></div>
+        </div>
+      </div>
+
+      <div class="section-heading fade-in"><h2>Retrospective Board</h2><span>Sprint 25 · 12 notes</span></div>
+
+      <div class="retro-board fade-in">
+        <div>
+          <div class="retro-col-header good">↑ What went well</div>
+          <div class="sticky good">Fast consensus in planning — all 21 items estimated in under 40 min<div class="sticky-author">— Mads L.</div></div>
+          <div class="sticky good">Projection refactor landed clean. Session.jsx down 120 lines.<div class="sticky-author">— Sara K.</div></div>
+          <div class="sticky good">Architecture doc gave the whole team shared vocabulary<div class="sticky-author">— Line R.</div></div>
+        </div>
+        <div>
+          <div class="retro-col-header improve">→ Improve</div>
+          <div class="sticky improve">API dependency was late-discovered. Need earlier cross-team sync on blockers.<div class="sticky-author">— Jonas K.</div></div>
+          <div class="sticky improve">3 items rolled over again. Scope commitment needs tightening.<div class="sticky-author">— Mads L.</div></div>
+          <div class="sticky improve">Jira connector pilot started too late — needs its own sprint slot.<div class="sticky-author">— Sara K.</div></div>
+        </div>
+        <div>
+          <div class="retro-col-header action">✓ Actions → Sprint 26</div>
+          <div class="sticky action">Book weekly cross-team dependency sync (Thursdays 09:00)<div class="sticky-author">Owner: Mads — Sprint 26</div></div>
+          <div class="sticky action">Hard limit: max 18 pts in Sprint 26 scope commitment<div class="sticky-author">Owner: Team — Sprint 26</div></div>
+          <div class="sticky action">Jira connector as standalone task · unblock from main board<div class="sticky-author">Owner: Jonas — Sprint 27</div></div>
+        </div>
+      </div>
+
+      <div class="card fade-in" style="padding:20px;background:var(--epic-dim);border-color:var(--epic-border);margin-bottom:24px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--epic);margin-bottom:10px">⚔ New Side Quests discovered from retro</div>
+        <div style="font-size:13px;color:var(--text);margin-bottom:6px">"Zero blocker sprint" · auto-generated from retro insight</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:12px">No blocker lasting more than 8h — team challenge for Sprint 26</div>
+        <div style="display:flex;gap:8px">
+          <button class="cta-btn epic-btn" style="padding:8px 14px;font-size:12px">Accept → Sprint 26</button>
+          <button class="cta-btn ghost" style="padding:8px 14px;font-size:12px">Dismiss</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;padding-top:4px">
+        <button class="cta-btn" onclick="switchScreen('session')">⚡ Begin Sprint 26 Planning</button>
+        <button class="cta-btn ghost">Export sprint report</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Mode hint -->
+<div class="mode-hint" id="mode-hint">
+  <div class="mode-hint-title">⚡ Session mode activated</div>
+  <div class="mode-hint-sub">Game layer active — XP tracking live</div>
+</div>
+
+<script>
+const screens = document.querySelectorAll('.screen');
+const navItems = document.querySelectorAll('.nav-item[data-screen]');
+
+const meta = {
+  portfolio: { title:'Portfolio', sub:'8 active sprints · 3 at risk', p1:{text:'Delivery: Controlled',cls:'pill-jade'}, p2:{text:'2 Blockers',cls:'pill-warn'}, session:false },
+  teamkanban: { title:'Team Kanban', sub:'Reveal Platform · Sprint 26 · 4 members', p1:{text:'Cross-sync: Active',cls:'pill-jade'}, p2:{text:'Sara overloaded ⚠',cls:'pill-danger'}, session:false },
+  workspace:  { title:'Reveal Platform', sub:'Sprint 26 · Project Workspace', p1:{text:'Sprint 26 · Active',cls:'pill-jade'}, p2:{text:'2 Side Quests ⚔',cls:'pill-epic'}, session:false },
+  session:    { title:'Estimation Session', sub:'Sprint 26 · 4 participants · Boss battle active', p1:{text:'⚡ Live',cls:'pill-epic'}, p2:{text:'+45 XP last item',cls:'pill-gold'}, session:true },
+  retro:      { title:'Sprint 25 — Retro', sub:'Closed March 22 · 18/21 delivered', p1:{text:'Sprint Complete',cls:'pill-jade'}, p2:{text:'+380 XP earned',cls:'pill-gold'}, session:false }
+};
+
+function switchScreen(name) {
+  screens.forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  navItems.forEach(b => {
+    b.classList.remove('active','epic-mode');
+    if (b.dataset.screen === name) {
+      b.classList.add('active');
+      if (name === 'session') b.classList.add('epic-mode');
+    }
+  });
+  const m = meta[name];
+  document.getElementById('screen-title').textContent = m.title;
+  document.getElementById('screen-subtitle').textContent = m.sub;
+  const p1 = document.getElementById('topbar-pill1');
+  const p2 = document.getElementById('topbar-pill2');
+  p1.textContent = m.p1.text; p1.className = 'pill ' + m.p1.cls;
+  p2.textContent = m.p2.text; p2.className = 'pill ' + m.p2.cls;
+  if (m.session) {
+    startParticles();
+  } else {
+    stopParticles();
+  }
+}
+
+navItems.forEach(btn => btn.addEventListener('click', () => switchScreen(btn.dataset.screen)));
+
+// Theme toggle
+const themeBtn = document.getElementById('theme-toggle');
+const themeIcon = document.getElementById('theme-icon');
+let isLight = false;
+themeBtn.addEventListener('click', () => {
+  isLight = !isLight;
+  document.body.classList.toggle('light', isLight);
+  themeIcon.textContent = isLight ? '☾' : '☀︎';
+  themeBtn.title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+});
+
+// Filter chips (visual only)
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// Animate progress bars
+window.addEventListener('load', () => {
+  document.querySelectorAll('.project-bar-fill, .progress-bar-fill, .boss-hp-fill, .workload-fill').forEach(bar => {
+    const w = bar.style.width;
+    bar.style.width = '0';
+    setTimeout(() => { bar.style.width = w; }, 300);
+  });
+});
+
+// Drag and drop
+let dragging = null;
+function dragStart(e, id) { dragging = id; e.dataTransfer.effectAllowed = 'move'; }
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const zone = e.currentTarget.closest('.kanban-drop-zone');
+  if (zone) zone.classList.add('drag-over');
+}
+document.addEventListener('dragleave', (e) => {
+  if (e.target.classList.contains('kanban-drop-zone')) e.target.classList.remove('drag-over');
+});
+function drop(e, person) {
+  e.preventDefault();
+  document.querySelectorAll('.kanban-drop-zone').forEach(z => z.classList.remove('drag-over'));
+  if (!dragging) return;
+  // Show XP pop
+  spawnXpPop(e.clientX, e.clientY, '+10 XP reassigned');
+  dragging = null;
+}
+
+function spawnXpPop(x, y, text) {
+  const el = document.createElement('div');
+  el.className = 'xp-pop';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = (y - 10) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1700);
+}
+
+// Subtle particles in session mode
+let animFrame = null;
+let particlesList = [];
+
+function startParticles() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  particlesList = [];
+  for (let i = 0; i < 18; i++) {
+    particlesList.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.5 + 0.5,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      alpha: Math.random() * 0.35 + 0.1,
+      hue: Math.random() > 0.5 ? 265 : 47  // purple or gold
+    });
+  }
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particlesList.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = canvas.width;
+      if (p.x > canvas.width) p.x = 0;
+      if (p.y < 0) p.y = canvas.height;
+      if (p.y > canvas.height) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, 70%, 70%, ${p.alpha})`;
+      ctx.fill();
+    });
+    animFrame = requestAnimationFrame(tick);
+  }
+  tick();
+}
+function stopParticles() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  const canvas = document.getElementById('particles');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+</script>
+</body>
+</html>

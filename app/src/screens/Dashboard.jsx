@@ -10,7 +10,7 @@ import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import DashboardSnapshot from '../components/governance/DashboardSnapshot';
 
-export default function Dashboard({ user, onBackToLobby, onContinue }) {
+export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog }) {
   const displayName = user?.user_metadata?.full_name || user?.email || 'Spiller';
   const [loadingGov, setLoadingGov] = useState(true);
   const [error, setError] = useState(null);
@@ -96,7 +96,7 @@ export default function Dashboard({ user, onBackToLobby, onContinue }) {
           onApply={(id) => handleAction(id, 'apply')}
           onResolveConflict={handleResolveConflict}
         />
-        <DashboardSnapshot activeProjects={activeProjects} recentActivity={recentActivity} />
+        <DashboardSnapshot activeProjects={activeProjects} recentActivity={recentActivity} onTimelog={onTimelog} />
       </div>
     </div>
   );

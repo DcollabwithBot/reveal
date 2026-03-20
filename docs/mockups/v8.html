@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reveal V8 — Editorial Dark</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0c0c0f;
+      --bg2: #111116;
+      --bg3: #16161d;
+      --border: #1e1e26;
+      --border2: #2a2a36;
+      --jade: #00c896;
+      --jade-dim: rgba(0,200,150,0.12);
+      --jade-mid: rgba(0,200,150,0.25);
+      --gold: #c8a84b;
+      --gold-dim: rgba(200,168,75,0.12);
+      --danger: #e85454;
+      --danger-dim: rgba(232,84,84,0.12);
+      --warn: #e8a020;
+      --warn-dim: rgba(232,160,32,0.12);
+      --text: #f4f4f6;
+      --text2: #8888a0;
+      --text3: #55556a;
+      --serif: 'Instrument Serif', Georgia, serif;
+      --sans: 'DM Sans', system-ui, sans-serif;
+      --radius: 8px;
+      --radius-lg: 14px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── App Shell ── */
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 28px 0 20px;
+      overflow-y: auto;
+    }
+
+    .brand {
+      padding: 0 20px 24px;
+      font-family: var(--serif);
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .brand span {
+      color: var(--jade);
+      font-style: italic;
+    }
+
+    .nav-section {
+      padding: 0 12px;
+      margin-bottom: 4px;
+    }
+    .nav-label {
+      padding: 0 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      font-size: 13.5px;
+      font-weight: 400;
+      color: var(--text2);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--border); color: var(--text); }
+    .nav-item.active { background: var(--jade-dim); color: var(--jade); font-weight: 500; }
+    .nav-item .nav-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      background: currentColor; opacity: 0.6;
+    }
+    .nav-item.active .nav-dot { opacity: 1; }
+
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 16px 20px;
+    }
+
+    /* Game widget */
+    .game-widget {
+      margin: 0 12px;
+      padding: 12px;
+      background: var(--gold-dim);
+      border: 1px solid rgba(200,168,75,0.2);
+      border-radius: var(--radius);
+    }
+    .game-widget-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .game-icon { font-size: 16px; }
+    .game-level {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gold);
+    }
+    .game-xp {
+      font-size: 11px;
+      color: var(--text3);
+    }
+    .xp-bar-bg {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .xp-bar-fill {
+      height: 100%;
+      background: var(--gold);
+      border-radius: 2px;
+      width: 68%;
+      transition: width 1s ease;
+    }
+
+    /* ── Main Content ── */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(12,12,15,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-left h1 {
+      font-family: var(--serif);
+      font-size: 26px;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1.1;
+    }
+    .topbar-left p {
+      font-size: 13px;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pill {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid;
+    }
+    .pill-jade { background: var(--jade-dim); border-color: rgba(0,200,150,0.3); color: var(--jade); }
+    .pill-warn { background: var(--warn-dim); border-color: rgba(232,160,32,0.3); color: var(--warn); }
+    .pill-danger { background: var(--danger-dim); border-color: rgba(232,84,84,0.3); color: var(--danger); }
+    .pill-muted { background: var(--border); border-color: var(--border2); color: var(--text2); }
+
+    /* ── Screen ── */
+    .screen { display: none; padding: 36px; animation: fadeUp 0.4s ease forwards; }
+    .screen.active { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      border-color: var(--border2);
+    }
+
+    /* ── KPI Bento ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .kpi-card {
+      padding: 24px;
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text3);
+      margin-bottom: 10px;
+    }
+    .kpi-value {
+      font-family: var(--serif);
+      font-size: 40px;
+      line-height: 1;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .kpi-value.jade { color: var(--jade); }
+    .kpi-value.danger { color: var(--danger); }
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 8px;
+    }
+
+    /* ── Risk Band ── */
+    .risk-band {
+      background: var(--danger-dim);
+      border: 1px solid rgba(232,84,84,0.2);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      margin-bottom: 32px;
+    }
+    .risk-band-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .risk-band-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--danger);
+    }
+    .risk-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid rgba(232,84,84,0.1);
+    }
+    .risk-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--danger);
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+    .risk-text { font-size: 13px; color: var(--text); }
+    .risk-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+    /* ── Section Heading ── */
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-heading h2 {
+      font-family: var(--serif);
+      font-size: 20px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+    .section-heading span {
+      font-size: 12px;
+      color: var(--text2);
+    }
+
+    /* ── Project List ── */
+    .project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+    .project-row {
+      display: grid;
+      grid-template-columns: 1fr 120px 140px 80px 80px;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--bg2);
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .project-row:hover { background: var(--bg3); }
+    .project-name { font-size: 13.5px; font-weight: 500; color: var(--text); }
+    .project-sprint { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .project-bar-wrap { }
+    .project-bar-bg { height: 3px; background: var(--border2); border-radius: 2px; }
+    .project-bar-fill { height: 3px; border-radius: 2px; }
+    .bar-jade { background: var(--jade); }
+    .bar-warn { background: var(--warn); }
+    .bar-danger { background: var(--danger); }
+    .avatars { display: flex; gap: -4px; }
+    .avatar {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--bg3);
+      border: 2px solid var(--bg2);
+      font-size: 10px;
+      font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text2);
+      margin-right: -6px;
+    }
+    .delivery-date { font-size: 12px; color: var(--text2); text-align: right; }
+
+    /* ── Workspace Screen ── */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 24px;
+    }
+    .board-columns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .board-col { }
+    .col-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+    .col-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text3);
+    }
+    .col-count {
+      font-size: 11px;
+      color: var(--text3);
+      background: var(--border);
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .task-card {
+      padding: 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .task-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .priority-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .p-high { background: var(--danger); }
+    .p-med { background: var(--warn); }
+    .p-low { background: var(--jade); }
+    .xp-badge {
+      font-size: 10px; font-weight: 600;
+      color: var(--gold);
+      background: var(--gold-dim);
+      border: 1px solid rgba(200,168,75,0.2);
+      padding: 2px 6px; border-radius: 10px;
+    }
+    .task-title { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
+    .task-bottom { display: flex; align-items: center; justify-content: space-between; }
+    .task-assignee { font-size: 11px; color: var(--text3); }
+    .task-pts { font-size: 11px; color: var(--text2); }
+
+    /* Team sidebar */
+    .team-sidebar { }
+    .team-card { padding: 20px; margin-bottom: 14px; }
+    .team-member-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .team-member-row:last-child { margin-bottom: 0; }
+    .member-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text2);
+      flex-shrink: 0;
+      position: relative;
+    }
+    .mood-dot {
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      border: 2px solid var(--bg2);
+    }
+    .mood-green { background: var(--jade); }
+    .mood-yellow { background: var(--warn); }
+    .member-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .member-task { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+    /* Sprint health */
+    .health-card { padding: 24px; margin-bottom: 14px; text-align: center; }
+    .health-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; }
+    .health-value {
+      font-family: var(--serif);
+      font-size: 64px;
+      line-height: 1;
+      color: var(--jade);
+      letter-spacing: -0.03em;
+    }
+    .health-sub { font-size: 12px; color: var(--text2); margin-top: 6px; }
+
+    /* Burndown */
+    .burndown-card { padding: 20px; }
+    .burndown-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 14px; }
+    .burndown-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 48px;
+    }
+    .burn-bar {
+      flex: 1;
+      border-radius: 2px 2px 0 0;
+      background: var(--jade-mid);
+      transition: background 0.2s;
+    }
+    .burn-bar:hover { background: var(--jade); }
+
+    /* ── Session Screen ── */
+    .session-header {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .session-title {
+      font-family: var(--serif);
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+    .session-timer {
+      font-family: var(--serif);
+      font-size: 36px;
+      letter-spacing: -0.03em;
+      color: var(--jade);
+    }
+    .session-progress { margin-top: 12px; }
+    .progress-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .progress-bar-fill { height: 4px; background: var(--jade); border-radius: 2px; width: 67%; transition: width 1s ease; }
+    .progress-label { font-size: 12px; color: var(--text2); margin-top: 6px; }
+
+    .session-grid {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 24px;
+    }
+
+    /* Voting */
+    .voting-card { padding: 24px; }
+    .voting-item {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .voting-item-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 6px; }
+    .voting-item-title { font-size: 15px; font-weight: 500; color: var(--text); }
+    .voting-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .vote-card {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 20px 12px;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s;
+      cursor: pointer;
+    }
+    .vote-card:hover { transform: translateY(-3px); border-color: var(--jade); }
+    .vote-card.revealed { background: var(--jade-dim); border-color: rgba(0,200,150,0.4); }
+    .vote-card.hidden-card { background: var(--bg3); }
+    .vote-player { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+    .vote-value {
+      font-family: var(--serif);
+      font-size: 28px;
+      color: var(--jade);
+    }
+    .vote-hidden { font-size: 20px; color: var(--text3); }
+    .consensus-result {
+      background: var(--jade-dim);
+      border: 1px solid rgba(0,200,150,0.3);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .consensus-pts {
+      font-family: var(--serif);
+      font-size: 48px;
+      color: var(--jade);
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .consensus-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--jade); opacity: 0.7; }
+    .consensus-conf { font-size: 22px; font-weight: 500; color: var(--text); margin-top: 2px; }
+
+    /* Activity feed */
+    .feed-card { padding: 20px; }
+    .feed-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 16px; }
+    .feed-item { display: flex; gap: 10px; margin-bottom: 16px; }
+    .feed-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; margin-top: 5px; }
+    .feed-dot.jade { background: var(--jade); }
+    .feed-dot.gold { background: var(--gold); }
+    .feed-text { font-size: 12.5px; color: var(--text); line-height: 1.4; }
+    .feed-time { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    /* XP Banner */
+    .xp-banner {
+      background: var(--jade-dim);
+      border: 1px solid rgba(0,200,150,0.25);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .xp-icon { font-size: 18px; }
+    .xp-label { font-size: 13px; color: var(--jade); font-weight: 500; }
+    .xp-sub { font-size: 11px; color: var(--text3); }
+
+    /* ── Retro Screen ── */
+    .retro-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .stat-card { padding: 20px 24px; }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; }
+    .stat-value { font-family: var(--serif); font-size: 34px; color: var(--text); letter-spacing: -0.02em; }
+    .stat-value.jade { color: var(--jade); }
+
+    .retro-board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .retro-col-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text3);
+      padding: 0 4px;
+      margin-bottom: 10px;
+    }
+    .retro-col-header.good { color: var(--jade); }
+    .retro-col-header.improve { color: var(--warn); }
+    .retro-col-header.action { color: #6b8cff; }
+    .sticky {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 13px 16px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.4;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .sticky:hover { transform: translateY(-1px); border-color: var(--border2); }
+    .sticky.good { border-left: 3px solid var(--jade); }
+    .sticky.improve { border-left: 3px solid var(--warn); }
+    .sticky.action { border-left: 3px solid #6b8cff; }
+    .sticky-author { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+    .boss-card {
+      background: var(--gold-dim);
+      border: 1px solid rgba(200,168,75,0.25);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .boss-left { display: flex; align-items: center; gap: 16px; }
+    .boss-icon { font-size: 32px; }
+    .boss-title { font-family: var(--serif); font-size: 20px; color: var(--gold); }
+    .boss-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
+    .boss-xp { font-family: var(--serif); font-size: 32px; color: var(--gold); }
+    .boss-xp-label { font-size: 11px; color: var(--text3); text-align: right; }
+
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      background: var(--jade);
+      color: #0c0c0f;
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      text-decoration: none;
+    }
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,200,150,0.3);
+    }
+
+    /* ── Sprint badge ── */
+    .sprint-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: var(--jade-dim);
+      border: 1px solid rgba(0,200,150,0.25);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--jade);
+      font-weight: 500;
+      margin-left: 14px;
+      vertical-align: middle;
+    }
+
+    /* Scroll animations */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(16px);
+      animation: fadeUp 0.5s ease forwards;
+    }
+    .fade-in:nth-child(1) { animation-delay: 0.05s; }
+    .fade-in:nth-child(2) { animation-delay: 0.1s; }
+    .fade-in:nth-child(3) { animation-delay: 0.15s; }
+    .fade-in:nth-child(4) { animation-delay: 0.2s; }
+    .fade-in:nth-child(5) { animation-delay: 0.25s; }
+    .fade-in:nth-child(6) { animation-delay: 0.3s; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="brand">Reveal<span>.</span></div>
+
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <button class="nav-item active" data-screen="portfolio">
+        <span class="nav-dot"></span> Portfolio
+      </button>
+      <button class="nav-item" data-screen="workspace">
+        <span class="nav-dot"></span> Workspace
+      </button>
+    </div>
+
+    <div class="nav-section" style="margin-top:4px">
+      <div class="nav-label">Sprint</div>
+      <button class="nav-item" data-screen="session">
+        <span class="nav-dot"></span> Execution
+      </button>
+      <button class="nav-item" data-screen="retro">
+        <span class="nav-dot"></span> Close & Retro
+      </button>
+    </div>
+
+    <hr class="sidebar-divider" />
+
+    <div class="game-widget">
+      <div class="game-widget-top">
+        <span class="game-icon">⚔️</span>
+        <div>
+          <div class="game-level">Team Level 7</div>
+          <div class="game-xp">2,840 / 4,200 XP</div>
+        </div>
+      </div>
+      <div class="xp-bar-bg"><div class="xp-bar-fill"></div></div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- PORTFOLIO -->
+    <div class="topbar" id="topbar">
+      <div class="topbar-left">
+        <h1 id="screen-title">Portfolio</h1>
+        <p id="screen-subtitle">8 active sprints · 3 at risk</p>
+      </div>
+      <div class="topbar-right">
+        <span class="pill pill-jade">Delivery: Controlled</span>
+        <span class="pill pill-warn">2 Blockers</span>
+      </div>
+    </div>
+
+    <div class="screen active" id="screen-portfolio">
+      <div class="kpi-grid fade-in">
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">Active Projects</div>
+          <div class="kpi-value">6</div>
+          <div class="kpi-sub">2 entering release phase</div>
+        </div>
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">At Risk</div>
+          <div class="kpi-value danger">2</div>
+          <div class="kpi-sub">API migration · Staffing</div>
+        </div>
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">Total Blocked</div>
+          <div class="kpi-value">11</div>
+          <div class="kpi-sub">Avg MTTR 7.2h</div>
+        </div>
+        <div class="card kpi-card fade-in">
+          <div class="kpi-label">Portfolio Confidence</div>
+          <div class="kpi-value jade">78%</div>
+          <div class="kpi-sub">+4% vs last sprint</div>
+        </div>
+      </div>
+
+      <div class="risk-band fade-in">
+        <div class="risk-band-header">
+          <div class="risk-band-title">⚠ 2 items need your attention</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-dot"></div>
+          <div>
+            <div class="risk-text">API migration dependency blocking 3 downstream tasks in Reveal Platform</div>
+            <div class="risk-meta">Assigned to ML · Escalated 2h ago · Unblocked by EOD to stay on track</div>
+          </div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-dot"></div>
+          <div>
+            <div class="risk-text">Staffing gap: Senior dev vacancy on NetIP Mobile — sprint velocity -35%</div>
+            <div class="risk-meta">Reported by Sprint 26 team · Needs decision: hire vs. scope reduction</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading fade-in">
+        <h2>Active Projects</h2>
+        <span>sorted by delivery pressure</span>
+      </div>
+
+      <div class="project-list fade-in">
+        <div class="project-row" style="border-bottom:1px solid var(--border);background:var(--bg3);font-size:11px;color:var(--text3);padding:8px 20px;cursor:default">
+          <span>PROJECT</span><span>PROGRESS</span><span>STATUS</span><span>TEAM</span><span style="text-align:right">DELIVERY</span>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">Reveal Platform</div><div class="project-sprint">Sprint 26 · 8 days left</div></div>
+          <div class="project-bar-wrap"><div class="project-bar-bg"><div class="project-bar-fill bar-jade" style="width:67%"></div></div><div style="font-size:11px;color:var(--text3);margin-top:4px">67% complete</div></div>
+          <div><span class="pill pill-jade">On Track</span></div>
+          <div class="avatars"><div class="avatar">ML</div><div class="avatar">SK</div><div class="avatar">JK</div></div>
+          <div class="delivery-date">Apr 12</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">NetIP Mobile</div><div class="project-sprint">Sprint 14 · 3 days left</div></div>
+          <div class="project-bar-wrap"><div class="project-bar-bg"><div class="project-bar-fill bar-danger" style="width:42%"></div></div><div style="font-size:11px;color:var(--text3);margin-top:4px">42% complete</div></div>
+          <div><span class="pill pill-danger">At Risk</span></div>
+          <div class="avatars"><div class="avatar">AR</div><div class="avatar">BT</div></div>
+          <div class="delivery-date" style="color:var(--danger)">Apr 5 ⚠</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">Analytics Dashboard</div><div class="project-sprint">Sprint 9 · 12 days left</div></div>
+          <div class="project-bar-wrap"><div class="project-bar-bg"><div class="project-bar-fill bar-jade" style="width:81%"></div></div><div style="font-size:11px;color:var(--text3);margin-top:4px">81% complete</div></div>
+          <div><span class="pill pill-jade">On Track</span></div>
+          <div class="avatars"><div class="avatar">PK</div><div class="avatar">NM</div><div class="avatar">LR</div></div>
+          <div class="delivery-date">Apr 18</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">Auth Service v2</div><div class="project-sprint">Sprint 4 · 6 days left</div></div>
+          <div class="project-bar-wrap"><div class="project-bar-bg"><div class="project-bar-fill bar-warn" style="width:55%"></div></div><div style="font-size:11px;color:var(--text3);margin-top:4px">55% complete</div></div>
+          <div><span class="pill pill-warn">Review</span></div>
+          <div class="avatars"><div class="avatar">JH</div><div class="avatar">CL</div></div>
+          <div class="delivery-date">Apr 8</div>
+        </div>
+        <div class="project-row">
+          <div><div class="project-name">Kombit WiFi</div><div class="project-sprint">Sprint 22 · 15 days left</div></div>
+          <div class="project-bar-wrap"><div class="project-bar-bg"><div class="project-bar-fill bar-jade" style="width:91%"></div></div><div style="font-size:11px;color:var(--text3);margin-top:4px">91% complete</div></div>
+          <div><span class="pill pill-jade">Near Done</span></div>
+          <div class="avatars"><div class="avatar">TB</div><div class="avatar">FR</div><div class="avatar">AS</div></div>
+          <div class="delivery-date">Apr 25</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORKSPACE -->
+    <div class="screen" id="screen-workspace">
+      <div class="workspace-grid">
+        <div>
+          <div style="margin-bottom:24px">
+            <div style="font-family:var(--serif);font-size:32px;letter-spacing:-0.02em;margin-bottom:6px">
+              Reveal Platform <span class="sprint-badge">Sprint 26 · 8 days left</span>
+            </div>
+            <div style="font-size:13px;color:var(--text2)">Asymmetric task board · 21 items in scope</div>
+          </div>
+
+          <div class="board-columns">
+            <!-- Backlog -->
+            <div class="board-col">
+              <div class="col-header"><span class="col-title">Backlog</span><span class="col-count">5</span></div>
+              <div class="card task-card fade-in">
+                <div class="task-top"><span class="priority-dot p-med"></span><span class="xp-badge">+20 XP</span></div>
+                <div class="task-title">Add projection config endpoint for reward thresholds</div>
+                <div class="task-bottom"><span class="task-assignee">— Unassigned</span><span class="task-pts">3 pts</span></div>
+              </div>
+              <div class="card task-card fade-in">
+                <div class="task-top"><span class="priority-dot p-low"></span><span class="xp-badge">+15 XP</span></div>
+                <div class="task-title">Migrate retro decisions to domain module</div>
+                <div class="task-bottom"><span class="task-assignee">JK</span><span class="task-pts">2 pts</span></div>
+              </div>
+              <div class="card task-card fade-in">
+                <div class="task-top"><span class="priority-dot p-med"></span><span></span></div>
+                <div class="task-title">Write integration tests for approval flow</div>
+                <div class="task-bottom"><span class="task-assignee">— Unassigned</span><span class="task-pts">5 pts</span></div>
+              </div>
+            </div>
+            <!-- In Progress -->
+            <div class="board-col">
+              <div class="col-header"><span class="col-title" style="color:var(--jade)">In Progress</span><span class="col-count">3</span></div>
+              <div class="card task-card fade-in" style="border-left:2px solid var(--jade)">
+                <div class="task-top"><span class="priority-dot p-high"></span><span class="xp-badge">+35 XP</span></div>
+                <div class="task-title">Extract BossRetroStage from Session.jsx</div>
+                <div class="task-bottom"><span class="task-assignee">ML</span><span class="task-pts">8 pts</span></div>
+              </div>
+              <div class="card task-card fade-in" style="border-left:2px solid var(--jade)">
+                <div class="task-top"><span class="priority-dot p-high"></span><span class="xp-badge">+30 XP</span></div>
+                <div class="task-title">API blocker: fix downstream dependency mapping</div>
+                <div class="task-bottom"><span class="task-assignee">SK</span><span class="task-pts">5 pts</span></div>
+              </div>
+              <div class="card task-card fade-in" style="border-left:2px solid var(--jade)">
+                <div class="task-top"><span class="priority-dot p-med"></span><span class="xp-badge">+25 XP</span></div>
+                <div class="task-title">Jira shadow sync — read-only pilot connector</div>
+                <div class="task-bottom"><span class="task-assignee">JK</span><span class="task-pts">5 pts</span></div>
+              </div>
+            </div>
+            <!-- Done -->
+            <div class="board-col">
+              <div class="col-header"><span class="col-title" style="color:var(--text3)">Done</span><span class="col-count">11</span></div>
+              <div class="card task-card fade-in" style="opacity:0.6">
+                <div class="task-top"><span class="priority-dot p-low"></span><span></span></div>
+                <div class="task-title">RootState / selectors layer extraction</div>
+                <div class="task-bottom"><span class="task-assignee">ML</span><span class="task-pts">✓ 8 pts</span></div>
+              </div>
+              <div class="card task-card fade-in" style="opacity:0.6">
+                <div class="task-top"><span class="priority-dot p-low"></span><span></span></div>
+                <div class="task-title">World/Challenge/Root architecture doc</div>
+                <div class="task-bottom"><span class="task-assignee">ML</span><span class="task-pts">✓ 3 pts</span></div>
+              </div>
+              <div class="card task-card fade-in" style="opacity:0.6">
+                <div class="task-top"><span class="priority-dot p-med"></span><span></span></div>
+                <div class="task-title">Sprint projection config SQL migration</div>
+                <div class="task-bottom"><span class="task-assignee">JK</span><span class="task-pts">✓ 5 pts</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card burndown-card" style="margin-top:16px">
+            <div class="burndown-title">Burndown — Sprint 26</div>
+            <div class="burndown-bars">
+              <div class="burn-bar" style="height:85%"></div>
+              <div class="burn-bar" style="height:78%"></div>
+              <div class="burn-bar" style="height:72%"></div>
+              <div class="burn-bar" style="height:69%"></div>
+              <div class="burn-bar" style="height:61%"></div>
+              <div class="burn-bar" style="height:55%"></div>
+              <div class="burn-bar" style="height:50%"></div>
+              <div class="burn-bar" style="height:43%"></div>
+              <div class="burn-bar" style="height:37%"></div>
+              <div class="burn-bar" style="height:33%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:8px">
+              <span>Day 1</span><span>Today — Day 8</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Team sidebar -->
+        <div class="team-sidebar">
+          <div class="card health-card">
+            <div class="health-label">Sprint Health</div>
+            <div class="health-value">82</div>
+            <div class="health-sub">Good momentum · API blocker is critical path</div>
+          </div>
+
+          <div class="card team-card">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:16px">Team</div>
+            <div class="team-member-row">
+              <div class="member-avatar">ML<div class="mood-dot mood-green"></div></div>
+              <div><div class="member-name">Mads L.</div><div class="member-task">BossRetroStage extraction</div></div>
+            </div>
+            <div class="team-member-row">
+              <div class="member-avatar">SK<div class="mood-dot mood-green"></div></div>
+              <div><div class="member-name">Sara K.</div><div class="member-task">API dependency mapping</div></div>
+            </div>
+            <div class="team-member-row">
+              <div class="member-avatar">JK<div class="mood-dot mood-yellow"></div></div>
+              <div><div class="member-name">Jonas K.</div><div class="member-task">Jira pilot — paused</div></div>
+            </div>
+            <div class="team-member-row">
+              <div class="member-avatar">LR<div class="mood-dot mood-green"></div></div>
+              <div><div class="member-name">Line R.</div><div class="member-task">Integration tests</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SESSION -->
+    <div class="screen" id="screen-session">
+      <div class="session-header">
+        <div>
+          <div class="session-title">Sprint Planning · Session 3</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">Reveal Platform · Sprint 26</div>
+          <div class="session-progress">
+            <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+            <div class="progress-label">14 of 21 items estimated · 7 remaining</div>
+          </div>
+        </div>
+        <div class="session-timer">23:14</div>
+      </div>
+
+      <div class="session-grid">
+        <div>
+          <div class="card voting-card">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:12px">Currently Estimating</div>
+            <div class="voting-item">
+              <div class="voting-item-label">Feature · High priority</div>
+              <div class="voting-item-title">Implement dual-mode architecture — Mode A standalone baseline + Mode B connector scaffold</div>
+            </div>
+            <div class="voting-cards">
+              <div class="vote-card revealed">
+                <div class="vote-player">Mads</div>
+                <div class="vote-value">5</div>
+              </div>
+              <div class="vote-card revealed">
+                <div class="vote-player">Sara</div>
+                <div class="vote-value">5</div>
+              </div>
+              <div class="vote-card hidden-card">
+                <div class="vote-player">Jonas</div>
+                <div class="vote-hidden">?</div>
+              </div>
+              <div class="vote-card revealed">
+                <div class="vote-player">Line</div>
+                <div class="vote-value">8</div>
+              </div>
+            </div>
+            <div class="consensus-result">
+              <div class="consensus-pts">5</div>
+              <div>
+                <div class="consensus-label">Consensus</div>
+                <div class="consensus-conf">High confidence</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px">3/4 agreement · 1 pending</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity + XP -->
+        <div>
+          <div class="xp-banner">
+            <div class="xp-icon">✦</div>
+            <div>
+              <div class="xp-label">+45 XP — Consensus Bonus</div>
+              <div class="xp-sub">Team agreed in under 90 seconds</div>
+            </div>
+          </div>
+          <div class="card feed-card">
+            <div class="feed-title">Activity Feed</div>
+            <div class="feed-item">
+              <div class="feed-dot gold"></div>
+              <div>
+                <div class="feed-text">+45 XP — Consensus Bonus on item #14</div>
+                <div class="feed-time">Just now</div>
+              </div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-dot jade"></div>
+              <div>
+                <div class="feed-text">Sara voted 5 on "Dual-mode architecture"</div>
+                <div class="feed-time">1 min ago</div>
+              </div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-dot jade"></div>
+              <div>
+                <div class="feed-text">Item #13 locked at 3 pts — accepted</div>
+                <div class="feed-time">4 min ago</div>
+              </div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-dot"></div>
+              <div>
+                <div class="feed-text">Mads flagged item #12 for discussion</div>
+                <div class="feed-time">7 min ago</div>
+              </div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-dot"></div>
+              <div>
+                <div class="feed-text">Session started — 4 participants joined</div>
+                <div class="feed-time">23 min ago</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RETRO -->
+    <div class="screen" id="screen-retro">
+      <div style="font-family:var(--serif);font-size:36px;letter-spacing:-0.02em;margin-bottom:6px">
+        Sprint 25 — Complete
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:32px">Closed March 22, 2026 · 18/21 items delivered</div>
+
+      <div class="retro-stats fade-in">
+        <div class="card stat-card fade-in">
+          <div class="stat-label">Velocity</div>
+          <div class="stat-value jade">42</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">pts delivered</div>
+        </div>
+        <div class="card stat-card fade-in">
+          <div class="stat-label">Completed</div>
+          <div class="stat-value">18/21</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">3 rolled over</div>
+        </div>
+        <div class="card stat-card fade-in">
+          <div class="stat-label">Blockers Resolved</div>
+          <div class="stat-value">4</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">avg 5.8h MTTR</div>
+        </div>
+        <div class="card stat-card fade-in">
+          <div class="stat-label">Team Mood</div>
+          <div class="stat-value jade">4.2</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">out of 5</div>
+        </div>
+      </div>
+
+      <div class="boss-card fade-in">
+        <div class="boss-left">
+          <div class="boss-icon">🏆</div>
+          <div>
+            <div class="boss-title">Challenge Defeated: Zero-blocker sprint</div>
+            <div class="boss-sub">No blocker lasted longer than 8 hours · All resolved internally</div>
+          </div>
+        </div>
+        <div>
+          <div class="boss-xp">+380 XP</div>
+          <div class="boss-xp-label">Team reward</div>
+        </div>
+      </div>
+
+      <div class="section-heading fade-in" style="margin-bottom:20px">
+        <h2>Retrospective Board</h2>
+        <span>Sprint 25 · 12 notes</span>
+      </div>
+
+      <div class="retro-board fade-in">
+        <div>
+          <div class="retro-col-header good">↑ What went well</div>
+          <div class="sticky good">
+            Fast consensus in planning — all 21 items estimated in under 40 min
+            <div class="sticky-author">— Mads L.</div>
+          </div>
+          <div class="sticky good">
+            Projection refactor landed clean. Session.jsx down 120 lines.
+            <div class="sticky-author">— Sara K.</div>
+          </div>
+          <div class="sticky good">
+            Architecture doc gave the whole team shared vocabulary
+            <div class="sticky-author">— Line R.</div>
+          </div>
+        </div>
+        <div>
+          <div class="retro-col-header improve">→ Improve</div>
+          <div class="sticky improve">
+            API dependency was late-discovered. Need earlier cross-team sync on blockers.
+            <div class="sticky-author">— Jonas K.</div>
+          </div>
+          <div class="sticky improve">
+            3 items rolled over again. Scope commitment needs tightening.
+            <div class="sticky-author">— Mads L.</div>
+          </div>
+          <div class="sticky improve">
+            Jira connector pilot started too late — needs its own sprint slot.
+            <div class="sticky-author">— Sara K.</div>
+          </div>
+        </div>
+        <div>
+          <div class="retro-col-header action">✓ Actions</div>
+          <div class="sticky action">
+            Book weekly cross-team dependency sync (Thursdays 09:00)
+            <div class="sticky-author">Owner: Mads — Sprint 26</div>
+          </div>
+          <div class="sticky action">
+            Hard limit: max 18 pts in Sprint 26 scope commitment
+            <div class="sticky-author">Owner: Team — Sprint 26</div>
+          </div>
+          <div class="sticky action">
+            Jira connector as standalone task · unblock from main board
+            <div class="sticky-author">Owner: Jonas — Sprint 27</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding-top:8px">
+        <button class="cta-btn">Begin Sprint 26 →</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  const navItems = document.querySelectorAll('.nav-item[data-screen]');
+  const screens = document.querySelectorAll('.screen');
+
+  const titles = {
+    portfolio: { title: 'Portfolio', sub: '8 active sprints · 3 at risk' },
+    workspace: { title: 'Reveal Platform', sub: 'Sprint 26 · Project Workspace' },
+    session: { title: 'Sprint Planning', sub: 'Sprint 26 · Session 3 · 4 participants' },
+    retro: { title: 'Sprint 25 — Retro', sub: 'Closed March 22 · 18/21 delivered' },
+  };
+
+  navItems.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.screen;
+
+      navItems.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      screens.forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + target).classList.add('active');
+
+      const t = titles[target];
+      document.getElementById('screen-title').textContent = t.title;
+      document.getElementById('screen-subtitle').textContent = t.sub;
+    });
+  });
+
+  // Animate progress bars on load
+  window.addEventListener('load', () => {
+    document.querySelectorAll('.project-bar-fill, .progress-bar-fill').forEach(bar => {
+      const w = bar.style.width;
+      bar.style.width = '0';
+      setTimeout(() => { bar.style.width = w; }, 200);
+    });
+  });
+</script>
+</body>
+</html>

@@ -28,6 +28,7 @@ export const governanceStyles = {
   projectName: { fontSize: '7px', color: '#e5e7eb', marginBottom: '4px' },
   projectMeta: { fontSize: '6px', color: '#9ca3af' },
   projectStats: { fontSize: '6px', color: '#a78bfa', whiteSpace: 'nowrap' },
+  timelogBtn: { padding: '4px 8px', background: 'rgba(52,211,153,0.1)', border: '1px solid #34d39944', color: '#34d399', fontFamily: "'Press Start 2P', monospace", fontSize: '6px', cursor: 'pointer', whiteSpace: 'nowrap' },
   activityRow: { borderBottom: '1px solid #253046', padding: '6px 0' },
   activityTitle: { fontSize: '7px', color: '#e5e7eb', marginBottom: '4px' },
   activityMeta: { fontSize: '6px', color: '#9ca3af' },

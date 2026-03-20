@@ -11,12 +11,14 @@ const AvatarCreator = lazy(() => import("./screens/AvatarCreator.jsx"));
 const WorldSelect = lazy(() => import("./screens/WorldSelect.jsx"));
 const Overworld = lazy(() => import("./screens/Overworld.jsx"));
 const Session = lazy(() => import("./screens/Session.jsx"));
+const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | game
+  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | timelog | game
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
+  const [timelogProjectId, setTimelogProjectId] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -26,6 +28,12 @@ export default function App() {
     if (!hasUser) return;
     if (pathname === '/dashboard') {
       setAuthScreen('dashboard');
+      return;
+    }
+    const timelogMatch = pathname.match(/^\/projects\/([^/]+)\/timelog$/);
+    if (timelogMatch) {
+      setTimelogProjectId(timelogMatch[1]);
+      setAuthScreen('timelog');
       return;
     }
     if (pathname === '/' || pathname === '/login' || pathname === '/auth/callback') {
@@ -137,6 +145,25 @@ export default function App() {
             setAuthScreen("lobby");
           }}
           onContinue={() => setAuthScreen("game")}
+          onTimelog={(projectId) => {
+            window.history.pushState({}, document.title, `/projects/${projectId}/timelog`);
+            setTimelogProjectId(projectId);
+            setAuthScreen("timelog");
+          }}
+        />
+      </Suspense>
+    );
+  }
+
+  if (user && authScreen === "timelog" && timelogProjectId) {
+    return (
+      <Suspense fallback={<LoadingScreen label="LOADING TIMELOG..." />}>
+        <TimelogScreen
+          projectId={timelogProjectId}
+          onBack={() => {
+            window.history.pushState({}, document.title, '/dashboard');
+            setAuthScreen("dashboard");
+          }}
         />
       </Suspense>
     );

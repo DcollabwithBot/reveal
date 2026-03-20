@@ -1,6 +1,6 @@
 import { governanceStyles as s, formatShortDate } from './styles';
 
-export default function DashboardSnapshot({ activeProjects, recentActivity }) {
+export default function DashboardSnapshot({ activeProjects, recentActivity, onTimelog }) {
   return (
     <div style={s.dashboardGrid}>
       <SectionBox title="Active Projects">
@@ -10,7 +10,18 @@ export default function DashboardSnapshot({ activeProjects, recentActivity }) {
               <div style={s.projectName}>{project.icon || '📋'} {project.name}</div>
               <div style={s.projectMeta}>status: {project.status} · progress: {project.progress ?? 0}%</div>
             </div>
-            <div style={s.projectStats}>{project.total_items || 0} items</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={s.projectStats}>{project.total_items || 0} items</div>
+              {onTimelog && (
+                <button
+                  style={s.timelogBtn}
+                  onClick={() => onTimelog(project.id)}
+                  title="Timelog"
+                >
+                  ⏱ Timelog →
+                </button>
+              )}
+            </div>
           </div>
         ))}
         {!activeProjects.length && <div style={s.muted}>Ingen aktive projekter endnu.</div>}
