@@ -241,3 +241,30 @@ Ny function → opret i `supabase/functions/<navn>/index.ts` (Deno).
 
 ## Lokation
 `/root/.openclaw/workspace/projects/reveal/`
+
+## ⚠️ Game Mode Design-Regel: Pixel Art Game Feel (ALLE modes)
+
+**Besluttet: 2026-03-20 af Danny**
+
+ALLE game modes skal have samme æstetik og feel som Planning Poker. Det er ikke forhandleligt.
+
+### Krav per game mode:
+- **Avatarer** — alle deltagere repræsenteres med deres pixel art avatar (klasse, level badge)
+- **Animationer** — alle actions har animation: kortflip, vote reveal, boss appear, XP burst, confetti
+- **Lyd** — Web Audio API på alle key moments (ding, dramatic reveal, boss roar, success chime)
+- **Game-feel micro-moments** — hvert mode har mindst 3 "yes!"-øjeblikke med visuelt feedback
+
+### Eksempler per mode:
+- **Spec Wars** — avatarer sidder om et bord, skriver på "scrolls", kaster dem ind, voting = battle
+- **Perspektiv-Poker** — role cards flippes dramatisk, crown-animation på vinderens spec
+- **Bluff Poker** — avatarer med "poker face", afsløring = spotlight + camera shake
+- **Russian Nesting Scope** — doll der åbner sig med animation, del-estimater popper ud
+- **Speed Scope** — timer nedtælling med pixel art, "BUZZER" animation ved reveal
+
+### Tech:
+- CSS keyframe animations (ingen Framer Motion / biblioteker)
+- Web Audio API (ingen .mp3 filer — genererede toner)
+- Press Start 2P + VT323 fonte
+- Eksisterende CSS-variabler (--jade, --gold, --danger, --epic, --bg2 etc.)
+
+**⛔ Aldrig:** Bland corporate/flat design ind i game modes. Spillet ser ud som spil.
