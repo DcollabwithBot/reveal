@@ -187,6 +187,25 @@ function SprintGroupBar({ sprint, project, itemCount }) {
   );
 }
 
+// ── Person swimlane header ────────────────────────────────────────────────────
+function PersonSwimlaneBar({ name, inProgressHours }) {
+  const color = inProgressHours < 40 ? 'var(--jade)' : inProgressHours < 80 ? 'var(--gold)' : 'var(--danger)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, marginTop: 28 }}>
+      <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)' }}>👤 {name}</span>
+        {inProgressHours > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 600, color, background: color === 'var(--jade)' ? 'rgba(0,200,150,0.1)' : color === 'var(--gold)' ? 'rgba(200,168,75,0.1)' : 'rgba(232,84,84,0.1)', border: `1px solid ${color}`, borderRadius: 8, padding: '1px 7px' }}>
+            {inProgressHours}h in progress
+          </span>
+        )}
+      </div>
+      <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function TeamKanban() {
   const [loading, setLoading] = useState(true);
@@ -196,11 +215,13 @@ export default function TeamKanban() {
   const [projects, setProjects] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [filterProjectId, setFilterProjectId] = useState(null);
+  // groupMode: 'status' | 'sprint' | 'person' | 'priority'
   const [groupMode, setGroupMode] = useState('status');
   const [wipLimits, setWipLimits] = useState({ backlog: 0, in_progress: 5, done: 0 });
   const [error, setError] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [assignees, setAssignees] = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -243,6 +264,14 @@ export default function TeamKanban() {
             .order('item_order', { ascending: true });
           setItems(itemData || []);
         }
+
+        // Hent assignees fra dedikeret endpoint
+        try {
+          const resp = await fetch('/api/team/assignees', {
+            headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+          });
+          if (resp.ok) setAssignees(await resp.json());
+        } catch { /* ignorér */ }
       } catch (e) {
         setError(e.message);
       } finally {
@@ -267,6 +296,32 @@ export default function TeamKanban() {
       items: filteredItems.filter(i => i.sprint_id === sprint.id),
     })).filter(g => g.items.length > 0);
   }, [sprints, filteredItems, filterProjectId]);
+
+  // Person groups for "By Person" mode
+  const personGroups = useMemo(() => {
+    // Byg swimlanes fra assignees + Unassigned
+    const groups = assignees.map(a => ({
+      id: a.id,
+      name: a.display_name,
+      items: filteredItems.filter(i => i.assigned_to === a.id),
+    })).filter(g => g.items.length > 0);
+
+    const unassigned = filteredItems.filter(i => !i.assigned_to);
+    if (unassigned.length > 0) {
+      groups.push({ id: '__unassigned__', name: 'Unassigned', items: unassigned });
+    }
+    return groups;
+  }, [assignees, filteredItems]);
+
+  // Priority groups
+  const PRIORITY_ORDER = ['high', 'medium', 'low'];
+  const priorityGroups = useMemo(() => {
+    return PRIORITY_ORDER.map(p => ({
+      priority: p,
+      label: p === 'high' ? '↑ High' : p === 'medium' ? '→ Medium' : '↓ Low',
+      items: filteredItems.filter(i => (i.priority || 'low') === p),
+    })).filter(g => g.items.length > 0);
+  }, [filteredItems]);
 
   // Stats
   const stats = useMemo(() => {
@@ -313,7 +368,7 @@ export default function TeamKanban() {
             </FilterChip>
           ))}
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ fontSize: 10, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
             WIP
             <input
@@ -324,17 +379,26 @@ export default function TeamKanban() {
               style={{ width: 52, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 11, padding: '4px 6px' }}
             />
           </label>
-          <button
-            onClick={() => setGroupMode(groupMode === 'sprint' ? 'status' : 'sprint')}
-            style={{
-              fontSize: 11, padding: '4px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', border: 'none',
-              background: groupMode === 'sprint' ? 'var(--jade-dim)' : 'var(--bg3)',
-              color: groupMode === 'sprint' ? 'var(--jade)' : 'var(--text2)',
-              outline: groupMode === 'sprint' ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
-            }}
-          >
-            ⊟ Gruppér pr. sprint
-          </button>
+          {/* Group mode toggle buttons */}
+          {[
+            { key: 'status', label: '⊞ Status' },
+            { key: 'sprint', label: '⊟ Sprint' },
+            { key: 'person', label: '👤 Person' },
+            { key: 'priority', label: '↑ Priority' },
+          ].map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => setGroupMode(opt.key)}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', border: 'none',
+                background: groupMode === opt.key ? 'var(--jade-dim)' : 'var(--bg3)',
+                color: groupMode === opt.key ? 'var(--jade)' : 'var(--text2)',
+                outline: groupMode === opt.key ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
           <SyncChip>Jira —</SyncChip>
           <SyncChip>TopDesk —</SyncChip>
         </div>
@@ -361,7 +425,7 @@ export default function TeamKanban() {
       </div>
 
       {/* Kanban body */}
-      {groupMode === 'sprint' ? (
+      {groupMode === 'sprint' && (
         sprintGroups.map(({ sprint, items: sprintItems }) => (
           <div key={sprint.id}>
             <SprintGroupBar sprint={sprint} project={projectMap[sprint.project_id]} itemCount={sprintItems.length} />
@@ -385,7 +449,70 @@ export default function TeamKanban() {
             </div>
           </div>
         ))
-      ) : (
+      )}
+
+      {groupMode === 'person' && (
+        personGroups.map(group => {
+          const inProgressHours = group.items
+            .filter(i => i.item_status === 'in_progress')
+            .reduce((s, i) => s + (Number(i.estimated_hours) || 0), 0);
+          return (
+            <div key={group.id}>
+              <PersonSwimlaneBar name={group.name} inProgressHours={inProgressHours} />
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                {STATUS_COLS.map(col => (
+                  <StatusCol
+                    key={col.key}
+                    col={col}
+                    items={group.items.filter(i => i.item_status === col.key)}
+                    sprintMap={sprintMap}
+                    projectMap={projectMap}
+                    draggingId={draggingId}
+                    onDragStart={id => setDraggingId(id)}
+                    onDragEnd={() => setDraggingId(null)}
+                    onDrop={handleDrop}
+                    onCardClick={setSelectedItem}
+                    groupBy={group.name}
+                    wipLimit={col.key === 'in_progress' ? wipLimits.in_progress : wipLimits[col.key]}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {groupMode === 'priority' && (
+        priorityGroups.map(group => (
+          <div key={group.priority}>
+            <SprintGroupBar
+              sprint={{ name: group.label, id: group.priority }}
+              project={null}
+              itemCount={group.items.length}
+            />
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              {STATUS_COLS.map(col => (
+                <StatusCol
+                  key={col.key}
+                  col={col}
+                  items={group.items.filter(i => i.item_status === col.key)}
+                  sprintMap={sprintMap}
+                  projectMap={projectMap}
+                  draggingId={draggingId}
+                  onDragStart={id => setDraggingId(id)}
+                  onDragEnd={() => setDraggingId(null)}
+                  onDrop={handleDrop}
+                  onCardClick={setSelectedItem}
+                  groupBy={group.label}
+                  wipLimit={col.key === 'in_progress' ? wipLimits.in_progress : wipLimits[col.key]}
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+
+      {groupMode === 'status' && (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
           {STATUS_COLS.map(col => (
             <StatusCol

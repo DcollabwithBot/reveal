@@ -140,6 +140,11 @@ async function applyApprovedRequest({
     actor
   });
 
+
+  if (!approvalRequest.requested_patch) {
+    throw new Error('Requested patch is missing');
+  }
+
   const patch = sanitizeAndNormalizePatch(targetType, approvalRequest.requested_patch || {});
   const targetAppliers = createTargetAppliers({ supabase });
 

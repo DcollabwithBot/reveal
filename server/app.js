@@ -2253,6 +2253,195 @@ app.delete('/api/templates/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Estimation pipeline endpoints ─────────────────────────────────────────────
+
+// POST /api/items/:id/estimation-session
+// Opretter en ny session med item som hoved-backlog-item
+app.post('/api/items/:id/estimation-session', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id: sourceItemId } = req.params;
+  const { session_name, voting_mode, backlog_items } = req.body || {};
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.team_id) return res.status(400).json({ error: 'No team membership' });
+
+  // Hent source item for at bruge som titel fallback
+  const { data: sourceItem, error: itemErr } = await supabase
+    .from('session_items')
+    .select('id, title, sprint_id, estimated_hours')
+    .eq('id', sourceItemId)
+    .maybeSingle();
+
+  if (itemErr || !sourceItem) return res.status(404).json({ error: 'Item not found' });
+
+  // Generer join_code
+  const join_code = Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  // Opret session
+  const { data: session, error: sessErr } = await supabase
+    .from('sessions')
+    .insert({
+      name: session_name || sourceItem.title,
+      session_type: 'estimation',
+      voting_mode: voting_mode || 'fibonacci',
+      team_id: membership.team_id,
+      organization_id: membership.organization_id,
+      game_master_id: user.id,
+      created_by: user.id,
+      status: 'draft',
+      join_code,
+    })
+    .select()
+    .single();
+
+  if (sessErr) return res.status(500).json({ error: sessErr.message });
+
+  // Tilføj source item som første backlog-item i sessionen
+  const primaryRow = {
+    session_id: session.id,
+    sprint_id: sourceItem.sprint_id || null,
+    title: sourceItem.title,
+    item_order: 0,
+    status: 'pending',
+    source_item_id: sourceItemId,
+    estimation_session_id: session.id,
+  };
+
+  const extraRows = (backlog_items || []).map((it, i) => ({
+    session_id: session.id,
+    title: typeof it === 'string' ? it : it.title,
+    item_order: i + 1,
+    status: 'pending',
+  }));
+
+  const { error: insertErr } = await supabase
+    .from('session_items')
+    .insert([primaryRow, ...extraRows]);
+
+  if (insertErr) return res.status(500).json({ error: insertErr.message });
+
+  // Opdatér source item med estimation_session_id reference
+  await supabase
+    .from('session_items')
+    .update({ estimation_session_id: session.id })
+    .eq('id', sourceItemId);
+
+  return res.status(201).json({ session_id: session.id, join_code });
+});
+
+// GET /api/items/:id/estimation-sessions
+// Returnerer alle sessions linkede til dette item (via source_item_id)
+app.get('/api/items/:id/estimation-sessions', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id: sourceItemId } = req.params;
+
+  // Find session_items der peger på dette source_item_id
+  const { data: sessionItems, error } = await supabase
+    .from('session_items')
+    .select('id, title, final_estimate, created_at, session_id, source_item_id')
+    .eq('source_item_id', sourceItemId)
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (!sessionItems?.length) return res.json([]);
+
+  // Hent tilhørende sessions
+  const sessionIds = [...new Set(sessionItems.map(si => si.session_id).filter(Boolean))];
+  const { data: sessions } = await supabase
+    .from('sessions')
+    .select('id, name, status, created_at, join_code')
+    .in('id', sessionIds);
+
+  const sessionMap = new Map((sessions || []).map(s => [s.id, s]));
+
+  const result = sessionItems.map(si => ({
+    session_item_id: si.id,
+    session_id: si.session_id,
+    session_name: sessionMap.get(si.session_id)?.name || si.title,
+    session_status: sessionMap.get(si.session_id)?.status || 'unknown',
+    join_code: sessionMap.get(si.session_id)?.join_code || null,
+    final_estimate: si.final_estimate,
+    created_at: si.created_at,
+  }));
+
+  return res.json(result);
+});
+
+// POST /api/estimation-results/:session_item_id/apply
+// Opretter en approval_request for at skrive estimat tilbage til PM-opgave
+app.post('/api/estimation-results/:session_item_id/apply', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { session_item_id } = req.params;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  // Hent session_item + source_item_id + final_estimate
+  const { data: sessionItem, error: siErr } = await supabase
+    .from('session_items')
+    .select('id, source_item_id, final_estimate, title')
+    .eq('id', session_item_id)
+    .maybeSingle();
+
+  if (siErr || !sessionItem) return res.status(404).json({ error: 'Session item not found' });
+  if (!sessionItem.source_item_id) return res.status(400).json({ error: 'No source_item_id — item is not linked to a PM task' });
+  if (!sessionItem.final_estimate) return res.status(400).json({ error: 'No final_estimate on this session item' });
+
+  // Tjek for eksisterende pending approval
+  const { data: existing } = await supabase
+    .from('approval_requests')
+    .select('id, state')
+    .eq('target_type', 'item_estimate')
+    .eq('target_id', sessionItem.source_item_id)
+    .in('state', ['pending_approval', 'pending'])
+    .maybeSingle();
+
+  if (existing) {
+    return res.status(409).json({ error: 'En approval request for dette item er allerede pending', approval_request_id: existing.id });
+  }
+
+  const idempotency_key = `item_estimate:${sessionItem.source_item_id}:${session_item_id}`;
+  const requested_patch = { estimated_hours: sessionItem.final_estimate };
+
+  const { data: approval, error: apErr } = await supabase
+    .from('approval_requests')
+    .insert({
+      organization_id: membership.organization_id,
+      team_id: membership.team_id,
+      target_type: 'item_estimate',
+      target_id: sessionItem.source_item_id,
+      requested_patch,
+      requested_by: user.id,
+      state: APPROVAL_STATES.PENDING_APPROVAL,
+      idempotency_key,
+    })
+    .select('*')
+    .single();
+
+  if (apErr) return res.status(500).json({ error: apErr.message });
+
+  await appendAuditLog({
+    eventType: 'estimation.apply.requested',
+    actor: 'game',
+    sourceLayer: 'game',
+    organizationId: membership.organization_id,
+    teamId: membership.team_id,
+    targetType: 'item_estimate',
+    targetId: sessionItem.source_item_id,
+    approvalRequestId: approval.id,
+    payload: { final_estimate: sessionItem.final_estimate, session_item_id },
+  }).catch(() => {});
+
+  return res.status(201).json({ approval_request_id: approval.id });
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(staticRoot, 'index.html'));
 });
