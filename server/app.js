@@ -2786,6 +2786,304 @@ app.get('/api/search', async (req, res) => {
   res.json(results);
 });
 
+// ══════════════════════════════════════════════════════════════════
+// Feature: Burndown / Velocity Charts
+// ══════════════════════════════════════════════════════════════════
+
+app.get('/api/sprints/:id/burndown', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+
+  // Get sprint for ideal line
+  const { data: sprint, error: sprintErr } = await supabase
+    .from('sprints')
+    .select('id, name, start_date, end_date')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (sprintErr || !sprint) return res.status(404).json({ error: 'Sprint not found' });
+
+  // Get snapshots
+  const { data: snapshots, error: snapErr } = await supabase
+    .from('sprint_daily_snapshots')
+    .select('*')
+    .eq('sprint_id', id)
+    .order('snapshot_date', { ascending: true });
+
+  if (snapErr) return res.status(500).json({ error: snapErr.message });
+
+  // Build ideal burndown line
+  let ideal = [];
+  if (sprint.start_date && sprint.end_date && snapshots?.length) {
+    const startDate = new Date(sprint.start_date);
+    const endDate = new Date(sprint.end_date);
+    const totalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+    const totalHours = snapshots[0]?.hours_estimated || 0;
+
+    for (let i = 0; i <= totalDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      ideal.push({
+        date: d.toISOString().split('T')[0],
+        hours_remaining: Number((totalHours * (1 - i / totalDays)).toFixed(1))
+      });
+    }
+  }
+
+  res.json({ sprint, snapshots: snapshots || [], ideal });
+});
+
+app.get('/api/projects/:id/velocity', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+
+  const { data, error } = await supabase
+    .from('sprint_velocity')
+    .select('*')
+    .eq('project_id', id)
+    .order('end_date', { ascending: true });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.post('/api/sprints/:id/snapshot', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+
+  // Get current items for this sprint
+  const { data: items, error: itemsErr } = await supabase
+    .from('session_items')
+    .select('id, item_status, estimated_hours, actual_hours')
+    .eq('sprint_id', id);
+
+  if (itemsErr) return res.status(500).json({ error: itemsErr.message });
+
+  const allItems = items || [];
+  const itemsTotal = allItems.length;
+  const itemsDone = allItems.filter(i => i.item_status === 'completed' || i.item_status === 'done').length;
+  const hoursEstimated = allItems.reduce((sum, i) => sum + (Number(i.estimated_hours) || 0), 0);
+  const hoursActual = allItems.filter(i => i.item_status === 'completed' || i.item_status === 'done')
+    .reduce((sum, i) => sum + (Number(i.actual_hours) || 0), 0);
+  const hoursRemaining = allItems.filter(i => i.item_status !== 'completed' && i.item_status !== 'done')
+    .reduce((sum, i) => sum + (Number(i.estimated_hours) || 0), 0);
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('sprint_daily_snapshots')
+    .upsert({
+      sprint_id: id,
+      snapshot_date: today,
+      items_total: itemsTotal,
+      items_done: itemsDone,
+      hours_estimated: hoursEstimated,
+      hours_actual: hoursActual,
+      hours_remaining: hoursRemaining,
+    }, { onConflict: 'sprint_id,snapshot_date' })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Feature: Dependencies & Blockers
+// ══════════════════════════════════════════════════════════════════
+
+async function hasCircularDependency(itemId, dependsOnId) {
+  const visited = new Set();
+  const queue = [dependsOnId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === itemId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    const { data } = await supabase
+      .from('item_dependencies')
+      .select('depends_on_id')
+      .eq('item_id', current);
+    for (const dep of data || []) queue.push(dep.depends_on_id);
+  }
+  return false;
+}
+
+app.get('/api/items/:id/dependencies', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+
+  // Items this item blocks (this item depends on them)
+  const { data: blocks, error: blocksErr } = await supabase
+    .from('item_dependencies')
+    .select('id, depends_on_id, dependency_type, created_at')
+    .eq('item_id', id);
+
+  // Items that depend on this item (blocked by this item)
+  const { data: blockedBy, error: blockedByErr } = await supabase
+    .from('item_dependencies')
+    .select('id, item_id, dependency_type, created_at')
+    .eq('depends_on_id', id);
+
+  if (blocksErr || blockedByErr) {
+    return res.status(500).json({ error: (blocksErr || blockedByErr).message });
+  }
+
+  // Enrich with item titles
+  const relatedIds = [
+    ...(blocks || []).map(b => b.depends_on_id),
+    ...(blockedBy || []).map(b => b.item_id),
+  ].filter(Boolean);
+
+  let itemMap = new Map();
+  if (relatedIds.length) {
+    const { data: items } = await supabase
+      .from('session_items')
+      .select('id, title, item_code, item_status')
+      .in('id', relatedIds);
+    (items || []).forEach(i => itemMap.set(i.id, i));
+  }
+
+  res.json({
+    blocks: (blocks || []).map(b => ({
+      ...b,
+      item: itemMap.get(b.depends_on_id) || null,
+    })),
+    blocked_by: (blockedBy || []).map(b => ({
+      ...b,
+      item: itemMap.get(b.item_id) || null,
+    })),
+  });
+});
+
+app.post('/api/items/:id/dependencies', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { id } = req.params;
+  const { depends_on_id, dependency_type } = req.body;
+
+  if (!depends_on_id) return res.status(400).json({ error: 'depends_on_id required' });
+  if (id === depends_on_id) return res.status(400).json({ error: 'Cannot depend on itself' });
+
+  // Circular check
+  const circular = await hasCircularDependency(id, depends_on_id);
+  if (circular) return res.status(409).json({ error: 'Circular dependency detected' });
+
+  const { data, error } = await supabase
+    .from('item_dependencies')
+    .insert({
+      item_id: id,
+      depends_on_id,
+      dependency_type: dependency_type || 'blocks',
+      created_by: user.id,
+    })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json(data);
+});
+
+app.delete('/api/dependencies/:id', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('item_dependencies')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Feature: In-app Notifications
+// ══════════════════════════════════════════════════════════════════
+
+async function createNotification(userId, orgId, eventType, title, body, link) {
+  const { error } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: userId,
+      organization_id: orgId,
+      event_type: eventType,
+      title,
+      body: body || null,
+      link: link || null,
+    });
+  if (error) console.error('createNotification failed:', error.message);
+}
+
+app.get('/api/notifications', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('read_at', { ascending: true, nullsFirst: true })
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.patch('/api/notifications/:id/read', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', req.params.id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+app.patch('/api/notifications/read-all', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .is('read_at', null);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+app.get('/api/notifications/unread-count', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .is('read_at', null);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ count: count || 0 });
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(staticRoot, 'index.html'));
 });

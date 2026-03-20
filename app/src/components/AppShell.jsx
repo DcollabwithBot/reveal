@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameFeature } from '../shared/useGameFeature';
 import { getMembership } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import NotificationBell from './NotificationBell';
 
 // ── nav-tree inline styles ────────────────────────────────────────────────────
 const treeStyles = {
@@ -215,6 +216,16 @@ export default function AppShell({ user, activeScreen, activeProjectId, onNaviga
             </div>
           </div>
           <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
+            <NotificationBell onNavigate={(link) => {
+              // Navigate to link within the app
+              if (link?.startsWith('/projects/')) {
+                const projId = link.split('/')[2];
+                if (projId && onWorkspaceNavigate) onWorkspaceNavigate(projId);
+              } else if (link?.startsWith('/sessions/')) {
+                // For now just navigate to dashboard
+                onNavigate('dashboard');
+              }
+            }} />
             {toggleTheme && (
               <button
                 onClick={toggleTheme}

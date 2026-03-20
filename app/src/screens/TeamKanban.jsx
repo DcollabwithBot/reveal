@@ -39,6 +39,7 @@ function KCard({ item, sprintName, projectName, onDragStart, onDragEnd, isDraggi
   const hasHours = item.hours_fak > 0 || item.hours_int > 0 || item.hours_ub > 0;
   const hasKm = item.km_driven > 0;
   const progress = Number(item.progress) || 0;
+  const blockerCount = item._blocker_count || 0;
 
   return (
     <div
@@ -49,7 +50,7 @@ function KCard({ item, sprintName, projectName, onDragStart, onDragEnd, isDraggi
       style={{
         background: 'var(--bg2)',
         border: '1px solid var(--border)',
-        borderLeft: `3px solid ${rc.text}`,
+        borderLeft: `3px solid ${blockerCount > 0 ? 'var(--danger)' : rc.text}`,
         borderRadius: 'var(--radius)',
         padding: '12px 13px',
         marginBottom: 7,
@@ -60,11 +61,22 @@ function KCard({ item, sprintName, projectName, onDragStart, onDragEnd, isDraggi
       onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'}
       onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
     >
-      {/* Top row: rarity + priority */}
+      {/* Top row: rarity + priority + blocker badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: rc.text, background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: 10, padding: '1px 7px' }}>
-          {rc.label}
-        </span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: rc.text, background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: 10, padding: '1px 7px' }}>
+            {rc.label}
+          </span>
+          {blockerCount > 0 && (
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              color: '#fff', background: 'var(--danger)',
+              borderRadius: 10, padding: '1px 6px',
+            }}>
+              🚫 {blockerCount} blocked
+            </span>
+          )}
+        </div>
         <span style={{ fontSize: 12, color: prio.color, fontWeight: 600 }} title={`Priority: ${item.priority}`}>
           {prio.label}
         </span>
@@ -262,7 +274,26 @@ export default function TeamKanban() {
             .select('id,title,item_status,progress,priority,estimated_hours,actual_hours,hours_fak,hours_int,hours_ub,km_driven,invoiced_dkk,to_invoice_dkk,item_code,sprint_id,assigned_to,due_date')
             .in('sprint_id', sprintIds)
             .order('item_order', { ascending: true });
-          setItems(itemData || []);
+          const loadedItems = itemData || [];
+          // Fetch blocker counts for items
+          if (loadedItems.length) {
+            try {
+              const itemIds = loadedItems.map(i => i.id);
+              const { data: blockers } = await supabase
+                .from('item_dependencies')
+                .select('item_id')
+                .in('item_id', itemIds)
+                .eq('dependency_type', 'blocks');
+              const blockerCounts = {};
+              (blockers || []).forEach(b => {
+                blockerCounts[b.item_id] = (blockerCounts[b.item_id] || 0) + 1;
+              });
+              loadedItems.forEach(item => {
+                item._blocker_count = blockerCounts[item.id] || 0;
+              });
+            } catch { /* ignore blocker count errors */ }
+          }
+          setItems(loadedItems);
         }
 
         // Hent assignees fra dedikeret endpoint

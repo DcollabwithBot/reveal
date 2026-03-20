@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getProject, getProjectSprints, getSprintItems, updateItem } from '../lib/api';
 import { useGameFeature } from '../shared/useGameFeature';
 import ItemDetailModal from '../components/ItemDetailModal';
+import SprintCharts from '../components/SprintCharts';
 
 // ── Auth header helper ────────────────────────────────────────────────────────
 async function authHeaders() {
@@ -438,48 +439,8 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
             ))}
           </div>
 
-          {/* Burndown */}
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 12 }}>
-              Burndown — {activeSprint?.name || 'Sprint'}
-            </div>
-            {/* Simuleret burndown baseret på remaining items */}
-            {(() => {
-              const remaining = total - doneCount;
-              const bars = 10;
-              // Simuler et realistisk burndown-kurve
-              return (
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 50, marginBottom: 6 }}>
-                  {Array.from({ length: bars }, (_, i) => {
-                    const idealRemaining = total - Math.round((total * i) / (bars - 1));
-                    const isToday = i === Math.floor(bars * (doneCount / Math.max(total, 1)));
-                    const heightPct = total > 0 ? Math.max(4, Math.round((idealRemaining / total) * 100)) : 10;
-                    return (
-                      <div
-                        key={i}
-                        style={{
-                          flex: 1, height: `${heightPct}%`, borderRadius: 2,
-                          background: isToday ? 'var(--jade)' : i < Math.floor(bars * (doneCount / Math.max(total, 1))) ? 'rgba(0,200,150,0.25)' : 'var(--border2)',
-                          transition: 'height 0.6s ease',
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })()}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text3)', marginBottom: 8 }}>
-              <span>Start</span><span>Nu</span><span>Slut</span>
-            </div>
-            <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden', marginBottom: 5 }}>
-              <div style={{ height: '100%', background: 'var(--jade)', borderRadius: 2, width: `${progress}%`, transition: 'width 0.8s ease' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
-              <span>{doneCount} done</span>
-              <span style={{ color: progress >= 50 ? 'var(--jade)' : 'var(--warn)' }}>{progress}%</span>
-              <span>{total - doneCount} tilbage</span>
-            </div>
-          </div>
+          {/* Charts — Burndown + Velocity */}
+          <SprintCharts sprintId={activeSprint?.id} projectId={projectId} />
         </div>
 
         {/* Right sidebar */}

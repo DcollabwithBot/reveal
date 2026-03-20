@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { closeItem, updateItem } from '../lib/api';
 import { Pill } from './ui/Card';
 import CommentsPanel from './CommentsPanel';
+import DependenciesPanel from './DependenciesPanel';
 
 const STATUS_OPTIONS = [
   { value: 'backlog',     label: 'Backlog',      color: 'var(--text3)' },
@@ -157,7 +158,7 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {[{ key: 'detail', label: 'Detaljer' }, { key: 'comments', label: 'Kommentarer 💬' }, { key: 'history', label: 'Historik' }].map(tab => (
+          {[{ key: 'detail', label: 'Detaljer' }, { key: 'dependencies', label: 'Dependencies 🔗' }, { key: 'comments', label: 'Kommentarer 💬' }, { key: 'history', label: 'Historik' }].map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -285,6 +286,11 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ── DEPENDENCIES TAB ── */}
+          {activeTab === 'dependencies' && (
+            <DependenciesPanel itemId={item.id} />
           )}
 
           {/* ── COMMENTS TAB ── */}
