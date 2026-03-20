@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMembership } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { buildSprintExportPayload, buildSprintItemsCsv, resolveNextSprint } from '../domain/session/retro/sprintFlow';
+import { buildSprintExportFileBase, buildSprintExportPayload, buildSprintItemsCsv, resolveNextSprint } from '../domain/session/retro/sprintFlow';
 
 const RETRO_COLS = [
   { key: 'well',    label: '↑ What went well',   color: 'var(--jade)',   bg: 'rgba(0,200,150,0.08)',   border: 'rgba(0,200,150,0.25)' },
@@ -203,8 +203,7 @@ export default function RetroScreen({ onNavigate }) {
 
     try {
       const payload = buildSprintExportPayload({ sprint: selectedSprint, project, notes, items });
-      const safeSprint = selectedSprint.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-      const fileBase = `sprint-rapport-${safeSprint || selectedSprint.id}`;
+      const fileBase = buildSprintExportFileBase(selectedSprint);
 
       if (format === 'json') {
         downloadTextFile(JSON.stringify(payload, null, 2), `${fileBase}.json`, 'application/json;charset=utf-8');

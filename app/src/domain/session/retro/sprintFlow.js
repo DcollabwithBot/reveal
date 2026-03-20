@@ -127,3 +127,14 @@ export function buildSprintItemsCsv(items = []) {
 
   return [header.map(quoteCsvValue).join(','), ...rows].join('\n');
 }
+
+export function buildSprintExportFileBase(sprint = {}) {
+  const normalized = String(sprint?.name || sprint?.id || 'sprint')
+    .replace(/[^a-z0-9-_]+/gi, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+
+  const suffix = normalized || 'sprint';
+  return `sprint-rapport-${suffix}`;
+}

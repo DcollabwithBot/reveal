@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "node --watch app.js",
-    "test": "node --test"
+    "test": "node --test",
+    "backfill:game-session-states": "node scripts/backfillGameSessionStates.js"
   },
   "dependencies": {
     "express": "^4.18.2",
