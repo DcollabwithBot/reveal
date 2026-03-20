@@ -17,6 +17,7 @@ const Session = lazy(() => import("./screens/Session.jsx"));
 const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
 const WorkspaceSettings = lazy(() => import("./screens/WorkspaceSettings.jsx"));
 const TeamKanban = lazy(() => import("./screens/TeamKanban.jsx"));
+const RetroScreen = lazy(() => import("./screens/RetroScreen.jsx"));
 const ProjectWorkspace = lazy(() => import("./screens/ProjectWorkspace.jsx"));
 
 export default function App() {
@@ -50,8 +51,10 @@ export default function App() {
     } else if (screen === 'dashboard') {
       window.history.pushState({}, '', '/dashboard');
       setAuthScreen('dashboard');
+    } else if (screen === 'retro') {
+      window.history.pushState({}, '', '/retro');
+      setAuthScreen('retro');
     } else {
-      // teamkanban, retro, etc.
       setAuthScreen(screen);
     }
   }
@@ -318,6 +321,30 @@ export default function App() {
         >
           <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
             <TeamKanban />
+          </Suspense>
+        </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "retro") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <AppShell
+          user={user}
+          activeScreen="retro"
+          activeProjectId={workspaceProjectId}
+          onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <RetroScreen onNavigate={handleShellNavigate} />
           </Suspense>
         </AppShell>
       </GameModeProvider>

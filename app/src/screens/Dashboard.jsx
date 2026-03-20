@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   applyRequest,
   approveRequest,
@@ -419,11 +420,56 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
     setEditingMetric(null);
   }
 
+  const [recentItems, setRecentItems] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+
+  useEffect(() => { loadRecentItems(); }, []); // eslint-disable-line
+
+  async function loadRecentItems() {
+    setRecentLoading(true);
+    try {
+      const membership = await getMembership();
+      if (!membership?.organization_id) return;
+
+      // Hent sprints for org
+      const { data: sprints } = await supabase
+        .from('sprints')
+        .select('id, name, project_id')
+        .limit(20);
+      const sprintMap = {};
+      (sprints || []).forEach(s => { sprintMap[s.id] = s; });
+
+      // Hent projekter
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('id, name, icon')
+        .eq('organization_id', membership.organization_id);
+      const projectMap = {};
+      (projects || []).forEach(p => { projectMap[p.id] = p; });
+
+      // Hent senest opdaterede items
+      const sprintIds = Object.keys(sprintMap);
+      if (!sprintIds.length) return;
+      const { data: items } = await supabase
+        .from('session_items')
+        .select('id, title, item_code, item_status, sprint_id, created_at, priority, estimated_hours')
+        .in('sprint_id', sprintIds)
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      const enriched = (items || []).map(item => {
+        const sprint = sprintMap[item.sprint_id];
+        const project = sprint ? projectMap[sprint.project_id] : null;
+        return { ...item, sprintName: sprint?.name, projectName: project?.name, projectIcon: project?.icon };
+      });
+      setRecentItems(enriched);
+    } catch (e) { /* silent */ } finally { setRecentLoading(false); }
+  }
+
   const pending = useMemo(() => approvalRequests.filter(r => r.state === 'pending_approval').slice(0, 5), [approvalRequests]);
   const approvedReady = useMemo(() => approvalRequests.filter(r => r.state === 'approved').slice(0, 3), [approvalRequests]);
   const activeProjects = useMemo(() => (dashboard.projects || []).filter(p => p.status === 'active'), [dashboard.projects]);
   const atRiskCount = useMemo(() => (dashboard.projects || []).filter(p => p.status === 'at_risk' || p.health === 'at_risk').length, [dashboard.projects]);
-  const recentActivity = useMemo(() => (dashboard.activity || []).slice(0, 6), [dashboard.activity]);
 
   async function handleAction(requestId, action) {
     setBusyId(requestId + action);
@@ -563,46 +609,64 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
         onResolveConflict={handleResolveConflict}
       />
 
-      {/* ── Recent Activity ── */}
-      {recentActivity.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>
-              Recent Activity
-            </h2>
-          </div>
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            {recentActivity.map((item, idx) => (
-              <div
-                key={item.id}
-                style={{
-                  padding: '13px 20px',
-                  borderBottom: idx < recentActivity.length - 1 ? '1px solid var(--border)' : 'none',
-                  display: 'flex', alignItems: 'center', gap: 14,
-                }}
-              >
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                  background: item.type === 'session' ? 'rgba(0,200,150,0.1)' : 'rgba(100,100,255,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14,
-                }}>
-                  {item.type === 'session' ? '🎯' : '📋'}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.title}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{item.description}</div>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
-                  {item.created_at ? new Date(item.created_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' }) : ''}
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ── Recent Items ── */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
+          <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>
+            Seneste opgaver
+          </h2>
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>på tværs af projekter</span>
         </div>
-      )}
+        {recentLoading && <div style={{ color: 'var(--text3)', fontSize: 13 }}>Loader...</div>}
+        {!recentLoading && recentItems.length > 0 && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px 100px 80px', gap: 14, padding: '8px 18px', background: 'var(--bg3)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text3)' }}>
+              <span>Opgave</span><span>Projekt · Sprint</span><span>Status</span><span style={{ textAlign: 'right' }}>Oprettet</span>
+            </div>
+            {recentItems.map((item, idx) => {
+              const statusColor = item.item_status === 'done' ? 'var(--jade)' : item.item_status === 'in_progress' ? 'var(--gold)' : 'var(--text3)';
+              const statusLabel = item.item_status === 'done' ? 'Done' : item.item_status === 'in_progress' ? 'In Progress' : 'Backlog';
+              const sprintShort = item.sprintName?.replace('Sag ', '') || '—';
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '1fr 130px 100px 80px',
+                    gap: 14, padding: '11px 18px', alignItems: 'center',
+                    borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
+                    background: 'var(--bg2)', transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'var(--bg2)'}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text3)', marginRight: 8 }}>{item.item_code}</span>
+                      {item.title}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {item.projectIcon || '📋'} {item.projectName || '—'}<br />
+                    <span style={{ color: 'var(--text3)' }}>{sprintShort}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: statusColor, background: statusColor === 'var(--jade)' ? 'rgba(0,200,150,0.1)' : statusColor === 'var(--gold)' ? 'rgba(200,168,75,0.1)' : 'var(--bg3)', border: `1px solid ${statusColor === 'var(--jade)' ? 'rgba(0,200,150,0.25)' : statusColor === 'var(--gold)' ? 'rgba(200,168,75,0.25)' : 'var(--border)'}`, borderRadius: 10, padding: '2px 8px' }}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>
+                    {new Date(item.created_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {!recentLoading && recentItems.length === 0 && (
+          <div style={{ color: 'var(--text3)', fontSize: 13 }}>Ingen opgaver endnu.</div>
+        )}
+      </div>
     </div>
   );
 }
