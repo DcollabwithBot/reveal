@@ -1,6 +1,6 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-19 (governance sprint merge-prep complete)
+Last updated: 2026-03-20 (sprints 7-10 dokumenteret, fase 1-4 komplet)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
@@ -128,11 +128,29 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 - `Session.jsx` delvist decouplet fra inline reward/boss-logik
 - Sprint A (audit) / Sprint B (ownership/writeback) / Sprint C (projection decoupling) defineret
 
-## Hvad mangler (Sprint 7+)
+## Hvad er bygget (Sprints 7-10)
 
-- Perspektiv-Poker
-- Slack/Teams webhooks
-- Eksterne integrationer (Jira/Azure DevOps/TopDesk/Planner)
+### Sprint 7 (Fase 1) ✅ — Foundation
+- Roller & Permissions: role på organization_members + team_members, requirePermission() middleware
+- Comments: comments tabel, threading, GET/POST/PATCH/DELETE /api/items/:id/comments
+- Global Søgning: Cmd+K spotlight modal, pg_trgm + GIN indexes, /api/search endpoint
+
+### Sprint 8 (Fase 2) ✅ — Insight
+- Burndown/Velocity: sprint_daily_snapshots, SprintCharts.jsx (Recharts), /api/sprints/:id/burndown
+- Dependencies: item_dependencies tabel, BFS circular detection, blocker-badge på kanban
+- In-app Notifikationer: notifications tabel, NotificationBell.jsx med unread badge i topbar
+
+### Sprint 9 (Fase 3) ✅ — Game-PM Bridge
+- Planning Poker fra Dashboard: "⚔ Estimer sprint" knap, bulk-select items, float action bar
+- Retro → PM Tasks: retro_actions tabel, BossRetroStage action items step, promote via approval
+- GameStatsBar: 5 micro-signals i Dashboard (streak, accuracy, velocity, sessions, coverage)
+
+### Sprint 10 (Fase 4) ✅ — Sprint Draft "The Draft"
+- Ny session_type='sprint_draft'
+- SprintDraftScreen.jsx: 4-step flow (Lobby → Priority Vote → The Draft → Confidence Vote)
+- Priority tokens (5 per person), Capacity Gauge (grøn→gul→rød), Consensus Flash animation
+- sprint_draft_picks + sprint_draft_priority_votes tabeller
+- PM approval write-back via finalize-draft endpoint
 
 ## Roadmap
 | Sprint | Indhold | Status |
@@ -142,11 +160,12 @@ DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
 | 4b | Realtime multiplayer + Lobby + Session UI | ✅ |
 | 5 | Admin UI, DB-driven content, voting modes | ✅ |
 | 6 | Dashboard foundation + projects/sprints/items + results + templates + velocity | ✅ |
-| 7 | Perspektiv-Poker + Slack/Teams webhooks | 🎯 næste |
-| 8 | Spec Wars | |
-| 9 | Russian Nesting Scope | |
-| 10 | Speed Scope + Jira/Azure DevOps integration | |
-| 11 | AI Lifelines + mønstergenkendelse | |
+| 7 (Fase 1) | Roller & Permissions, Comments, Global Søgning | ✅ |
+| 8 (Fase 2) | Burndown/Velocity, Dependencies, In-app Notifikationer | ✅ |
+| 9 (Fase 3) | Game-PM Bridge, Planning Poker fra Dashboard, GameStatsBar | ✅ |
+| 10 (Fase 4) | Sprint Draft "The Draft" — 4-step flow, priority tokens, capacity gauge | ✅ |
+| 11 | Slack/Teams webhooks + Eksterne integrationer (Jira/Azure DevOps) | 🎯 næste |
+| 12 | AI Lifelines + mønstergenkendelse | |
 
 ## Supabase
 - Projekt ID: `swyfcathwcdpgkirwihh`
