@@ -1671,7 +1671,7 @@ app.patch('/api/items/:id', async (req, res) => {
   }
 
   const { id: _ignored, source_layer: _source_layer, approval_request_id: _approval_request_id, ...bodyPatch } = req.body || {};
-  const allowed = ['assigned_to', 'estimated_hours', 'actual_hours', 'progress', 'item_status', 'title', 'description', 'priority'];
+  const allowed = ['assigned_to', 'estimated_hours', 'actual_hours', 'progress', 'item_status', 'title', 'description', 'priority', 'due_date', 'notes', 'km_driven', 'hours_fak', 'hours_int', 'hours_ub', 'invoiced_dkk'];
   const patch = {};
   for (const key of allowed) {
     if (Object.prototype.hasOwnProperty.call(bodyPatch, key)) patch[key] = bodyPatch[key];

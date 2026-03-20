@@ -1,25 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
+  applyApprovedRequest,
   applyRequest,
   approveRequest,
+  createApprovalRequest,
   createConflictResolutionRequest,
+  createProject,
+  createRiskItem,
+  createSession,
+  createSprint,
+  createSprintItem,
   getDashboardGovernance,
   getMembership,
-  getRiskItems,
-  createRiskItem,
-  resolveRiskItem,
-  updateRiskItem,
   getOrgMetrics,
-  upsertOrgMetric,
+  getRiskItems,
+  getTeamAssignees,
   rejectRequest,
-  updateProjectStatus
+  resolveRiskItem,
+  updateProjectStatus,
+  updateRiskItem,
+  upsertOrgMetric,
 } from '../lib/api';
 import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import { KpiCard, Pill } from '../components/ui/Card';
 
-// ── helpers ──────────────────────────────────────────────────────────────────
 function daysLeft(dateStr) {
   if (!dateStr) return null;
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -49,26 +55,36 @@ function pillLabel(status) {
   return status;
 }
 
-// ── sub-components ───────────────────────────────────────────────────────────
-// ── RiskBand — live editable ──────────────────────────────────────────────────
 function RiskBand({ riskItems, onAdd, onResolve, onEdit }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: '', meta: '', assignee_text: '', type: 'risk' });
   const titleRef = useRef(null);
 
-  function openAdd() { setForm({ title: '', meta: '', assignee_text: '', type: 'risk' }); setEditingId(null); setShowForm(true); setTimeout(() => titleRef.current?.focus(), 50); }
-  function openEdit(item) { setForm({ title: item.title, meta: item.meta || '', assignee_text: item.assignee_text || '', type: item.type }); setEditingId(item.id); setShowForm(true); setTimeout(() => titleRef.current?.focus(), 50); }
-  function closeForm() { setShowForm(false); setEditingId(null); }
+  function openAdd() {
+    setForm({ title: '', meta: '', assignee_text: '', type: 'risk' });
+    setEditingId(null);
+    setShowForm(true);
+    setTimeout(() => titleRef.current?.focus(), 50);
+  }
+
+  function openEdit(item) {
+    setForm({ title: item.title, meta: item.meta || '', assignee_text: item.assignee_text || '', type: item.type });
+    setEditingId(item.id);
+    setShowForm(true);
+    setTimeout(() => titleRef.current?.focus(), 50);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.title.trim()) return;
-    if (editingId) {
-      await onEdit(editingId, form);
-    } else {
-      await onAdd(form);
-    }
+    if (editingId) await onEdit(editingId, form);
+    else await onAdd(form);
     closeForm();
   }
 
@@ -113,39 +129,19 @@ function RiskBand({ riskItems, onAdd, onResolve, onEdit }) {
 
       {showForm && (
         <form onSubmit={handleSubmit} style={{ borderTop: '1px solid rgba(232,84,84,0.15)', paddingTop: 12, marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input
-            ref={titleRef}
-            value={form.title}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            placeholder="Risk / blocker titel..."
-            required
-            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, padding: '8px 12px', outline: 'none' }}
-            onFocus={e => e.target.style.borderColor = 'var(--danger)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border2)'}
-          />
-          <input
-            value={form.meta}
-            onChange={e => setForm(f => ({ ...f, meta: e.target.value }))}
-            placeholder="Beskrivelse / detaljer (valgfri)..."
-            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 12, padding: '7px 12px', outline: 'none' }}
-          />
-          <input
-            value={form.assignee_text}
-            onChange={e => setForm(f => ({ ...f, assignee_text: e.target.value }))}
-            placeholder="Ansvarlig / eskaleret til (valgfri)..."
-            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 12, padding: '7px 12px', outline: 'none' }}
-          />
+          <input ref={titleRef} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Risk / blocker titel..." required style={inputStyle()} />
+          <input value={form.meta} onChange={e => setForm(f => ({ ...f, meta: e.target.value }))} placeholder="Beskrivelse / detaljer (valgfri)..." style={inputStyle(12)} />
+          <input value={form.assignee_text} onChange={e => setForm(f => ({ ...f, assignee_text: e.target.value }))} placeholder="Ansvarlig / eskaleret til (valgfri)..." style={inputStyle(12)} />
           <div style={{ display: 'flex', gap: 6 }}>
-            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              style={{ fontSize: 11, padding: '5px 8px', borderRadius: 'var(--radius)', background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', cursor: 'pointer', outline: 'none' }}>
+            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={selectStyle()}>
               <option value="risk">Risk</option>
               <option value="blocker">Blocker</option>
               <option value="attention">Attention</option>
             </select>
-            <button type="submit" style={{ flex: 1, fontSize: 12, fontWeight: 600, padding: '6px', borderRadius: 'var(--radius)', background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <button type="submit" style={primaryButton('var(--danger)')}>
               {editingId ? 'Gem ændringer' : 'Tilføj risk'}
             </button>
-            <button type="button" onClick={closeForm} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>Annuller</button>
+            <button type="button" onClick={closeForm} style={secondaryButton()}>Annuller</button>
           </div>
         </form>
       )}
@@ -153,7 +149,6 @@ function RiskBand({ riskItems, onAdd, onResolve, onEdit }) {
   );
 }
 
-// ── Editable KPI card ─────────────────────────────────────────────────────────
 function EditableKpiCard({ label, value, sub, color, editing, onEdit, onSave, onCancel, isPercent, extraKey, extraLabel, extraValue, onSaveExtra }) {
   const [val, setVal] = useState('');
   const [prev, setPrev] = useState('');
@@ -169,7 +164,7 @@ function EditableKpiCard({ label, value, sub, color, editing, onEdit, onSave, on
   function save() {
     const n = parseFloat(val);
     const p = parseFloat(prev) || null;
-    if (!isNaN(n)) {
+    if (!Number.isNaN(n)) {
       onSave(n, p);
       if (extraKey && onSaveExtra && extra !== '') onSaveExtra(parseFloat(extra) || 0);
     } else {
@@ -181,48 +176,23 @@ function EditableKpiCard({ label, value, sub, color, editing, onEdit, onSave, on
     return (
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--jade)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
         <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 10 }}>{label}</div>
-        <input
-          autoFocus
-          type="number"
-          value={val}
-          onChange={e => setVal(e.target.value)}
-          placeholder={isPercent ? '0–100' : '0'}
-          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onCancel(); }}
-          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 20, padding: '6px 10px', outline: 'none', marginBottom: 6, boxSizing: 'border-box' }}
-        />
-        <input
-          type="number"
-          value={prev}
-          onChange={e => setPrev(e.target.value)}
-          placeholder="Forrige sprint værdi (valgfri)"
-          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: 11, padding: '4px 8px', outline: 'none', marginBottom: extraKey ? 6 : 8, boxSizing: 'border-box' }}
-        />
+        <input autoFocus type="number" value={val} onChange={e => setVal(e.target.value)} placeholder={isPercent ? '0–100' : '0'} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onCancel(); }} style={inputStyle(20, 10, '100%', 6)} />
+        <input type="number" value={prev} onChange={e => setPrev(e.target.value)} placeholder="Forrige sprint værdi (valgfri)" style={inputStyle(11, 8, '100%', extraKey ? 6 : 8)} />
         {extraKey && (
-          <input
-            type="number"
-            step="0.1"
-            value={extra}
-            onChange={e => setExtra(e.target.value)}
-            placeholder={extraLabel}
-            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: 11, padding: '4px 8px', outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
-          />
+          <input type="number" step="0.1" value={extra} onChange={e => setExtra(e.target.value)} placeholder={extraLabel} style={inputStyle(11, 8, '100%', 8)} />
         )}
         <div style={{ display: 'flex', gap: 5 }}>
-          <button onClick={save} style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '5px', borderRadius: 'var(--radius)', background: 'var(--jade)', color: '#fff', border: 'none', cursor: 'pointer' }}>Gem</button>
-          <button onClick={onCancel} style={{ fontSize: 11, padding: '5px 10px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>✕</button>
+          <button onClick={save} style={primaryButton()}>
+            Gem
+          </button>
+          <button onClick={onCancel} style={secondaryButton()}>✕</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      onClick={open}
-      style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px', cursor: 'pointer', transition: 'border-color 0.15s' }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--jade)'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-      title="Klik for at redigere"
-    >
+    <div onClick={open} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px', cursor: 'pointer' }}>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 10 }}>{label}</div>
       <div style={{ fontFamily: 'var(--serif)', fontSize: 32, lineHeight: 1, color: color || 'var(--text)', letterSpacing: '-0.02em' }}>{value}</div>
       <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 7 }}>{sub}</div>
@@ -231,117 +201,264 @@ function EditableKpiCard({ label, value, sub, color, editing, onEdit, onSave, on
 }
 
 const PROJECT_STATUSES = [
-  { value: 'active',    label: 'On Track',  color: 'var(--jade)' },
-  { value: 'review',    label: 'Review',    color: 'var(--warn)' },
-  { value: 'at_risk',   label: 'At Risk',   color: 'var(--danger)' },
+  { value: 'active', label: 'On Track', color: 'var(--jade)' },
+  { value: 'review', label: 'Review', color: 'var(--warn)' },
+  { value: 'at_risk', label: 'At Risk', color: 'var(--danger)' },
   { value: 'completed', label: 'Completed', color: 'var(--text3)' },
-  { value: 'paused',    label: 'Paused',    color: 'var(--text3)' },
+  { value: 'paused', label: 'Paused', color: 'var(--text3)' },
 ];
 
-function ProjectTable({ projects, onWorkspace, onTimelog, onProjectStatusChange }) {
-  if (!projects.length) return (
-    <div style={{ color: 'var(--text3)', fontSize: 13, padding: '16px 0' }}>Ingen aktive projekter endnu.</div>
-  );
+function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
+  const [mode, setMode] = useState('project');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [form, setForm] = useState({
+    projectName: '', projectDescription: '', projectIcon: '📋', projectColor: '#4488dd',
+    sprintProjectId: '', sprintName: '', sprintGoal: '', sprintStatus: 'upcoming',
+    itemProjectId: '', itemSprintId: '', itemTitle: '', itemDescription: '', itemPriority: 'medium', itemEstimate: '', itemAssignee: '',
+    estimationTaskId: '', estimationTaskTitle: '', estimationMode: 'fibonacci',
+  });
+
+  const sprintProjectId = form.sprintProjectId || projects[0]?.id || '';
+  const itemProjectId = form.itemProjectId || projects[0]?.id || '';
+  const sprintOptions = useMemo(() => {
+    const project = projects.find(p => p.id === itemProjectId);
+    return project?.sprints || [];
+  }, [projects, itemProjectId]);
+
+  useEffect(() => {
+    if (!form.sprintProjectId && projects[0]?.id) setForm(prev => ({ ...prev, sprintProjectId: projects[0].id }));
+    if (!form.itemProjectId && projects[0]?.id) setForm(prev => ({ ...prev, itemProjectId: projects[0].id }));
+  }, [projects, form.sprintProjectId, form.itemProjectId]);
+
+  useEffect(() => {
+    if (!form.itemSprintId && sprintOptions[0]?.id) setForm(prev => ({ ...prev, itemSprintId: sprintOptions[0].id }));
+  }, [sprintOptions, form.itemSprintId]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg('');
+    try {
+      if (mode === 'project') {
+        const created = await createProject({
+          name: form.projectName,
+          description: form.projectDescription,
+          icon: form.projectIcon,
+          color: form.projectColor,
+          status: 'active',
+        });
+        setMsg('Projekt oprettet');
+        setForm(prev => ({ ...prev, projectName: '', projectDescription: '' }));
+        onCreated?.();
+        onOpenWorkspace?.(created.id);
+      }
+
+      if (mode === 'sprint') {
+        await createSprint(sprintProjectId, {
+          name: form.sprintName,
+          goal: form.sprintGoal,
+          status: form.sprintStatus,
+        });
+        setMsg('Sprint oprettet');
+        setForm(prev => ({ ...prev, sprintName: '', sprintGoal: '' }));
+        onCreated?.();
+      }
+
+      if (mode === 'item') {
+        await createSprintItem(form.itemSprintId, {
+          title: form.itemTitle,
+          description: form.itemDescription,
+          priority: form.itemPriority,
+          assigned_to: form.itemAssignee || null,
+          estimated_hours: form.itemEstimate ? Number(form.itemEstimate) : null,
+          item_status: 'backlog',
+          progress: 0,
+        });
+        setMsg('Opgave oprettet');
+        setForm(prev => ({ ...prev, itemTitle: '', itemDescription: '', itemEstimate: '' }));
+        onCreated?.();
+      }
+
+      if (mode === 'estimation') {
+        const targetSprint = sprintOptions.find(s => s.id === form.itemSprintId) || sprintOptions[0] || null;
+        const requestedPatch = { final_estimate: null };
+        const approval = await createApprovalRequest({
+          target_type: 'session_item',
+          target_id: form.estimationTaskId,
+          requested_patch: requestedPatch,
+          idempotency_key: `estimate:${form.estimationTaskId}:${Date.now()}`,
+        }).catch(() => null);
+
+        if (approval?.id) {
+          await approveRequest(approval.id);
+          await applyApprovedRequest(approval.id).catch(() => null);
+          await applyRequest(approval.id).catch(() => null);
+        }
+
+        await createSession({
+          name: `Estimate · ${form.estimationTaskTitle || 'Task'}`,
+          session_type: 'estimation',
+          voting_mode: form.estimationMode,
+          project_id: itemProjectId || null,
+          sprint_id: targetSprint?.id || null,
+          items: [{ title: form.estimationTaskTitle || 'Task', description: `task_id:${form.estimationTaskId}` }],
+        });
+        setMsg('Estimation-session oprettet');
+      }
+    } catch (err) {
+      setMsg(err.message || 'Fejl');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 1,
-      background: 'var(--border)', borderRadius: 'var(--radius-lg)',
-      overflow: 'hidden', marginBottom: 28,
-    }}>
-      {/* Header row */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 120px 110px 90px 80px',
-        alignItems: 'center', gap: 14, padding: '8px 18px',
-        background: 'var(--bg3)',
-        fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text3)',
-        cursor: 'default',
-      }}>
-        <span>Projekt</span><span>Fremdrift</span><span>Status</span><span>Sprint</span><span style={{ textAlign: 'right' }}>Items</span>
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 18, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 20 }}>Quick Create</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)' }}>PM-fladen først. Spillet kobles på opgaven bagefter.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            ['project', 'Projekt'],
+            ['sprint', 'Sprint'],
+            ['item', 'Opgave'],
+            ['estimation', 'Send til estimering'],
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => setMode(key)} style={mode === key ? activeChip() : passiveChip()}>{label}</button>
+          ))}
+        </div>
       </div>
 
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 10 }}>
+        {mode === 'project' && (
+          <>
+            <input value={form.projectName} onChange={e => setForm(prev => ({ ...prev, projectName: e.target.value }))} placeholder="Projektnavn" required style={gridInput('span 5')} />
+            <input value={form.projectDescription} onChange={e => setForm(prev => ({ ...prev, projectDescription: e.target.value }))} placeholder="Kort beskrivelse" style={gridInput('span 5')} />
+            <input value={form.projectIcon} onChange={e => setForm(prev => ({ ...prev, projectIcon: e.target.value }))} placeholder="📋" style={gridInput('span 1')} />
+            <input type="color" value={form.projectColor} onChange={e => setForm(prev => ({ ...prev, projectColor: e.target.value }))} style={{ ...gridInput('span 1'), padding: 4, minHeight: 40 }} />
+          </>
+        )}
+
+        {mode === 'sprint' && (
+          <>
+            <select value={sprintProjectId} onChange={e => setForm(prev => ({ ...prev, sprintProjectId: e.target.value }))} style={gridSelect('span 4')}>
+              {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <input value={form.sprintName} onChange={e => setForm(prev => ({ ...prev, sprintName: e.target.value }))} placeholder="Sprintnavn" required style={gridInput('span 4')} />
+            <select value={form.sprintStatus} onChange={e => setForm(prev => ({ ...prev, sprintStatus: e.target.value }))} style={gridSelect('span 4')}>
+              <option value="upcoming">Upcoming</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+            </select>
+            <input value={form.sprintGoal} onChange={e => setForm(prev => ({ ...prev, sprintGoal: e.target.value }))} placeholder="Sprintmål" style={gridInput('span 12')} />
+          </>
+        )}
+
+        {mode === 'item' && (
+          <>
+            <select value={itemProjectId} onChange={e => setForm(prev => ({ ...prev, itemProjectId: e.target.value, itemSprintId: '' }))} style={gridSelect('span 3')}>
+              {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <select value={form.itemSprintId} onChange={e => setForm(prev => ({ ...prev, itemSprintId: e.target.value }))} style={gridSelect('span 3')}>
+              {sprintOptions.map(sprint => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}
+            </select>
+            <input value={form.itemTitle} onChange={e => setForm(prev => ({ ...prev, itemTitle: e.target.value }))} placeholder="Opgavetitel" required style={gridInput('span 6')} />
+            <input value={form.itemDescription} onChange={e => setForm(prev => ({ ...prev, itemDescription: e.target.value }))} placeholder="Beskrivelse" style={gridInput('span 5')} />
+            <select value={form.itemPriority} onChange={e => setForm(prev => ({ ...prev, itemPriority: e.target.value }))} style={gridSelect('span 2')}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+            <input value={form.itemEstimate} onChange={e => setForm(prev => ({ ...prev, itemEstimate: e.target.value }))} placeholder="Est. timer" type="number" style={gridInput('span 2')} />
+            <select value={form.itemAssignee} onChange={e => setForm(prev => ({ ...prev, itemAssignee: e.target.value }))} style={gridSelect('span 3')}>
+              <option value="">Ingen ansvarlig</option>
+              {assignees.map(person => <option key={person.id} value={person.id}>{person.display_name}</option>)}
+            </select>
+          </>
+        )}
+
+        {mode === 'estimation' && (
+          <>
+            <select value={itemProjectId} onChange={e => setForm(prev => ({ ...prev, itemProjectId: e.target.value, itemSprintId: '' }))} style={gridSelect('span 3')}>
+              {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <select value={form.itemSprintId} onChange={e => setForm(prev => ({ ...prev, itemSprintId: e.target.value }))} style={gridSelect('span 3')}>
+              {sprintOptions.map(sprint => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}
+            </select>
+            <select value={form.estimationTaskId} onChange={e => {
+              const selected = (sprintOptions.find(s => s.id === form.itemSprintId)?.items || []).find(item => item.id === e.target.value);
+              setForm(prev => ({ ...prev, estimationTaskId: e.target.value, estimationTaskTitle: selected?.title || '' }));
+            }} style={gridSelect('span 4')}>
+              <option value="">Vælg opgave</option>
+              {(sprintOptions.find(s => s.id === form.itemSprintId)?.items || []).map(item => (
+                <option key={item.id} value={item.id}>{item.title}</option>
+              ))}
+            </select>
+            <select value={form.estimationMode} onChange={e => setForm(prev => ({ ...prev, estimationMode: e.target.value }))} style={gridSelect('span 2')}>
+              <option value="fibonacci">Fibonacci</option>
+              <option value="tshirt">T-shirt</option>
+            </select>
+          </>
+        )}
+
+        <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ fontSize: 12, color: msg?.toLowerCase().includes('fejl') ? 'var(--danger)' : 'var(--text2)' }}>{msg || ' '}</div>
+          <button type="submit" disabled={busy} style={primaryButton(undefined, false, busy)}>{busy ? 'Arbejder…' : 'Kør'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ProjectTable({ projects, onWorkspace, onTimelog, onProjectStatusChange }) {
+  if (!projects.length) return <div style={{ color: 'var(--text3)', fontSize: 13, padding: '16px 0' }}>Ingen aktive projekter endnu.</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 90px 80px', alignItems: 'center', gap: 14, padding: '8px 18px', background: 'var(--bg3)', fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text3)' }}>
+        <span>Projekt</span><span>Fremdrift</span><span>Status</span><span>Sprint</span><span style={{ textAlign: 'right' }}>Items</span>
+      </div>
       {projects.map(project => {
-        const progress = project.progress ?? 0;
-        const barColor = statusBarColor(project.status, project.health);
-        const sprintName = project.next_milestone?.name || '—';
-        const days = project.next_milestone ? daysLeft(project.next_milestone.end_date) : null;
-        const daysLabel = days === null ? '' : days < 0 ? `${Math.abs(days)}d overskredet` : days === 0 ? 'udløber i dag' : `${days}d tilbage`;
-        const daysColor = days !== null && days < 0 ? 'var(--danger)' : days !== null && days <= 3 ? 'var(--warn)' : 'var(--text2)';
-
+        const nextMilestone = project.next_milestone;
+        const deadline = daysLeft(nextMilestone?.end_date);
+        const owner = project.owner_name || 'Ingen';
         return (
-          <div
-            key={project.id}
-            onClick={() => onWorkspace && onWorkspace(project.id)}
-            style={{
-              display: 'grid', gridTemplateColumns: '1fr 120px 110px 90px 80px',
-              alignItems: 'center', gap: 14, padding: '14px 18px',
-              background: 'var(--bg2)', cursor: onWorkspace ? 'pointer' : 'default',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg2)'}
-          >
-            {/* Name + sprint */}
+          <div key={project.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 90px 80px', alignItems: 'center', gap: 14, padding: '14px 18px', background: 'var(--bg2)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: project.color || 'var(--bg3)', display: 'grid', placeItems: 'center', fontSize: 14 }}>{project.icon || '📋'}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => onWorkspace(project.id)} style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', color: 'var(--text)', fontSize: 14, fontWeight: 600, textAlign: 'left' }}>{project.name}</button>
+                    <Pill variant={pillVariant(project.status)}>{pillLabel(project.status)}</Pill>
+                    {deadline !== null && deadline <= 7 && deadline >= 0 && <span style={{ fontSize: 10, color: 'var(--warn)' }}>D-{deadline}</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                    <span>{owner}</span>
+                    <span>•</span>
+                    <span>{project.description || 'Ingen beskrivelse endnu'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div>
-              <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)' }}>
-                {project.icon || '📋'} {project.name}
+              <div style={{ height: 4, background: 'var(--border2)', borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
+                <div style={{ height: '100%', width: `${project.progress || 0}%`, background: statusBarColor(project.status, project.health) }} />
               </div>
-              <div style={{ fontSize: 11, color: daysColor, marginTop: 2 }}>
-                {sprintName !== '—' ? `${sprintName}${daysLabel ? ` · ${daysLabel}` : ''}` : 'Ingen sprint'}
-              </div>
+              <div style={{ fontSize: 11, color: 'var(--text2)' }}>{project.progress || 0}%</div>
             </div>
-
-            {/* Progress bar */}
             <div>
-              <div style={{ height: 3, background: 'var(--border2)', borderRadius: 2, marginBottom: 3 }}>
-                <div style={{ height: 3, borderRadius: 2, width: `${progress}%`, background: barColor, transition: 'width 0.8s ease' }} />
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text3)' }}>{progress}%</div>
+              <select value={project.status} onChange={e => onProjectStatusChange(project.id, e.target.value)} style={selectStyle()}>
+                {PROJECT_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
             </div>
-
-            {/* Status select */}
-            <div onClick={e => e.stopPropagation()}>
-              {(() => {
-                const opt = PROJECT_STATUSES.find(s => s.value === project.status) || PROJECT_STATUSES[0];
-                return (
-                  <select
-                    value={project.status}
-                    onChange={e => onProjectStatusChange && onProjectStatusChange(project.id, e.target.value)}
-                    style={{
-                      fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 20,
-                      background: 'transparent', border: `1px solid ${opt.color}`,
-                      color: opt.color, cursor: 'pointer', outline: 'none',
-                    }}
-                  >
-                    {PROJECT_STATUSES.map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                );
-              })()}
-            </div>
-
-            {/* Sprint label */}
-            <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-              {sprintName !== '—' ? sprintName.slice(0, 14) : '—'}
-            </div>
-
-            {/* Items + timelog */}
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-                {project.done_items || 0}/{project.total_items || 0}
-              </div>
-              {onTimelog && (
-                <button
-                  onClick={e => { e.stopPropagation(); onTimelog(project.id); }}
-                  style={{
-                    marginTop: 4,
-                    background: 'var(--jade-dim)', border: '1px solid rgba(0,200,150,0.28)',
-                    borderRadius: 'var(--radius)', color: 'var(--jade)',
-                    fontSize: 10, padding: '2px 7px', cursor: 'pointer',
-                  }}
-                >⏱</button>
-              )}
+            <div style={{ fontSize: 11, color: 'var(--text2)' }}>{nextMilestone?.name || '—'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text2)' }}>{project.open_items || 0}/{project.total_items || 0}</span>
+              <button onClick={() => onTimelog(project.id)} style={{ fontSize: 11, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', borderRadius: 'var(--radius)', padding: '4px 8px', cursor: 'pointer' }}>Timelog</button>
             </div>
           </div>
         );
@@ -350,29 +467,48 @@ function ProjectTable({ projects, onWorkspace, onTimelog, onProjectStatusChange 
   );
 }
 
-// ── main component ────────────────────────────────────────────────────────────
-export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, onWorkspace }) {
-  const [loadingGov, setLoadingGov] = useState(true);
-  const [error, setError] = useState(null);
+export default function Dashboard({ onTimelog, onWorkspace }) {
   const [dashboard, setDashboard] = useState({ active: [], upcoming: [], finished: [], projects: [], activity: [] });
   const [approvalRequests, setApprovalRequests] = useState([]);
   const [health, setHealth] = useState({ queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
   const [conflicts, setConflicts] = useState([]);
+  const [loadingGov, setLoadingGov] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState(null);
+  const [orgId, setOrgId] = useState(null);
   const [riskItems, setRiskItems] = useState([]);
   const [orgMetrics, setOrgMetrics] = useState({});
-  const [orgId, setOrgId] = useState(null);
-  const [editingMetric, setEditingMetric] = useState(null); // 'confidence' | 'blocked' | null
+  const [editingMetric, setEditingMetric] = useState(null);
+  const [recentItems, setRecentItems] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [assignees, setAssignees] = useState([]);
+
+  useEffect(() => {
+    refreshGovernance();
+    loadRecentItems();
+    loadAssignees();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function refreshGovernance() {
     setLoadingGov(true);
-    setError(null);
     try {
-      const data = await getDashboardGovernance();
-      setDashboard(data.dashboard || { active: [], upcoming: [], finished: [], projects: [], activity: [] });
-      setApprovalRequests(data.approvalRequests || []);
-      setHealth(data.health || { queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
-      setConflicts(data.conflicts || []);
+      const membership = await getMembership();
+      setOrgId(membership?.organization_id || null);
+
+      const [{ dashboard: dash, approvalRequests: approvals, health: healthData, conflicts: conflictData }, risks, metrics] = await Promise.all([
+        getDashboardGovernance(),
+        membership?.organization_id ? getRiskItems(membership.organization_id) : Promise.resolve([]),
+        membership?.organization_id ? getOrgMetrics(membership.organization_id) : Promise.resolve([]),
+      ]);
+
+      setDashboard(dash || { active: [], upcoming: [], finished: [], projects: [], activity: [] });
+      setApprovalRequests(approvals || []);
+      setHealth(healthData || { queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
+      setConflicts(conflictData || []);
+      setRiskItems(risks || []);
+      const metricMap = {};
+      for (const metric of metrics || []) metricMap[metric.key] = metric;
+      setOrgMetrics(metricMap);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -380,37 +516,29 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
     }
   }
 
-  useEffect(() => {
-    refreshGovernance();
-    loadRiskData();
-  }, []); // eslint-disable-line
-
-  async function loadRiskData() {
+  async function loadAssignees() {
     try {
-      const membership = await getMembership();
-      if (!membership?.organization_id) return;
-      const oid = membership.organization_id;
-      setOrgId(oid);
-      const [risks, metrics] = await Promise.all([getRiskItems(oid), getOrgMetrics(oid)]);
-      setRiskItems(risks);
-      setOrgMetrics(metrics);
-    } catch (e) { /* silent */ }
+      const data = await getTeamAssignees();
+      setAssignees(data || []);
+    } catch {
+      setAssignees([]);
+    }
   }
 
-  async function handleAddRisk(form) {
+  async function handleAddRisk(payload) {
     if (!orgId) return;
-    const item = await createRiskItem(orgId, form);
-    if (item) setRiskItems(prev => [item, ...prev]);
+    const created = await createRiskItem(orgId, payload);
+    if (created) setRiskItems(prev => [created, ...prev]);
   }
 
   async function handleResolveRisk(id) {
     await resolveRiskItem(id);
-    setRiskItems(prev => prev.filter(r => r.id !== id));
+    setRiskItems(prev => prev.filter(item => item.id !== id));
   }
 
-  async function handleEditRisk(id, form) {
-    const updated = await updateRiskItem(id, form);
-    if (updated) setRiskItems(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r));
+  async function handleEditRisk(id, patch) {
+    const updated = await updateRiskItem(id, patch);
+    if (updated) setRiskItems(prev => prev.map(item => item.id === id ? updated : item));
   }
 
   async function handleSaveMetric(key, valueNum, prevValueNum) {
@@ -420,34 +548,20 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
     setEditingMetric(null);
   }
 
-  const [recentItems, setRecentItems] = useState([]);
-  const [recentLoading, setRecentLoading] = useState(false);
-
-  useEffect(() => { loadRecentItems(); }, []); // eslint-disable-line
-
   async function loadRecentItems() {
     setRecentLoading(true);
     try {
       const membership = await getMembership();
       if (!membership?.organization_id) return;
 
-      // Hent sprints for org
-      const { data: sprints } = await supabase
-        .from('sprints')
-        .select('id, name, project_id')
-        .limit(20);
+      const { data: sprints } = await supabase.from('sprints').select('id, name, project_id').eq('organization_id', membership.organization_id).limit(20);
       const sprintMap = {};
       (sprints || []).forEach(s => { sprintMap[s.id] = s; });
 
-      // Hent projekter
-      const { data: projects } = await supabase
-        .from('projects')
-        .select('id, name, icon')
-        .eq('organization_id', membership.organization_id);
+      const { data: projects } = await supabase.from('projects').select('id, name, icon').eq('organization_id', membership.organization_id);
       const projectMap = {};
       (projects || []).forEach(p => { projectMap[p.id] = p; });
 
-      // Hent senest opdaterede items
       const sprintIds = Object.keys(sprintMap);
       if (!sprintIds.length) return;
       const { data: items } = await supabase
@@ -463,7 +577,11 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
         return { ...item, sprintName: sprint?.name, projectName: project?.name, projectIcon: project?.icon };
       });
       setRecentItems(enriched);
-    } catch (e) { /* silent */ } finally { setRecentLoading(false); }
+    } catch {
+      // silent
+    } finally {
+      setRecentLoading(false);
+    }
   }
 
   const pending = useMemo(() => approvalRequests.filter(r => r.state === 'pending_approval').slice(0, 5), [approvalRequests]);
@@ -500,127 +618,53 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
   }
 
   async function handleProjectStatusChange(projectId, newStatus) {
-    // Optimistisk update
-    setDashboard(prev => ({
-      ...prev,
-      projects: (prev.projects || []).map(p => p.id === projectId ? { ...p, status: newStatus } : p)
-    }));
+    setDashboard(prev => ({ ...prev, projects: (prev.projects || []).map(p => p.id === projectId ? { ...p, status: newStatus } : p) }));
     try {
       await updateProjectStatus(projectId, newStatus);
     } catch {
-      // Rollback ved fejl
       await refreshGovernance();
     }
   }
 
-  const totalProjects = (dashboard.projects || []).length;
-  const activeCount = activeProjects.length;
   const pendingCount = pending.length;
-  const blockedCount = orgMetrics['total_blocked']?.value_num ?? (health.blocked_writes || 0);
-  const confidenceVal = orgMetrics['portfolio_confidence']?.value_num ?? null;
-  const confidencePrev = orgMetrics['portfolio_confidence']?.prev_value_num ?? null;
-  const mttrVal = orgMetrics['avg_mttr']?.value_num ?? null;
-  const healthScore = health.blocked_writes === 0 && health.queue_depth < 5 ? 100 : health.queue_depth < 10 ? 82 : 61;
-
+  const blockedCount = orgMetrics.total_blocked?.value_num ?? (health.blocked_writes || 0);
+  const confidenceVal = orgMetrics.portfolio_confidence?.value_num ?? null;
+  const confidencePrev = orgMetrics.portfolio_confidence?.prev_value_num ?? null;
+  const mttrVal = orgMetrics.avg_mttr?.value_num ?? null;
   const atRiskLabel = atRiskCount > 0 ? ` · ${atRiskCount} at risk` : '';
   const blockerLabel = blockedCount > 0 ? ` · ${blockedCount} blokkere` : '';
 
   return (
     <div style={{ padding: '32px', maxWidth: 1140, margin: '0 auto' }}>
+      <QuickCreatePanel projects={activeProjects} assignees={assignees} onCreated={() => { refreshGovernance(); loadRecentItems(); }} onOpenWorkspace={onWorkspace} />
 
-      {/* ── KPI Grid (V8+ style) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <KpiCard
-          label="At Risk"
-          value={atRiskCount + riskItems.length}
-          sub={riskItems.length > 0 ? riskItems.slice(0, 2).map(r => r.title.slice(0, 20)).join(' · ') : 'alt ser godt ud'}
-          color={(atRiskCount + riskItems.length) > 0 ? 'var(--danger)' : 'var(--text)'}
-        />
-        <EditableKpiCard
-          label="Total Blocked"
-          value={blockedCount}
-          sub={mttrVal ? `Avg MTTR ${mttrVal}h` : 'blokkerede items'}
-          color={blockedCount > 0 ? 'var(--danger)' : 'var(--text)'}
-          editing={editingMetric === 'blocked'}
-          onEdit={() => setEditingMetric('blocked')}
-          onSave={(val, prev) => handleSaveMetric('total_blocked', val, prev)}
-          onCancel={() => setEditingMetric(null)}
-          extraKey="avg_mttr"
-          extraLabel="Avg MTTR (h)"
-          extraValue={mttrVal}
-          onSaveExtra={(val) => upsertOrgMetric(orgId, 'avg_mttr', val, null, null).then(() => setOrgMetrics(prev => ({ ...prev, avg_mttr: { value_num: val } })))}
-        />
-        <EditableKpiCard
-          label="Portfolio Confidence"
-          value={confidenceVal !== null ? `${confidenceVal}%` : '—'}
-          sub={confidencePrev !== null ? `${confidenceVal >= confidencePrev ? '+' : ''}${confidenceVal - confidencePrev}% vs last sprint` : 'klik for at sætte'}
-          color={confidenceVal >= 70 ? 'var(--jade)' : confidenceVal >= 50 ? 'var(--warn)' : 'var(--text)'}
-          editing={editingMetric === 'confidence'}
-          onEdit={() => setEditingMetric('confidence')}
-          onSave={(val, prev) => handleSaveMetric('portfolio_confidence', val, prev)}
-          onCancel={() => setEditingMetric(null)}
-          isPercent
-        />
-        <KpiCard
-          label="Pending Approvals"
-          value={pendingCount}
-          sub={pendingCount > 0 ? 'afventer review' : 'all clear'}
-          color={pendingCount > 0 ? 'var(--warn)' : 'var(--text)'}
-        />
+        <KpiCard label="At Risk" value={atRiskCount + riskItems.length} sub={riskItems.length > 0 ? riskItems.slice(0, 2).map(r => r.title.slice(0, 20)).join(' · ') : 'alt ser godt ud'} color={(atRiskCount + riskItems.length) > 0 ? 'var(--danger)' : 'var(--text)'} />
+        <EditableKpiCard label="Total Blocked" value={blockedCount} sub={mttrVal ? `Avg MTTR ${mttrVal}h` : 'blokkerede items'} color={blockedCount > 0 ? 'var(--danger)' : 'var(--text)'} editing={editingMetric === 'blocked'} onEdit={() => setEditingMetric('blocked')} onSave={(val, prev) => handleSaveMetric('total_blocked', val, prev)} onCancel={() => setEditingMetric(null)} extraKey="avg_mttr" extraLabel="Avg MTTR (h)" extraValue={mttrVal} onSaveExtra={(val) => upsertOrgMetric(orgId, 'avg_mttr', val, null, null).then(() => setOrgMetrics(prev => ({ ...prev, avg_mttr: { value_num: val } })))} />
+        <EditableKpiCard label="Portfolio Confidence" value={confidenceVal !== null ? `${confidenceVal}%` : '—'} sub={confidencePrev !== null ? `${confidenceVal >= confidencePrev ? '+' : ''}${confidenceVal - confidencePrev}% vs last sprint` : 'klik for at sætte'} color={confidenceVal >= 70 ? 'var(--jade)' : confidenceVal >= 50 ? 'var(--warn)' : 'var(--text)'} editing={editingMetric === 'confidence'} onEdit={() => setEditingMetric('confidence')} onSave={(val, prev) => handleSaveMetric('portfolio_confidence', val, prev)} onCancel={() => setEditingMetric(null)} isPercent />
+        <KpiCard label="Pending Approvals" value={pendingCount} sub={pendingCount > 0 ? 'afventer review' : 'all clear'} color={pendingCount > 0 ? 'var(--warn)' : 'var(--text)'} />
       </div>
 
-      {/* ── Risk Band — live editable ── */}
-      <RiskBand
-        riskItems={riskItems}
-        onAdd={handleAddRisk}
-        onResolve={handleResolveRisk}
-        onEdit={handleEditRisk}
-      />
+      <RiskBand riskItems={riskItems} onAdd={handleAddRisk} onResolve={handleResolveRisk} onEdit={handleEditRisk} />
 
-      {/* ── Active Projects tabel (V8+ style) ── */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-        <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>
-          Active Projects
-        </h2>
-        <span style={{ fontSize: 12, color: 'var(--text2)' }}>
-          sorteret efter senest opdateret{atRiskLabel || blockerLabel}
-        </span>
+        <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>Active Projects</h2>
+        <span style={{ fontSize: 12, color: 'var(--text2)' }}>sorteret efter senest opdateret{atRiskLabel || blockerLabel}</span>
       </div>
 
-      <ProjectTable
-        projects={activeProjects}
-        onWorkspace={onWorkspace}
-        onTimelog={onTimelog}
-        onProjectStatusChange={handleProjectStatusChange}
-      />
+      <ProjectTable projects={activeProjects} onWorkspace={onWorkspace} onTimelog={onTimelog} onProjectStatusChange={handleProjectStatusChange} />
 
-      {/* ── Governance workspace (approval queue, conflicts) ── */}
       <GovernanceSummary health={health} approvedReadyCount={approvedReady.length} />
-      <GovernanceWorkspace
-        loading={loadingGov}
-        error={error}
-        pending={pending}
-        approvedReady={approvedReady}
-        conflicts={conflicts}
-        busyId={busyId}
-        onApprove={id => handleAction(id, 'approve')}
-        onReject={id => handleAction(id, 'reject')}
-        onApply={id => handleAction(id, 'apply')}
-        onResolveConflict={handleResolveConflict}
-      />
+      <GovernanceWorkspace loading={loadingGov} error={error} pending={pending} approvedReady={approvedReady} conflicts={conflicts} busyId={busyId} onApprove={id => handleAction(id, 'approve')} onReject={id => handleAction(id, 'reject')} onApply={id => handleAction(id, 'apply')} onResolveConflict={handleResolveConflict} />
 
-      {/* ── Recent Items ── */}
       <div style={{ marginTop: 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-          <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>
-            Seneste opgaver
-          </h2>
+          <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>Seneste opgaver</h2>
           <span style={{ fontSize: 12, color: 'var(--text2)' }}>på tværs af projekter</span>
         </div>
         {recentLoading && <div style={{ color: 'var(--text3)', fontSize: 13 }}>Loader...</div>}
         {!recentLoading && recentItems.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px 100px 80px', gap: 14, padding: '8px 18px', background: 'var(--bg3)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text3)' }}>
               <span>Opgave</span><span>Projekt · Sprint</span><span>Status</span><span style={{ textAlign: 'right' }}>Oprettet</span>
             </div>
@@ -629,17 +673,7 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
               const statusLabel = item.item_status === 'done' ? 'Done' : item.item_status === 'in_progress' ? 'In Progress' : 'Backlog';
               const sprintShort = item.sprintName?.replace('Sag ', '') || '—';
               return (
-                <div
-                  key={item.id}
-                  style={{
-                    display: 'grid', gridTemplateColumns: '1fr 130px 100px 80px',
-                    gap: 14, padding: '11px 18px', alignItems: 'center',
-                    borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
-                    background: 'var(--bg2)', transition: 'background 0.12s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'var(--bg2)'}
-                >
+                <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 100px 80px', gap: 14, padding: '11px 18px', alignItems: 'center', borderTop: idx > 0 ? '1px solid var(--border)' : 'none', background: 'var(--bg2)' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text3)', marginRight: 8 }}>{item.item_code}</span>
@@ -651,22 +685,48 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
                     <span style={{ color: 'var(--text3)' }}>{sprintShort}</span>
                   </div>
                   <div>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: statusColor, background: statusColor === 'var(--jade)' ? 'rgba(0,200,150,0.1)' : statusColor === 'var(--gold)' ? 'rgba(200,168,75,0.1)' : 'var(--bg3)', border: `1px solid ${statusColor === 'var(--jade)' ? 'rgba(0,200,150,0.25)' : statusColor === 'var(--gold)' ? 'rgba(200,168,75,0.25)' : 'var(--border)'}`, borderRadius: 10, padding: '2px 8px' }}>
-                      {statusLabel}
-                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: statusColor, background: statusLabel === 'Done' ? 'rgba(0,200,150,0.1)' : statusLabel === 'In Progress' ? 'rgba(200,168,75,0.1)' : 'var(--bg3)', border: `1px solid ${statusLabel === 'Done' ? 'rgba(0,200,150,0.25)' : statusLabel === 'In Progress' ? 'rgba(200,168,75,0.25)' : 'var(--border)'}`, borderRadius: 10, padding: '2px 8px' }}>{statusLabel}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>
-                    {new Date(item.created_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
-                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>{new Date(item.created_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}</div>
                 </div>
               );
             })}
           </div>
         )}
-        {!recentLoading && recentItems.length === 0 && (
-          <div style={{ color: 'var(--text3)', fontSize: 13 }}>Ingen opgaver endnu.</div>
-        )}
+        {!recentLoading && recentItems.length === 0 && <div style={{ color: 'var(--text3)', fontSize: 13 }}>Ingen opgaver endnu.</div>}
       </div>
     </div>
   );
+}
+
+function inputStyle(fontSize = 13, px = 12, width = 'auto', mb = 0) {
+  return { background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize, padding: `8px ${px}px`, outline: 'none', width, marginBottom: mb, boxSizing: 'border-box' };
+}
+
+function selectStyle() {
+  return { fontSize: 11, padding: '5px 8px', borderRadius: 'var(--radius)', background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', cursor: 'pointer', outline: 'none' };
+}
+
+function primaryButton(color = 'var(--jade)', flex = true, disabled = false) {
+  return { flex: flex ? 1 : 'unset', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 'var(--radius)', background: disabled ? 'var(--bg3)' : color, color: '#fff', border: 'none', cursor: disabled ? 'default' : 'pointer' };
+}
+
+function secondaryButton() {
+  return { fontSize: 12, padding: '6px 12px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' };
+}
+
+function activeChip() {
+  return { fontSize: 11, padding: '5px 10px', borderRadius: 20, cursor: 'pointer', border: '1px solid rgba(0,200,150,0.3)', background: 'var(--jade-dim)', color: 'var(--jade)' };
+}
+
+function passiveChip() {
+  return { fontSize: 11, padding: '5px 10px', borderRadius: 20, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)' };
+}
+
+function gridInput(span) {
+  return { ...inputStyle(), gridColumn: span };
+}
+
+function gridSelect(span) {
+  return { ...selectStyle(), gridColumn: span, minHeight: 40 };
 }

@@ -496,6 +496,54 @@ export async function updateProjectStatus(projectId, status) {
   return data;
 }
 
+export async function getTeamAssignees() {
+  return apiFetch('/api/team/assignees');
+}
+
+export async function createProject(payload) {
+  return apiFetch('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createSprint(projectId, payload) {
+  return apiFetch(`/api/projects/${projectId}/sprints`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createSprintItem(sprintId, payload) {
+  return apiFetch(`/api/sprints/${sprintId}/items`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createSession(payload) {
+  return apiFetch('/api/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createApprovalRequest(payload) {
+  return apiFetch('/api/approval-requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function applyApprovedRequest(requestId) {
+  return apiFetch(`/api/approval-requests/${requestId}/apply`, {
+    method: 'POST',
+    headers: {
+      'X-Reveal-Actor': 'system'
+    }
+  });
+}
+
 export async function closeItem(itemId) {
   const { data } = await supabase
     .from('session_items')

@@ -118,8 +118,9 @@ function KCard({ item, sprintName, projectName, onDragStart, onDragEnd, isDraggi
 }
 
 // ── Status column ─────────────────────────────────────────────────────────────
-function StatusCol({ col, items, sprintMap, projectMap, draggingId, onDragStart, onDragEnd, onDrop, onCardClick }) {
+function StatusCol({ col, items, sprintMap, projectMap, draggingId, onDragStart, onDragEnd, onDrop, onCardClick, groupBy, wipLimit }) {
   const [isOver, setIsOver] = useState(false);
+  const overLimit = typeof wipLimit === 'number' && wipLimit > 0 && items.length > wipLimit;
 
   return (
     <div
@@ -132,10 +133,11 @@ function StatusCol({ col, items, sprintMap, projectMap, draggingId, onDragStart,
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '0 2px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontSize: 13, color: col.color }}>{col.icon}</span>
-          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text3)' }}>{col.label}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: overLimit ? 'var(--danger)' : 'var(--text3)' }}>{col.label}</span>
+          {groupBy && <span style={{ fontSize: 9, color: 'var(--text3)' }}>· {groupBy}</span>}
         </div>
-        <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--border)', padding: '2px 7px', borderRadius: 8 }}>
-          {items.length}
+        <span style={{ fontSize: 10, color: overLimit ? 'var(--danger)' : 'var(--text3)', background: overLimit ? 'rgba(232,84,84,0.1)' : 'var(--border)', padding: '2px 7px', borderRadius: 8, border: overLimit ? '1px solid rgba(232,84,84,0.2)' : 'none' }}>
+          {items.length}{wipLimit ? `/${wipLimit}` : ''}
         </span>
       </div>
 
@@ -194,7 +196,8 @@ export default function TeamKanban() {
   const [projects, setProjects] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [filterProjectId, setFilterProjectId] = useState(null);
-  const [groupBySprint, setGroupBySprint] = useState(false);
+  const [groupMode, setGroupMode] = useState('status');
+  const [wipLimits, setWipLimits] = useState({ backlog: 0, in_progress: 5, done: 0 });
   const [error, setError] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -311,16 +314,26 @@ export default function TeamKanban() {
           ))}
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label style={{ fontSize: 10, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            WIP
+            <input
+              type="number"
+              min="0"
+              value={wipLimits.in_progress}
+              onChange={e => setWipLimits(prev => ({ ...prev, in_progress: Number(e.target.value) || 0 }))}
+              style={{ width: 52, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 11, padding: '4px 6px' }}
+            />
+          </label>
           <button
-            onClick={() => setGroupBySprint(v => !v)}
+            onClick={() => setGroupMode(groupMode === 'sprint' ? 'status' : 'sprint')}
             style={{
               fontSize: 11, padding: '4px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', border: 'none',
-              background: groupBySprint ? 'var(--jade-dim)' : 'var(--bg3)',
-              color: groupBySprint ? 'var(--jade)' : 'var(--text2)',
-              outline: groupBySprint ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
+              background: groupMode === 'sprint' ? 'var(--jade-dim)' : 'var(--bg3)',
+              color: groupMode === 'sprint' ? 'var(--jade)' : 'var(--text2)',
+              outline: groupMode === 'sprint' ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
             }}
           >
-            ⊟ Gruper pr. sprint
+            ⊟ Gruppér pr. sprint
           </button>
           <SyncChip>Jira —</SyncChip>
           <SyncChip>TopDesk —</SyncChip>
@@ -348,7 +361,7 @@ export default function TeamKanban() {
       </div>
 
       {/* Kanban body */}
-      {groupBySprint ? (
+      {groupMode === 'sprint' ? (
         sprintGroups.map(({ sprint, items: sprintItems }) => (
           <div key={sprint.id}>
             <SprintGroupBar sprint={sprint} project={projectMap[sprint.project_id]} itemCount={sprintItems.length} />
@@ -365,6 +378,8 @@ export default function TeamKanban() {
                   onDragEnd={() => setDraggingId(null)}
                   onDrop={handleDrop}
                   onCardClick={setSelectedItem}
+                  groupBy={sprint.name}
+                  wipLimit={col.key === 'in_progress' ? wipLimits.in_progress : wipLimits[col.key]}
                 />
               ))}
             </div>
@@ -384,6 +399,8 @@ export default function TeamKanban() {
               onDragEnd={() => setDraggingId(null)}
               onDrop={handleDrop}
               onCardClick={setSelectedItem}
+              groupBy={filterProjectId ? (projectMap[filterProjectId]?.name || 'projekt') : 'alle'}
+              wipLimit={col.key === 'in_progress' ? wipLimits.in_progress : wipLimits[col.key]}
             />
           ))}
         </div>
