@@ -468,7 +468,7 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
 
   const pending = useMemo(() => approvalRequests.filter(r => r.state === 'pending_approval').slice(0, 5), [approvalRequests]);
   const approvedReady = useMemo(() => approvalRequests.filter(r => r.state === 'approved').slice(0, 3), [approvalRequests]);
-  const activeProjects = useMemo(() => (dashboard.projects || []).filter(p => p.status === 'active'), [dashboard.projects]);
+  const activeProjects = useMemo(() => (dashboard.projects || []).filter(p => p.status !== 'completed' && p.status !== 'paused'), [dashboard.projects]);
   const atRiskCount = useMemo(() => (dashboard.projects || []).filter(p => p.status === 'at_risk' || p.health === 'at_risk').length, [dashboard.projects]);
 
   async function handleAction(requestId, action) {
