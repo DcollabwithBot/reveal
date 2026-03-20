@@ -1,55 +1,47 @@
 import { supabase } from './supabase';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3eWZjYXRod2NkcGdraXJ3aWhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NTA1MTAsImV4cCI6MjA4OTQyNjUxMH0.9plelXfU7k9Y3sJaLFpwWeDtPTfZQHadxpxBEHrPqog';
-const SUPABASE_URL = 'https://swyfcathwcdpgkirwihh.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-// ── Auth / Provision ──────────────────────────────────────────────────────────
-export async function provisionUser(_userId, _displayName) {
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/provision`, {
-    method: 'POST',
+async function edgeFn(fnName, body = {}, method = 'POST') {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
+    method,
     headers: {
       'Content-Type': 'application/json',
-      'apikey': ANON_KEY,
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
+      'Authorization': token ? `Bearer ${token}` : '',
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: method !== 'GET' ? JSON.stringify(body) : undefined,
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Edge function error');
+  }
   return res.json();
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-export async function getMembership() {
+async function resolveMembership() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Prøv direkte organization_members først
-  const { data: orgMember, error: orgError } = await supabase
+  const { data: orgMember } = await supabase
     .from('organization_members')
     .select('organization_id, role')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (orgError) {
-    console.error('[getMembership] organization_members query failed:', orgError.message);
-  }
-
   if (orgMember?.organization_id) {
     return { organization_id: orgMember.organization_id, role: orgMember.role };
   }
 
-  // Fallback: via team_members
-  const { data: member, error: teamError } = await supabase
+  const { data: member } = await supabase
     .from('team_members')
     .select('team_id, role')
     .eq('user_id', user.id)
     .maybeSingle();
-
-  if (teamError) {
-    console.error('[getMembership] team_members query failed:', teamError.message);
-  }
 
   if (!member?.team_id) return null;
 
@@ -62,9 +54,19 @@ export async function getMembership() {
   return team ? { team_id: team.id, organization_id: team.organization_id, role: member.role } : null;
 }
 
+// ── Auth / Provision ──────────────────────────────────────────────────────────
+export async function provisionUser(_userId, _displayName) {
+  return edgeFn('provision');
+}
+
+// ── Membership ────────────────────────────────────────────────────────────────
+export async function getMembership() {
+  return resolveMembership();
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export async function getDashboard() {
-  const membership = await getMembership();
+  const membership = await resolveMembership();
   if (!membership?.organization_id) {
     return { active: [], upcoming: [], finished: [], projects: [], activity: [] };
   }
@@ -164,7 +166,7 @@ export async function getDashboardGovernance() {
 
 // ── Approval Requests ────────────────────────────────────────────────────────
 export async function getApprovalRequests() {
-  const membership = await getMembership();
+  const membership = await resolveMembership();
   if (!membership?.organization_id) return [];
 
   const { data } = await supabase
@@ -183,57 +185,20 @@ export async function getLatestApprovalState(targetId) {
 }
 
 export async function approveRequest(requestId) {
-  const { data: current } = await supabase
-    .from('approval_requests')
-    .select('state')
-    .eq('id', requestId)
-    .maybeSingle();
-
-  const { data } = await supabase
-    .from('approval_requests')
-    .update({
-      state: 'approved',
-      approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', requestId)
-    .select('*')
-    .single();
-  return data;
+  return edgeFn('approve-mutation', { approvalId: requestId, action: 'approve' });
 }
 
 export async function rejectRequest(requestId, reason) {
-  const { data } = await supabase
-    .from('approval_requests')
-    .update({
-      state: 'rejected',
-      rejection_reason: reason || null,
-      rejected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', requestId)
-    .select('*')
-    .single();
-  return data;
+  return edgeFn('approve-mutation', { approvalId: requestId, action: 'reject', reason });
 }
 
 export async function applyRequest(requestId) {
-  const { data } = await supabase
-    .from('approval_requests')
-    .update({
-      state: 'applied',
-      applied_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', requestId)
-    .select('*')
-    .single();
-  return data;
+  return edgeFn('approve-mutation', { approvalId: requestId, action: 'apply' });
 }
 
 export async function submitAdvisoryRequest(payload) {
   const { data: { user } } = await supabase.auth.getUser();
-  const membership = await getMembership();
+  const membership = await resolveMembership();
 
   const { data } = await supabase
     .from('approval_requests')
@@ -262,7 +227,7 @@ export function createConflictResolutionRequest(conflict) {
 
 // ── Sync Health + Conflicts ───────────────────────────────────────────────────
 export async function getSyncHealth() {
-  const membership = await getMembership();
+  const membership = await resolveMembership();
   if (!membership?.organization_id) return { queue_depth: 0, blocked_writes: 0, duplicate_events: 0 };
 
   const [
@@ -294,7 +259,7 @@ export async function getSyncHealth() {
 }
 
 export async function getSyncConflicts() {
-  const membership = await getMembership();
+  const membership = await resolveMembership();
   if (!membership?.organization_id) return [];
 
   const { data } = await supabase
@@ -309,7 +274,7 @@ export async function getSyncConflicts() {
 
 // ── Projection Config ─────────────────────────────────────────────────────────
 export async function getProjectionConfig() {
-  const membership = await getMembership();
+  const membership = await resolveMembership();
   const organizationId = membership?.organization_id || null;
 
   let query = supabase.from('game_profiles').select('*');
@@ -351,6 +316,10 @@ export async function joinSessionByCode(code) {
   return data;
 }
 
+export async function createSession(payload) {
+  return edgeFn('create-session', payload);
+}
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 export async function getProject(projectId) {
   const { data } = await supabase
@@ -359,6 +328,24 @@ export async function getProject(projectId) {
     .eq('id', projectId)
     .single();
   return data;
+}
+
+export async function getProjects() {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return [];
+
+  const { data } = await supabase
+    .from('projects')
+    .select('id,name,description,status,color,icon,created_by,created_at,updated_at,sprints(id,session_items(id,item_status,estimated_hours,actual_hours,progress))')
+    .eq('organization_id', membership.organization_id)
+    .order('updated_at', { ascending: false });
+
+  return (data || []).map(p => {
+    const allItems = (p.sprints || []).flatMap(s => s.session_items || []);
+    const doneItems = allItems.filter(i => i.item_status === 'done');
+    const progress = allItems.length > 0 ? Math.round((doneItems.length / allItems.length) * 100) : 0;
+    return { ...p, total_items: allItems.length, done_items: doneItems.length, progress };
+  });
 }
 
 export async function getProjectSprints(projectId) {
@@ -393,6 +380,110 @@ export async function updateItem(itemId, updates) {
   const { data } = await supabase
     .from('session_items')
     .update(updates)
+    .eq('id', itemId)
+    .select()
+    .single();
+  return data;
+}
+
+export async function updateProjectStatus(projectId, status) {
+  const { data } = await supabase
+    .from('projects')
+    .update({ status })
+    .eq('id', projectId)
+    .select('id, status')
+    .single();
+  return data;
+}
+
+export async function createProject(payload) {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('projects')
+    .insert({
+      organization_id: membership.organization_id,
+      name: (payload.name || '').trim(),
+      description: payload.description?.trim() || null,
+      color: payload.color || '#4488dd',
+      icon: payload.icon || '📋',
+      status: payload.status || 'active',
+      created_by: user?.id
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function createSprint(projectId, payload) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: project } = await supabase.from('projects').select('organization_id').eq('id', projectId).single();
+  if (!project) throw new Error('Project not found');
+
+  const { data, error } = await supabase
+    .from('sprints')
+    .insert({
+      project_id: projectId,
+      organization_id: project.organization_id,
+      name: (payload.name || '').trim(),
+      goal: payload.goal || null,
+      start_date: payload.start_date || null,
+      end_date: payload.end_date || null,
+      status: payload.status || 'upcoming',
+      created_by: user?.id
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function createSprintItem(sprintId, payload) {
+  if (Array.isArray(payload.items) && payload.items.length) {
+    const rows = payload.items.map((it, idx) => ({
+      sprint_id: sprintId,
+      title: it.title,
+      description: it.description || null,
+      priority: it.priority || 'medium',
+      item_status: it.item_status || 'backlog',
+      progress: typeof it.progress === 'number' ? it.progress : 0,
+      item_order: idx
+    })).filter(r => r.title?.trim());
+    const { data, error } = await supabase.from('session_items').insert(rows).select();
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  const { data, error } = await supabase
+    .from('session_items')
+    .insert({
+      sprint_id: sprintId,
+      title: (payload.title || '').trim(),
+      description: payload.description || null,
+      priority: payload.priority || 'medium',
+      assigned_to: payload.assigned_to || null,
+      estimated_hours: payload.estimated_hours || null,
+      actual_hours: payload.actual_hours || null,
+      progress: typeof payload.progress === 'number' ? payload.progress : 0,
+      item_status: payload.item_status || 'backlog',
+      status: 'pending'
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function closeItem(itemId) {
+  const { data } = await supabase
+    .from('session_items')
+    .update({ item_status: 'done', status: 'completed' })
     .eq('id', itemId)
     .select()
     .single();
@@ -486,208 +577,1154 @@ export async function upsertOrgMetric(organizationId, key, valueNum, prevValueNu
   return data;
 }
 
-export async function updateProjectStatus(projectId, status) {
-  const { data } = await supabase
-    .from('projects')
-    .update({ status })
-    .eq('id', projectId)
-    .select('id, status')
-    .single();
-  return data;
-}
-
+// ── Team Assignees ────────────────────────────────────────────────────────────
 export async function getTeamAssignees() {
-  return apiFetch('/api/team/assignees');
-}
+  const membership = await resolveMembership();
+  if (!membership?.team_id) return [];
 
-export async function createProject(payload) {
-  return apiFetch('/api/projects', {
-    method: 'POST',
-    body: JSON.stringify(payload),
+  const { data: members } = await supabase
+    .from('team_members')
+    .select('user_id')
+    .eq('team_id', membership.team_id);
+
+  const userIds = [...new Set((members || []).map(m => m.user_id).filter(Boolean))];
+  if (!userIds.length) return [];
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, display_name, avatar_class')
+    .in('id', userIds);
+
+  const profileById = new Map((profiles || []).map(p => [p.id, p]));
+  return userIds.map(id => {
+    const profile = profileById.get(id);
+    return {
+      id,
+      display_name: profile?.display_name || id.slice(0, 8),
+      avatar_class: profile?.avatar_class || null
+    };
   });
 }
 
-export async function createSprint(projectId, payload) {
-  return apiFetch(`/api/projects/${projectId}/sprints`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function createSprintItem(sprintId, payload) {
-  return apiFetch(`/api/sprints/${sprintId}/items`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function createSession(payload) {
-  return apiFetch('/api/sessions', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
+// ── Approval Request Create + Apply ───────────────────────────────────────────
 export async function createApprovalRequest(payload) {
-  return apiFetch('/api/approval-requests', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const { data: { user } } = await supabase.auth.getUser();
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+
+  const { data, error } = await supabase
+    .from('approval_requests')
+    .insert({
+      organization_id: membership.organization_id,
+      team_id: membership.team_id || null,
+      target_type: payload.target_type,
+      target_id: payload.target_id,
+      requested_patch: payload.requested_patch,
+      requested_by: user?.id,
+      state: 'pending_approval',
+      idempotency_key: payload.idempotency_key
+    })
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function applyApprovedRequest(requestId) {
-  return apiFetch(`/api/approval-requests/${requestId}/apply`, {
-    method: 'POST',
-    headers: {
-      'X-Reveal-Actor': 'system'
-    }
-  });
+  return edgeFn('approve-mutation', { approvalId: requestId, action: 'apply' });
 }
 
-export async function closeItem(itemId) {
-  const { data } = await supabase
-    .from('session_items')
-    .update({ item_status: 'done', status: 'completed' })
-    .eq('id', itemId)
-    .select()
-    .single();
-  return data;
-}
-
-async function apiFetch(path, options = {}) {
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'API error');
-  }
-
-  return res.json();
-}
-
+// ── Game Session State ────────────────────────────────────────────────────────
 export async function loadGameSessionState({ projectId, nodeId }) {
   if (!projectId || !nodeId) return null;
-  return apiFetch(`/api/game-session-state?project_id=${encodeURIComponent(projectId)}&node_id=${encodeURIComponent(nodeId)}`);
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return null;
+
+  const { data } = await supabase
+    .from('game_session_states')
+    .select('state, saved_at')
+    .eq('organization_id', membership.organization_id)
+    .eq('project_id', projectId)
+    .eq('node_id', nodeId)
+    .maybeSingle();
+
+  return data ? { state: data.state, saved_at: data.saved_at, source: 'game_session_states' } : { state: null, saved_at: null, source: 'none' };
 }
 
 export async function persistGameSessionState({ projectId, nodeId, state }) {
   if (!projectId || !nodeId || !state) return null;
-  return apiFetch('/api/game-session-state', {
-    method: 'POST',
-    body: JSON.stringify({ project_id: projectId, node_id: nodeId, state }),
-  });
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('game_session_states')
+    .upsert({
+      organization_id: membership.organization_id,
+      team_id: membership.team_id || null,
+      project_id: projectId,
+      node_id: nodeId,
+      state,
+      saved_by: user?.id,
+      saved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'organization_id,project_id,node_id' })
+    .select('state, saved_at')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { ok: true, saved_at: data?.saved_at, source: 'game_session_states' };
 }
 
 export async function getGameSessionStateStatus({ projectId, nodeId }) {
   if (!projectId || !nodeId) return null;
-  return apiFetch(`/api/game-session-state/status?project_id=${encodeURIComponent(projectId)}&node_id=${encodeURIComponent(nodeId)}`);
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return null;
+
+  const { data: stateRow } = await supabase
+    .from('game_session_states')
+    .select('organization_id,project_id,node_id,status,step,saved_at,updated_at')
+    .eq('organization_id', membership.organization_id)
+    .eq('project_id', projectId)
+    .eq('node_id', nodeId)
+    .maybeSingle();
+
+  return {
+    session_state: {
+      present: Boolean(stateRow),
+      status: stateRow?.status || null,
+      step: stateRow?.step ?? null,
+      saved_at: stateRow?.saved_at || null,
+      updated_at: stateRow?.updated_at || null,
+      stale: Boolean(stateRow?.saved_at) && Date.now() - new Date(stateRow.saved_at).getTime() > 1000 * 60 * 60 * 24,
+    },
+  };
 }
 
 // ── Game-PM Bridge (Fase 3) ───────────────────────────────────────────────────
 export async function startSprintEstimation(sprintId, { session_name, voting_mode } = {}) {
-  return apiFetch(`/api/sprints/${sprintId}/start-estimation`, {
-    method: 'POST',
-    body: JSON.stringify({ session_name, voting_mode }),
-  });
+  return edgeFn('start-estimation', { type: 'sprint', id: sprintId, session_name, voting_mode });
 }
 
 export async function startProjectEstimation(projectId, { session_name, voting_mode } = {}) {
-  return apiFetch(`/api/projects/${projectId}/start-estimation`, {
-    method: 'POST',
-    body: JSON.stringify({ session_name, voting_mode }),
-  });
+  return edgeFn('start-estimation', { type: 'project', id: projectId, session_name, voting_mode });
 }
 
 export async function startBulkEstimation({ item_ids, session_name, voting_mode }) {
-  return apiFetch('/api/items/bulk-estimation-session', {
-    method: 'POST',
-    body: JSON.stringify({ item_ids, session_name, voting_mode }),
-  });
+  return edgeFn('start-estimation', { type: 'bulk', item_ids, session_name, voting_mode });
 }
 
+// ── Org Settings ──────────────────────────────────────────────────────────────
 export async function getOrgSettings() {
-  return apiFetch('/api/org/settings');
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+
+  const { data } = await supabase
+    .from('organizations')
+    .select('id, auto_approve_estimates')
+    .eq('id', membership.organization_id)
+    .maybeSingle();
+
+  return { auto_approve_estimates: data?.auto_approve_estimates || false };
 }
 
 export async function updateOrgSettings(patch) {
-  return apiFetch('/api/org/settings', {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+
+  const update = {};
+  if (typeof patch.auto_approve_estimates === 'boolean') update.auto_approve_estimates = patch.auto_approve_estimates;
+
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(update)
+    .eq('id', membership.organization_id)
+    .select('id, auto_approve_estimates')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { auto_approve_estimates: data?.auto_approve_estimates || false };
 }
 
+// ── Retro Actions ─────────────────────────────────────────────────────────────
 export async function saveRetroActions(sessionId, actions) {
-  return apiFetch(`/api/sessions/${sessionId}/retro-actions`, {
-    method: 'POST',
-    body: JSON.stringify({ actions }),
-  });
+  const { data: { user } } = await supabase.auth.getUser();
+  const rows = (actions || []).map(a => ({
+    session_id: sessionId,
+    title: a.title,
+    description: a.description || null,
+    suggested_assignee: a.suggested_assignee || null,
+    suggested_sprint_id: a.suggested_sprint_id || null,
+    created_by: user?.id,
+  })).filter(r => r.title?.trim());
+
+  if (!rows.length) throw new Error('At least one action with title required');
+
+  const { data, error } = await supabase.from('retro_actions').insert(rows).select();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function getRetroActions() {
-  return apiFetch('/api/retro-actions');
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return [];
+
+  const { data: sessions } = await supabase
+    .from('sessions')
+    .select('id, name')
+    .eq('organization_id', membership.organization_id);
+
+  const sessionIds = (sessions || []).map(s => s.id);
+  if (!sessionIds.length) return [];
+
+  const sessionMap = new Map((sessions || []).map(s => [s.id, s.name]));
+
+  const { data } = await supabase
+    .from('retro_actions')
+    .select('*')
+    .in('session_id', sessionIds)
+    .is('promoted_at', null)
+    .order('created_at', { ascending: false });
+
+  return (data || []).map(a => ({
+    ...a,
+    session_name: sessionMap.get(a.session_id) || 'Unknown session',
+  }));
 }
 
 export async function promoteRetroAction(actionId, { sprint_id } = {}) {
-  return apiFetch(`/api/retro-actions/${actionId}/promote`, {
-    method: 'POST',
-    body: JSON.stringify({ sprint_id }),
-  });
+  return edgeFn('promote-retro-action', { actionId, sprint_id });
 }
 
+// ── Game Stats ────────────────────────────────────────────────────────────────
 export async function getGameStats() {
-  return apiFetch('/api/org/game-stats');
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+  const orgId = membership.organization_id;
+
+  const { data: sprints } = await supabase
+    .from('sprints')
+    .select('id, name, status, end_date, project_id')
+    .eq('organization_id', orgId)
+    .order('end_date', { ascending: false })
+    .limit(20);
+
+  const completedSprints = (sprints || []).filter(s => s.status === 'completed');
+  const activeSprint = (sprints || []).find(s => s.status === 'active');
+
+  let sprint_streak = 0;
+  for (const _s of completedSprints) {
+    sprint_streak++;
+    if (sprint_streak >= 10) break;
+  }
+
+  let estimation_accuracy = null;
+  const recentCompletedIds = completedSprints.slice(0, 5).map(s => s.id);
+  if (recentCompletedIds.length) {
+    const { data: estItems } = await supabase
+      .from('session_items')
+      .select('estimated_hours, actual_hours')
+      .in('sprint_id', recentCompletedIds)
+      .not('estimated_hours', 'is', null)
+      .not('actual_hours', 'is', null);
+
+    const pairs = (estItems || []).filter(i => i.estimated_hours > 0 && i.actual_hours > 0);
+    if (pairs.length) {
+      const accuracies = pairs.map(i => {
+        const ratio = i.actual_hours / i.estimated_hours;
+        return ratio > 1 ? 1 / ratio : ratio;
+      });
+      estimation_accuracy = Number((accuracies.reduce((s, v) => s + v, 0) / accuracies.length).toFixed(2));
+    }
+  }
+
+  let team_velocity_trend = 'stable';
+  if (completedSprints.length >= 3) {
+    const lastThreeIds = completedSprints.slice(0, 3).map(s => s.id);
+    const { data: velItems } = await supabase
+      .from('session_items')
+      .select('sprint_id, estimated_hours')
+      .in('sprint_id', lastThreeIds)
+      .eq('item_status', 'done');
+
+    const pointsBySprint = {};
+    for (const item of velItems || []) {
+      pointsBySprint[item.sprint_id] = (pointsBySprint[item.sprint_id] || 0) + (item.estimated_hours || 1);
+    }
+
+    const velocities = lastThreeIds.map(id => pointsBySprint[id] || 0);
+    if (velocities[0] > velocities[1]) team_velocity_trend = 'up';
+    else if (velocities[0] < velocities[1]) team_velocity_trend = 'down';
+  }
+
+  let sessions_this_sprint = 0;
+  if (activeSprint) {
+    const { count } = await supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+      .eq('sprint_id', activeSprint.id)
+      .eq('session_type', 'estimation');
+    sessions_this_sprint = count || 0;
+  }
+
+  let items_estimated_pct = 0;
+  if (activeSprint) {
+    const { data: allItems } = await supabase
+      .from('session_items')
+      .select('id, estimated_hours')
+      .eq('sprint_id', activeSprint.id);
+
+    const total = (allItems || []).length;
+    const estimated = (allItems || []).filter(i => i.estimated_hours != null).length;
+    items_estimated_pct = total > 0 ? Number((estimated / total).toFixed(2)) : 0;
+  }
+
+  return { sprint_streak, estimation_accuracy, team_velocity_trend, sessions_this_sprint, items_estimated_pct };
 }
 
+// ── Telemetry ─────────────────────────────────────────────────────────────────
 export async function reportExportEvent({ projectId, sprintId, format, ok, error }) {
-  return apiFetch('/api/telemetry/export-event', {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'sprint_report_export',
-      project_id: projectId || null,
-      sprint_id: sprintId || null,
-      format,
-      ok,
-      error: error || null,
-    }),
+  // Best-effort telemetry — fire and forget via audit_log
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return { ok: true };
+  const { data: { user } } = await supabase.auth.getUser();
+
+  await supabase.from('audit_log').insert({
+    event_type: ok ? 'retro.export.completed' : 'retro.export.failed',
+    actor: 'pm',
+    source_layer: 'pm',
+    organization_id: membership.organization_id,
+    team_id: membership.team_id || null,
+    target_type: 'sprint',
+    target_id: sprintId || null,
+    payload: { action: 'sprint_report_export', format, project_id: projectId, ok, error: error ? String(error).slice(0, 180) : null, initiated_by: user?.id },
+    outcome: ok ? 'accepted' : 'blocked',
   });
+
+  return { ok: true };
 }
 
 // ── Sprint Draft ──────────────────────────────────────────────────────────────
 
 export async function getVelocitySuggestion(projectId) {
-  return apiFetch(`/api/projects/${projectId}/velocity-suggestion`);
+  const { data: sprints } = await supabase
+    .from('sprint_velocity')
+    .select('sprint_name, velocity_actual')
+    .eq('project_id', projectId)
+    .order('sprint_id', { ascending: false })
+    .limit(3);
+
+  const velocities = (sprints || []).map(s => Number(s.velocity_actual) || 0);
+  const suggested_capacity = velocities.length
+    ? Math.round(velocities.reduce((a, b) => a + b, 0) / velocities.length)
+    : 0;
+
+  return {
+    suggested_capacity,
+    sprints: (sprints || []).map(s => ({ name: s.sprint_name, velocity_actual: Number(s.velocity_actual) || 0 }))
+  };
 }
 
 export async function getDraftState(sessionId) {
-  return apiFetch(`/api/sessions/${sessionId}/draft-state`);
+  const [sessionRes, itemsRes, picksRes, votesRes] = await Promise.all([
+    supabase.from('sessions').select('id,name,status,draft_config,sprint_id,project_id,game_master_id').eq('id', sessionId).maybeSingle(),
+    supabase.from('session_items').select('*').eq('session_id', sessionId).order('item_order'),
+    supabase.from('sprint_draft_picks').select('*').eq('session_id', sessionId).order('pick_order'),
+    supabase.from('sprint_draft_priority_votes').select('session_item_id, tokens').eq('session_id', sessionId),
+  ]);
+
+  const session = sessionRes.data;
+  const items = itemsRes.data || [];
+  const picks = picksRes.data || [];
+  const votes = votesRes.data || [];
+
+  const priorityScores = {};
+  for (const v of votes) {
+    priorityScores[v.session_item_id] = (priorityScores[v.session_item_id] || 0) + v.tokens;
+  }
+
+  const capacityUsed = picks
+    .filter(p => p.decision === 'drafted' || p.decision === 'stretch')
+    .reduce((sum, p) => sum + (Number(p.estimate_at_draft) || 0), 0);
+  const capacity = session?.draft_config?.capacity_points || 0;
+
+  return { session, items, picks, priorityScores, capacityUsed, capacity };
 }
 
 export async function submitDraftPicks(sessionId, picks) {
-  return apiFetch(`/api/sessions/${sessionId}/draft-picks`, {
-    method: 'POST',
-    body: JSON.stringify({ picks }),
-  });
+  const rows = picks.map(p => ({
+    session_id: sessionId,
+    session_item_id: p.session_item_id,
+    pick_order: p.pick_order,
+    decision: p.decision,
+    estimate_at_draft: p.estimate_at_draft ?? null,
+    estimate_source: p.estimate_source || 'existing',
+    voted_in: p.voted_in ?? false,
+    pm_override: p.pm_override ?? false,
+    priority_score: p.priority_score ?? 0,
+  }));
+
+  const { data, error } = await supabase
+    .from('sprint_draft_picks')
+    .upsert(rows, { onConflict: 'session_id,session_item_id' })
+    .select('*');
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function submitPriorityVotes(sessionId, votes) {
-  return apiFetch(`/api/sessions/${sessionId}/priority-votes`, {
-    method: 'POST',
-    body: JSON.stringify({ votes }),
-  });
+  const { data: { user } } = await supabase.auth.getUser();
+  const rows = votes.map(v => ({
+    session_id: sessionId,
+    session_item_id: v.session_item_id,
+    user_id: user.id,
+    tokens: v.tokens,
+  }));
+
+  const { error } = await supabase
+    .from('sprint_draft_priority_votes')
+    .upsert(rows, { onConflict: 'session_id,session_item_id,user_id' });
+
+  if (error) throw new Error(error.message);
+
+  const { data: agg } = await supabase
+    .from('sprint_draft_priority_votes')
+    .select('session_item_id, tokens')
+    .eq('session_id', sessionId);
+
+  const scores = {};
+  for (const row of agg || []) {
+    scores[row.session_item_id] = (scores[row.session_item_id] || 0) + row.tokens;
+  }
+  return { scores };
 }
 
 export async function finalizeDraft(sessionId) {
-  return apiFetch(`/api/sessions/${sessionId}/finalize-draft`, {
-    method: 'POST',
-    body: JSON.stringify({}),
+  return edgeFn('finalize-draft', { sessionId });
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+export async function getNotifications() {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('read_at', { ascending: true, nullsFirst: true })
+    .order('created_at', { ascending: false })
+    .limit(50);
+  return data || [];
+}
+
+export async function markNotificationRead(notificationId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', notificationId)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+  return data;
+}
+
+export async function markAllNotificationsRead() {
+  const { data: { user } } = await supabase.auth.getUser();
+  await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .is('read_at', null);
+  return { ok: true };
+}
+
+export async function getUnreadNotificationCount() {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { count } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .is('read_at', null);
+  return { count: count || 0 };
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+export async function searchAll(query, types = ['items', 'projects', 'sprints']) {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id || !query || query.length < 2) return { items: [], projects: [], sprints: [] };
+  const orgId = membership.organization_id;
+  const results = { items: [], projects: [], sprints: [] };
+
+  const searches = [];
+
+  if (types.includes('items')) {
+    searches.push(
+      supabase
+        .from('session_items')
+        .select('id, title, item_code, item_status, sprint_id, sprints!inner(id, name, project_id, projects!inner(id, name, organization_id))')
+        .eq('sprints.projects.organization_id', orgId)
+        .ilike('title', `%${query}%`)
+        .limit(10)
+        .then(({ data }) => {
+          results.items = (data || []).map(item => ({
+            id: item.id,
+            title: item.title,
+            item_code: item.item_code,
+            item_status: item.item_status,
+            sprint_name: item.sprints?.name || null,
+            project_name: item.sprints?.projects?.name || null,
+            project_id: item.sprints?.projects?.id || null,
+          }));
+        })
+        .catch(() => {})
+    );
+  }
+
+  if (types.includes('projects')) {
+    searches.push(
+      supabase
+        .from('projects')
+        .select('id, name, description')
+        .eq('organization_id', orgId)
+        .ilike('name', `%${query}%`)
+        .limit(8)
+        .then(({ data }) => {
+          results.projects = (data || []).map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+          }));
+        })
+        .catch(() => {})
+    );
+  }
+
+  if (types.includes('sprints')) {
+    searches.push(
+      supabase
+        .from('sprints')
+        .select('id, name, project_id, projects!inner(id, name, organization_id)')
+        .eq('projects.organization_id', orgId)
+        .ilike('name', `%${query}%`)
+        .limit(8)
+        .then(({ data }) => {
+          results.sprints = (data || []).map(s => ({
+            id: s.id,
+            name: s.name,
+            project_name: s.projects?.name || null,
+            project_id: s.projects?.id || null,
+          }));
+        })
+        .catch(() => {})
+    );
+  }
+
+  await Promise.all(searches);
+  return results;
+}
+
+// ── Burndown / Velocity ───────────────────────────────────────────────────────
+export async function getSprintBurndown(sprintId) {
+  const { data: sprint } = await supabase
+    .from('sprints')
+    .select('id, name, start_date, end_date')
+    .eq('id', sprintId)
+    .maybeSingle();
+
+  const { data: snapshots } = await supabase
+    .from('sprint_daily_snapshots')
+    .select('*')
+    .eq('sprint_id', sprintId)
+    .order('snapshot_date', { ascending: true });
+
+  let ideal = [];
+  if (sprint?.start_date && sprint?.end_date && snapshots?.length) {
+    const startDate = new Date(sprint.start_date);
+    const endDate = new Date(sprint.end_date);
+    const totalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+    const totalHours = snapshots[0]?.hours_estimated || 0;
+
+    for (let i = 0; i <= totalDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      ideal.push({
+        date: d.toISOString().split('T')[0],
+        hours_remaining: Number((totalHours * (1 - i / totalDays)).toFixed(1))
+      });
+    }
+  }
+
+  return { sprint, snapshots: snapshots || [], ideal };
+}
+
+export async function getProjectVelocity(projectId) {
+  const { data } = await supabase
+    .from('sprint_velocity')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('end_date', { ascending: true });
+  return data || [];
+}
+
+// ── Dependencies ──────────────────────────────────────────────────────────────
+export async function getItemDependencies(itemId) {
+  const [{ data: blocks }, { data: blockedBy }] = await Promise.all([
+    supabase.from('item_dependencies').select('id, depends_on_id, dependency_type, created_at').eq('item_id', itemId),
+    supabase.from('item_dependencies').select('id, item_id, dependency_type, created_at').eq('depends_on_id', itemId),
+  ]);
+
+  const relatedIds = [
+    ...(blocks || []).map(b => b.depends_on_id),
+    ...(blockedBy || []).map(b => b.item_id),
+  ].filter(Boolean);
+
+  let itemMap = new Map();
+  if (relatedIds.length) {
+    const { data: items } = await supabase
+      .from('session_items')
+      .select('id, title, item_code, item_status')
+      .in('id', relatedIds);
+    (items || []).forEach(i => itemMap.set(i.id, i));
+  }
+
+  return {
+    blocks: (blocks || []).map(b => ({ ...b, item: itemMap.get(b.depends_on_id) || null })),
+    blocked_by: (blockedBy || []).map(b => ({ ...b, item: itemMap.get(b.item_id) || null })),
+  };
+}
+
+export async function addItemDependency(itemId, dependsOnId, dependencyType) {
+  if (itemId === dependsOnId) throw new Error('Cannot depend on itself');
+
+  const { data, error } = await supabase
+    .from('item_dependencies')
+    .insert({
+      item_id: itemId,
+      depends_on_id: dependsOnId,
+      dependency_type: dependencyType || 'blocks',
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function removeItemDependency(dependencyId) {
+  const { error } = await supabase
+    .from('item_dependencies')
+    .delete()
+    .eq('id', dependencyId);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+export async function getTemplates() {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return [];
+
+  const { data } = await supabase
+    .from('session_templates')
+    .select('*')
+    .eq('organization_id', membership.organization_id)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function createTemplate(name, config) {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('session_templates')
+    .insert({
+      organization_id: membership.organization_id,
+      created_by: user?.id,
+      name: (name || '').trim(),
+      config: config || {}
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function deleteTemplate(templateId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('session_templates')
+    .delete()
+    .eq('id', templateId)
+    .eq('created_by', user?.id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+// ── Org Members ───────────────────────────────────────────────────────────────
+export async function getOrgMembers() {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: orgMembers } = await supabase
+    .from('organization_members')
+    .select('id, user_id, role, joined_at')
+    .eq('organization_id', membership.organization_id);
+
+  const userIds = (orgMembers || []).map(m => m.user_id).filter(Boolean);
+  let profileMap = new Map();
+  if (userIds.length) {
+    const { data: profiles } = await supabase.from('profiles').select('id, display_name, avatar_class').in('id', userIds);
+    (profiles || []).forEach(p => profileMap.set(p.id, p));
+  }
+
+  return (orgMembers || []).map(m => {
+    const profile = profileMap.get(m.user_id);
+    return {
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role || 'member',
+      joined_at: m.joined_at,
+      display_name: profile?.display_name || m.user_id?.slice(0, 8) || 'Unknown',
+      avatar_class: profile?.avatar_class || null,
+      is_me: m.user_id === user?.id,
+    };
   });
+}
+
+export async function updateMemberRole(memberId, role) {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+
+  const { data, error } = await supabase
+    .from('organization_members')
+    .update({ role })
+    .eq('id', memberId)
+    .eq('organization_id', membership.organization_id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { ok: true, member: data };
+}
+
+export async function getMyPermissions() {
+  const membership = await resolveMembership();
+  const ROLE_PERMISSIONS = {
+    owner: ['create_session', 'manage_sprints', 'manage_items', 'approve_estimates', 'view_all', 'change_owner', 'manage_members'],
+    admin: ['create_session', 'manage_sprints', 'manage_items', 'approve_estimates', 'view_all', 'manage_members'],
+    pm: ['create_session', 'manage_sprints', 'manage_items', 'approve_estimates', 'view_all'],
+    tech_lead: ['create_session', 'manage_items', 'view_all'],
+    developer: ['create_session', 'vote', 'view_team'],
+    member: ['create_session', 'vote', 'view_team'],
+    observer: ['view_only'],
+    guest: ['view_only'],
+  };
+
+  const role = membership?.role || 'guest';
+  return {
+    role,
+    permissions: ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS['guest'],
+    organization_id: membership?.organization_id,
+    team_id: membership?.team_id,
+  };
+}
+
+// ── Session Results ───────────────────────────────────────────────────────────
+export async function getSessionResults(sessionId, token) {
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id,name,status,voting_mode,created_at,ended_at,share_token')
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  if (!session) throw new Error('Session not found');
+
+  if (token && String(session.share_token) !== String(token)) {
+    throw new Error('Invalid token');
+  }
+
+  const { data: items } = await supabase
+    .from('session_items')
+    .select('id,title,final_estimate')
+    .eq('session_id', sessionId)
+    .order('item_order');
+
+  const itemIds = (items || []).map(i => i.id);
+  const { data: votes } = itemIds.length
+    ? await supabase
+      .from('votes')
+      .select('id,session_item_id,value,confidence,user_id,perspective,profiles(display_name)')
+      .in('session_item_id', itemIds)
+    : { data: [] };
+
+  function normalizeVote(val) {
+    if (val == null) return null;
+    const n = Number(val);
+    if (Number.isNaN(n)) {
+      const tshirt = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+      return tshirt.indexOf(String(val).toUpperCase()) + 1 || null;
+    }
+    return n;
+  }
+
+  function median(values) {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  function avg(values) {
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0) / values.length;
+  }
+
+  function percentile(values, p) {
+    if (!values.length) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const idx = (sorted.length - 1) * p;
+    const low = Math.floor(idx);
+    const high = Math.ceil(idx);
+    if (low === high) return sorted[low];
+    return sorted[low] + (sorted[high] - sorted[low]) * (idx - low);
+  }
+
+  const rows = (items || []).map(item => {
+    const itemVotes = (votes || []).filter(v => v.session_item_id === item.id);
+    const numbers = itemVotes.map(v => normalizeVote(v.value)).filter(v => typeof v === 'number' && !Number.isNaN(v));
+    const med = median(numbers);
+    const q1 = percentile(numbers, 0.25);
+    const q3 = percentile(numbers, 0.75);
+    const iqr = (q1 != null && q3 != null) ? (q3 - q1) : null;
+    const outlierThreshold = iqr != null ? (q3 + iqr * 1.5) : null;
+    const outlier = outlierThreshold != null && numbers.some(v => v > outlierThreshold);
+    const avgConfidence = itemVotes.length
+      ? (itemVotes.reduce((sum, v) => sum + (Number(v.confidence) || 0), 0) / itemVotes.length)
+      : 0;
+
+    const byPerspective = itemVotes.reduce((acc, v) => {
+      if (!v.perspective) return acc;
+      if (!acc[v.perspective]) acc[v.perspective] = [];
+      const n = Number(v.value);
+      if (!Number.isNaN(n)) acc[v.perspective].push(n);
+      return acc;
+    }, {});
+
+    const perspective_consensus = Object.entries(byPerspective)
+      .map(([perspective, vals]) => ({
+        perspective,
+        count: vals.length,
+        consensus: vals.length ? Math.round(avg(vals)) : null
+      }))
+      .filter(row => row.count > 0);
+
+    const recommended_estimate = perspective_consensus.length
+      ? Math.round(avg(perspective_consensus.map(p => p.consensus).filter(v => typeof v === 'number')))
+      : null;
+
+    const consensus = session.voting_mode === 'perspective_poker'
+      ? (recommended_estimate ?? item.final_estimate ?? null)
+      : (med > 0 ? med : (item.final_estimate || null));
+
+    return {
+      id: item.id,
+      title: item.title,
+      final_estimate: item.final_estimate,
+      median: med,
+      consensus,
+      recommended_estimate,
+      perspective_consensus,
+      outlier_threshold: outlierThreshold != null ? Number(outlierThreshold.toFixed(2)) : null,
+      avg_confidence: Number(avgConfidence.toFixed(2)),
+      outlier,
+      votes: itemVotes.map(v => ({
+        user_id: v.user_id,
+        name: v.profiles?.display_name || v.user_id?.slice(0, 6) || 'unknown',
+        value: v.value,
+        perspective: v.perspective || null,
+        confidence: v.confidence || null,
+        outlier: outlierThreshold != null ? Number(v.value) > outlierThreshold : false
+      }))
+    };
+  });
+
+  const estimatedRows = rows.filter(r => r.consensus !== null && r.consensus !== undefined);
+  const points = estimatedRows.reduce((sum, r) => sum + (Number(r.consensus) || 0), 0);
+  const avgConf = rows.length
+    ? rows.reduce((sum, r) => sum + (Number(r.avg_confidence) || 0), 0) / rows.length
+    : 0;
+
+  return {
+    session: { ...session, share_token: session.share_token },
+    items: rows,
+    summary: {
+      total_items: rows.length,
+      estimated_items: estimatedRows.length,
+      outliers: rows.filter(r => r.outlier).length,
+      total_points: Number(points.toFixed(2)),
+      avg_confidence: Number(avgConf.toFixed(2))
+    }
+  };
+}
+
+export async function createShareToken(sessionId) {
+  const token = crypto.randomUUID();
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ share_token: token })
+    .eq('id', sessionId)
+    .select('id, share_token')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── Estimation Pipeline ───────────────────────────────────────────────────────
+export async function createEstimationSession(itemId, { session_name, voting_mode, backlog_items } = {}) {
+  return edgeFn('start-estimation', {
+    type: 'item',
+    id: itemId,
+    session_name,
+    voting_mode,
+    backlog_items
+  });
+}
+
+export async function getEstimationSessions(itemId) {
+  const { data: sessionItems } = await supabase
+    .from('session_items')
+    .select('id, title, final_estimate, created_at, session_id, source_item_id')
+    .eq('source_item_id', itemId)
+    .order('created_at', { ascending: false });
+
+  if (!sessionItems?.length) return [];
+
+  const sessionIds = [...new Set(sessionItems.map(si => si.session_id).filter(Boolean))];
+  const { data: sessions } = await supabase
+    .from('sessions')
+    .select('id, name, status, created_at, join_code')
+    .in('id', sessionIds);
+
+  const sessionMap = new Map((sessions || []).map(s => [s.id, s]));
+
+  return sessionItems.map(si => ({
+    session_item_id: si.id,
+    session_id: si.session_id,
+    session_name: sessionMap.get(si.session_id)?.name || si.title,
+    session_status: sessionMap.get(si.session_id)?.status || 'unknown',
+    join_code: sessionMap.get(si.session_id)?.join_code || null,
+    final_estimate: si.final_estimate,
+    created_at: si.created_at,
+  }));
+}
+
+export async function applyEstimationResult(sessionItemId) {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: sessionItem } = await supabase
+    .from('session_items')
+    .select('id, source_item_id, final_estimate, title')
+    .eq('id', sessionItemId)
+    .maybeSingle();
+
+  if (!sessionItem) throw new Error('Session item not found');
+  if (!sessionItem.source_item_id) throw new Error('No source_item_id — item is not linked to a PM task');
+  if (!sessionItem.final_estimate) throw new Error('No final_estimate on this session item');
+
+  const { data: existing } = await supabase
+    .from('approval_requests')
+    .select('id, state')
+    .eq('target_type', 'item_estimate')
+    .eq('target_id', sessionItem.source_item_id)
+    .in('state', ['pending_approval', 'pending'])
+    .maybeSingle();
+
+  if (existing) throw new Error('En approval request for dette item er allerede pending');
+
+  const { data: approval, error } = await supabase
+    .from('approval_requests')
+    .insert({
+      organization_id: membership.organization_id,
+      team_id: membership.team_id || null,
+      target_type: 'item_estimate',
+      target_id: sessionItem.source_item_id,
+      requested_patch: { estimated_hours: sessionItem.final_estimate },
+      requested_by: user?.id,
+      state: 'pending_approval',
+      idempotency_key: `item_estimate:${sessionItem.source_item_id}:${sessionItemId}`,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { approval_request_id: approval.id };
+}
+
+// ── Snapshots ─────────────────────────────────────────────────────────────────
+export async function createSprintSnapshot(sprintId) {
+  const { data: items } = await supabase
+    .from('session_items')
+    .select('id, item_status, estimated_hours, actual_hours')
+    .eq('sprint_id', sprintId);
+
+  const allItems = items || [];
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('sprint_daily_snapshots')
+    .upsert({
+      sprint_id: sprintId,
+      snapshot_date: today,
+      items_total: allItems.length,
+      items_done: allItems.filter(i => i.item_status === 'completed' || i.item_status === 'done').length,
+      hours_estimated: allItems.reduce((sum, i) => sum + (Number(i.estimated_hours) || 0), 0),
+      hours_actual: allItems.filter(i => i.item_status === 'completed' || i.item_status === 'done')
+        .reduce((sum, i) => sum + (Number(i.actual_hours) || 0), 0),
+      hours_remaining: allItems.filter(i => i.item_status !== 'completed' && i.item_status !== 'done')
+        .reduce((sum, i) => sum + (Number(i.estimated_hours) || 0), 0),
+    }, { onConflict: 'sprint_id,snapshot_date' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── Session Update ────────────────────────────────────────────────────────────
+export async function updateSession(sessionId, updates) {
+  const updateObj = {};
+  if (updates.status !== undefined) {
+    updateObj.status = updates.status;
+    if (updates.status === 'active') updateObj.started_at = new Date().toISOString();
+    if (updates.status === 'completed') updateObj.ended_at = new Date().toISOString();
+  }
+  if (updates.current_item_index !== undefined) updateObj.current_item_index = updates.current_item_index;
+  if (updates.current_item_id !== undefined) updateObj.current_item_id = updates.current_item_id;
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .update(updateObj)
+    .eq('id', sessionId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+export async function getWebhookConfig() {
+  const membership = await resolveMembership();
+  if (!membership?.team_id) return { team_id: null, url: null, enabled: false };
+
+  const { data } = await supabase
+    .from('webhook_configs')
+    .select('id, team_id, url, enabled, created_at, updated_at')
+    .eq('team_id', membership.team_id)
+    .maybeSingle();
+
+  return data || { team_id: membership.team_id, url: null, enabled: false };
+}
+
+export async function updateWebhookConfig({ url, secret, enabled }) {
+  const membership = await resolveMembership();
+  if (!membership?.team_id) throw new Error('No team');
+
+  const trimmedUrl = typeof url === 'string' ? url.trim() : '';
+  const payload = {
+    team_id: membership.team_id,
+    url: trimmedUrl || null,
+    enabled: Boolean(enabled) && Boolean(trimmedUrl),
+    updated_at: new Date().toISOString()
+  };
+  if (typeof secret === 'string') payload.secret = secret;
+
+  const { data, error } = await supabase
+    .from('webhook_configs')
+    .upsert(payload, { onConflict: 'team_id' })
+    .select('id, team_id, url, enabled, created_at, updated_at')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── Comments (DB: comments table) ─────────────────────────────────────────────
+export async function getComments(itemId) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data } = await supabase
+    .from('comments')
+    .select('id, body, parent_id, created_at, updated_at, author_id')
+    .eq('item_id', itemId)
+    .order('created_at', { ascending: true });
+
+  const authorIds = [...new Set((data || []).map(c => c.author_id).filter(Boolean))];
+  let authorMap = new Map();
+  if (authorIds.length) {
+    const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', authorIds);
+    (profiles || []).forEach(p => authorMap.set(p.id, p.display_name || p.id.slice(0, 8)));
+  }
+
+  return (data || []).map(c => ({
+    ...c,
+    author_name: authorMap.get(c.author_id) || 'Unknown',
+    is_own: c.author_id === user?.id,
+  }));
+}
+
+export async function addComment(itemId, body, parentId) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('comments')
+    .insert({
+      item_id: itemId,
+      author_id: user?.id,
+      body: (body || '').trim(),
+      parent_id: parentId || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  const { data: profile } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  return { ...data, author_name: profile?.display_name || user.id.slice(0, 8), is_own: true };
+}
+
+export async function updateComment(commentId, body) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('comments')
+    .update({ body: (body || '').trim(), updated_at: new Date().toISOString() })
+    .eq('id', commentId)
+    .eq('author_id', user?.id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function deleteComment(commentId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('author_id', user?.id);
+
+  if (error) throw new Error(error.message);
+  return { ok: true };
 }
