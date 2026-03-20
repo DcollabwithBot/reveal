@@ -37,6 +37,7 @@ export default function PokerRouletteSteps({
   LootDrops,
   C,
   PF,
+  showXpBadges = true,
 }) {
   return (
     <>
@@ -148,15 +149,17 @@ export default function PokerRouletteSteps({
         </div>
         <div style={{ fontFamily: PF, fontSize: '6px', color: C.gld, marginBottom: '6px', animation: 'pop 0.5s 0.3s both' }}>◈ LOOT DROPS ◈</div>
         <LootDrops items={loot} active={showLoot} />
-        <Box color={C.xp} glow={C.xp + '33'} style={{ padding: '10px', maxWidth: '300px', margin: '10px auto' }}>
-          <div style={{ fontFamily: PF, fontSize: '7px', color: C.xp }}>⭐ +{45 + combo * 5} XP</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
-            <span style={{ fontFamily: PF, fontSize: '5px', color: C.gld }}>LV3</span>
-            <div style={{ flex: 1, height: '7px', background: C.bg, border: `2px solid ${C.brd}` }}>
-              <div style={{ height: '100%', width: '72%', background: `linear-gradient(90deg,${C.xp},${C.bluL})`, transition: 'width 2s', boxShadow: `0 0 6px ${C.xp}44` }} />
+        {showXpBadges && (
+          <Box color={C.xp} glow={C.xp + '33'} style={{ padding: '10px', maxWidth: '300px', margin: '10px auto' }}>
+            <div style={{ fontFamily: PF, fontSize: '7px', color: C.xp }}>⭐ +{45 + combo * 5} XP</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
+              <span style={{ fontFamily: PF, fontSize: '5px', color: C.gld }}>LV3</span>
+              <div style={{ flex: 1, height: '7px', background: C.bg, border: `2px solid ${C.brd}` }}>
+                <div style={{ height: '100%', width: '72%', background: `linear-gradient(90deg,${C.xp},${C.bluL})`, transition: 'width 2s', boxShadow: `0 0 6px ${C.xp}44` }} />
+              </div>
             </div>
-          </div>
-        </Box>
+          </Box>
+        )}
         {achieves.length > 0 && <div style={{ marginTop: '8px' }}>
           <div style={{ fontFamily: PF, fontSize: '5px', color: C.gld, marginBottom: '4px' }}>ACHIEVEMENTS</div>
           <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>

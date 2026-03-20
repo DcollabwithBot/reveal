@@ -20,12 +20,18 @@ import { applyOracleDecision, applyRetroEventVote, applyRootCauseDecision, build
 import { createChallengeCompletionResult, createConfidenceResult, createLifelineResult, createVictoryResult, createVoteResult } from "../domain/session/challenge/sessionTransitions.js";
 import { useSessionData } from "../hooks/useSessionData.js";
 import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
+import { useGameFeature } from "../shared/useGameFeature.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
 
 
 export default function Session({ avatar, node, project, onBack, onComplete, sound }) {
+  // Game mode feature flags
+  const showBossHp = useGameFeature('bossHp');
+  const showXpBadges = useGameFeature('xpBadges');
+  const showParticles = useGameFeature('particles');
+
   // Determine mode from node type
   const isR = node?.tp === "r";
   const isB = node?.tp === "b";
@@ -353,7 +359,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
           <SessionCombatStage
             C={C}
             PF={PF}
-            boss={sessionVm.combat.boss}
+            boss={showBossHp ? sessionVm.combat.boss : { ...sessionVm.combat.boss, hp: null, maxHp: null }}
             dmgNums={sessionVm.combat.dmgNums}
             Boss={Boss}
             DmgNum={DmgNum}
@@ -411,6 +417,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
               LootDrops={LootDrops}
               C={C}
               PF={PF}
+              showXpBadges={showXpBadges}
             />
           </div>
         </div>

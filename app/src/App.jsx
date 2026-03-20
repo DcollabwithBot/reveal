@@ -4,6 +4,7 @@ import { useSound } from "./shared/useSound.js";
 import Landing from "./screens/Landing.jsx";
 import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
+import { GameModeProvider } from "./shared/GameModeContext.jsx";
 import "./shared/animations.css";
 
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
@@ -12,11 +13,13 @@ const WorldSelect = lazy(() => import("./screens/WorldSelect.jsx"));
 const Overworld = lazy(() => import("./screens/Overworld.jsx"));
 const Session = lazy(() => import("./screens/Session.jsx"));
 const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
+const WorkspaceSettings = lazy(() => import("./screens/WorkspaceSettings.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | timelog | game
+  const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | timelog | settings | game
+  const [organizationId, setOrganizationId] = useState(null);
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [timelogProjectId, setTimelogProjectId] = useState(null);
   const [avatar, setAvatar] = useState(null);
@@ -28,6 +31,10 @@ export default function App() {
     if (!hasUser) return;
     if (pathname === '/dashboard') {
       setAuthScreen('dashboard');
+      return;
+    }
+    if (pathname === '/settings') {
+      setAuthScreen('settings');
       return;
     }
     const timelogMatch = pathname.match(/^\/projects\/([^/]+)\/timelog$/);
@@ -78,7 +85,10 @@ export default function App() {
         user_id: user.id,
         display_name: user.user_metadata?.full_name || user.email
       })
-    }).catch(() => {});
+    })
+      .then((r) => r.json())
+      .then((data) => { if (data?.organization_id) setOrganizationId(data.organization_id); })
+      .catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -137,21 +147,42 @@ export default function App() {
 
   if (user && authScreen === "dashboard") {
     return (
-      <Suspense fallback={<LoadingScreen label="LOADING DASHBOARD..." />}>
-        <Dashboard
-          user={user}
-          onBackToLobby={() => {
-            window.history.pushState({}, document.title, '/');
-            setAuthScreen("lobby");
-          }}
-          onContinue={() => setAuthScreen("game")}
-          onTimelog={(projectId) => {
-            window.history.pushState({}, document.title, `/projects/${projectId}/timelog`);
-            setTimelogProjectId(projectId);
-            setAuthScreen("timelog");
-          }}
-        />
-      </Suspense>
+      <GameModeProvider organizationId={organizationId}>
+        <Suspense fallback={<LoadingScreen label="LOADING DASHBOARD..." />}>
+          <Dashboard
+            user={user}
+            onBackToLobby={() => {
+              window.history.pushState({}, document.title, '/');
+              setAuthScreen("lobby");
+            }}
+            onContinue={() => setAuthScreen("game")}
+            onTimelog={(projectId) => {
+              window.history.pushState({}, document.title, `/projects/${projectId}/timelog`);
+              setTimelogProjectId(projectId);
+              setAuthScreen("timelog");
+            }}
+            onSettings={() => {
+              window.history.pushState({}, document.title, '/settings');
+              setAuthScreen("settings");
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "settings") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <Suspense fallback={<LoadingScreen label="LOADING SETTINGS..." />}>
+          <WorkspaceSettings
+            onBack={() => {
+              window.history.pushState({}, document.title, '/dashboard');
+              setAuthScreen("dashboard");
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
     );
   }
 
@@ -170,49 +201,51 @@ export default function App() {
   }
 
   return (
-    <Suspense fallback={<LoadingScreen label="LOADING GAME..." />}>
-      {screen === "avatar" && (
-        <AvatarCreator
-          onDone={(av) => { setAvatar(av); setScreen("worlds"); }}
-          sound={sound}
-        />
-      )}
-      {screen === "worlds" && (
-        <WorldSelect
-          avatar={avatar}
-          onSelect={(w) => { setWorld(w); setScreen("map"); }}
-          sound={sound}
-        />
-      )}
-      {screen === "map" && (
-        <Overworld
-          project={world}
-          avatar={avatar}
-          onBack={() => setScreen("worlds")}
-          onNode={(n) => { setNode(n); setScreen("session"); }}
-          sound={sound}
-        />
-      )}
-      {screen === "session" && (
-        <Session
-          avatar={avatar}
-          node={node}
-          project={world}
-          onBack={() => setScreen("map")}
-          onComplete={(nodeId) => {
-            if (nodeId) {
-              setWorld(w => w ? {
-                ...w,
-                nodes: w.nodes.map(n => n.id === nodeId ? { ...n, dn: true } : n)
-              } : w);
-            }
-            setNode(null);
-            setScreen("map");
-          }}
-          sound={sound}
-        />
-      )}
-    </Suspense>
+    <GameModeProvider organizationId={organizationId}>
+      <Suspense fallback={<LoadingScreen label="LOADING GAME..." />}>
+        {screen === "avatar" && (
+          <AvatarCreator
+            onDone={(av) => { setAvatar(av); setScreen("worlds"); }}
+            sound={sound}
+          />
+        )}
+        {screen === "worlds" && (
+          <WorldSelect
+            avatar={avatar}
+            onSelect={(w) => { setWorld(w); setScreen("map"); }}
+            sound={sound}
+          />
+        )}
+        {screen === "map" && (
+          <Overworld
+            project={world}
+            avatar={avatar}
+            onBack={() => setScreen("worlds")}
+            onNode={(n) => { setNode(n); setScreen("session"); }}
+            sound={sound}
+          />
+        )}
+        {screen === "session" && (
+          <Session
+            avatar={avatar}
+            node={node}
+            project={world}
+            onBack={() => setScreen("map")}
+            onComplete={(nodeId) => {
+              if (nodeId) {
+                setWorld(w => w ? {
+                  ...w,
+                  nodes: w.nodes.map(n => n.id === nodeId ? { ...n, dn: true } : n)
+                } : w);
+              }
+              setNode(null);
+              setScreen("map");
+            }}
+            sound={sound}
+          />
+        )}
+      </Suspense>
+    </GameModeProvider>
   );
 }
 

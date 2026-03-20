@@ -47,17 +47,20 @@ export function Sprite({ m, size = 1, anim, attacking, hit, idle = true }) {
 }
 
 export function Boss({ hp, maxHp, name, hit, defeated }) {
-  const pct = Math.max(0, (hp / maxHp) * 100);
+  const showHp = hp != null && maxHp != null;
+  const pct = showHp ? Math.max(0, (hp / maxHp) * 100) : 100;
   const hpColor = pct > 60 ? C.grn : pct > 30 ? C.yel : C.red;
   return (
     <div style={{ textAlign: 'center', animation: hit ? 'bossHit 0.3s' : 'none' }}>
       <div style={{ fontFamily: PF, fontSize: '8px', color: C.acc, letterSpacing: '2px', marginBottom: '4px', textShadow: `0 0 8px ${C.acc}44` }}>{name}</div>
-      <div style={{ width: '220px', margin: '0 auto', position: 'relative' }}>
-        <div style={{ height: '14px', background: C.bg, border: `3px solid ${C.brd}`, position: 'relative', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${hpColor},${dk(hpColor, -30)})`, transition: 'width 0.5s ease-out', boxShadow: `0 0 8px ${hpColor}44` }} />
+      {showHp && (
+        <div style={{ width: '220px', margin: '0 auto', position: 'relative' }}>
+          <div style={{ height: '14px', background: C.bg, border: `3px solid ${C.brd}`, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${hpColor},${dk(hpColor, -30)})`, transition: 'width 0.5s ease-out', boxShadow: `0 0 8px ${hpColor}44` }} />
+          </div>
+          <div style={{ fontFamily: PF, fontSize: '6px', color: hpColor, marginTop: '2px' }}>{Math.round(hp)}/{maxHp} HP</div>
         </div>
-        <div style={{ fontFamily: PF, fontSize: '6px', color: hpColor, marginTop: '2px' }}>{Math.round(hp)}/{maxHp} HP</div>
-      </div>
+      )}
       <div style={{ fontSize: defeated ? '40px' : '50px', marginTop: '8px', filter: hit ? 'brightness(2)' : 'none', transition: 'all 0.2s', animation: defeated ? 'bossDeath 1s ease-out forwards' : pct < 30 ? 'bossRage 0.5s ease-in-out infinite' : 'bossIdle 2s ease-in-out infinite' }}>👾</div>
     </div>
   );

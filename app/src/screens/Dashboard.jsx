@@ -10,7 +10,7 @@ import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import DashboardSnapshot from '../components/governance/DashboardSnapshot';
 
-export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog }) {
+export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, onSettings }) {
   const displayName = user?.user_metadata?.full_name || user?.email || 'Spiller';
   const [loadingGov, setLoadingGov] = useState(true);
   const [error, setError] = useState(null);
@@ -80,7 +80,12 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog }
         <div style={styles.topbar}>
           <button style={styles.ghostBtn} onClick={onBackToLobby}>← Lobby</button>
           <div style={styles.topbarTitle}>Governance Dashboard · {displayName.split(' ')[0]}</div>
-          <button style={styles.primaryBtn} onClick={onContinue}>▶ Continue to game</button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {onSettings && (
+              <button style={styles.ghostBtn} onClick={onSettings}>⚙ Settings</button>
+            )}
+            <button style={styles.primaryBtn} onClick={onContinue}>▶ Continue to game</button>
+          </div>
         </div>
 
         <GovernanceSummary health={health} approvedReadyCount={approvedReady.length} />
