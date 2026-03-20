@@ -71,13 +71,13 @@ export async function getDashboard() {
   const [{ data: sessions }, { data: projects }] = await Promise.all([
     supabase
       .from('sessions')
-      .select('id,name,status,join_code,created_at,started_at,ended_at,session_type,project_id')
+      .select('id,name,status,join_code,created_at,started_at,ended_at,session_type,project_id,session_items(count),session_participants(count)')
       .eq('organization_id', membership.organization_id)
       .order('created_at', { ascending: false })
       .limit(100),
     supabase
       .from('projects')
-      .select('id,name,description,status,color,icon,created_by,created_at,updated_at')
+      .select('id,name,description,status,color,icon,created_by,created_at,updated_at,sprints(id,session_items(id,status))')
       .eq('organization_id', membership.organization_id)
       .order('updated_at', { ascending: false })
   ]);
@@ -95,28 +95,59 @@ export async function getDashboard() {
   }
 
   const activity = [
-    ...(sessions || []).slice(0, 20).map(s => ({
-      id: `session-${s.id}`,
-      type: 'session',
-      title: s.name,
-      description: s.status === 'completed' ? 'Session completed' : s.status === 'active' ? 'Session active' : 'Session updated',
-      created_at: s.ended_at || s.started_at || s.created_at,
-      href: `/sessions/${s.id}/results`
-    })),
-    ...(projects || []).slice(0, 20).map(p => ({
-      id: `project-${p.id}`,
-      type: 'project',
-      title: p.name,
-      description: `Project ${p.status.replace('_', ' ')}`,
-      created_at: p.updated_at || p.created_at,
-      href: `/projects/${p.id}`
-    }))
+    ...(sessions || []).slice(0, 20).map(s => {
+      const itemCount = s.session_items?.[0]?.count || 0;
+      const partCount = s.session_participants?.[0]?.count || 0;
+      let description;
+      if (s.status === 'completed') {
+        description = `Session afsluttet · ${itemCount} item${itemCount !== 1 ? 's' : ''}${partCount ? ` · ${partCount} deltagere` : ''}`;
+      } else if (s.status === 'active') {
+        description = `Session i gang · ${itemCount} item${itemCount !== 1 ? 's' : ''}${partCount ? ` · ${partCount} deltagere` : ''}`;
+      } else {
+        description = `Session klar · ${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+      }
+      return {
+        id: `session-${s.id}`,
+        type: 'session',
+        title: s.name,
+        description,
+        created_at: s.ended_at || s.started_at || s.created_at,
+        href: `/sessions/${s.id}/results`
+      };
+    }),
+    ...(projects || []).slice(0, 20).map(p => {
+      const allItems = (p.sprints || []).flatMap(s => s.session_items || []);
+      const doneItems = allItems.filter(i => i.status === 'completed' || i.status === 'done').length;
+      const total = allItems.length;
+      const progress = total > 0 ? Math.round((doneItems / total) * 100) : 0;
+      let description;
+      if (total > 0) {
+        description = `${doneItems}/${total} items · ${progress}% færdig`;
+      } else {
+        description = `Projekt ${p.status.replace('_', ' ')} · ingen items endnu`;
+      }
+      return {
+        id: `project-${p.id}`,
+        type: 'project',
+        title: p.name,
+        description,
+        created_at: p.updated_at || p.created_at,
+        href: `/projects/${p.id}`
+      };
+    })
   ]
     .filter(i => i.created_at)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 12);
 
-  return { ...byStatus, projects: projects || [], activity };
+  const projectsWithProgress = (projects || []).map(p => {
+    const allItems = (p.sprints || []).flatMap(s => s.session_items || []);
+    const doneItems = allItems.filter(i => i.status === 'completed' || i.status === 'done');
+    const progress = allItems.length > 0 ? Math.round((doneItems.length / allItems.length) * 100) : 0;
+    return { ...p, total_items: allItems.length, progress };
+  });
+
+  return { ...byStatus, projects: projectsWithProgress, activity };
 }
 
 // ── Governance / Dashboard combo ──────────────────────────────────────────────

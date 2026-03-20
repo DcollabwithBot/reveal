@@ -772,22 +772,55 @@ app.get('/api/dashboard', async (req, res) => {
   }));
 
   const activity = [
-    ...(sessions || []).slice(0, 20).map((session) => ({
-      id: `session-${session.id}`,
-      type: 'session',
-      title: `${session.name}`,
-      description: session.status === 'completed' ? 'Session completed' : session.status === 'active' ? 'Session active' : 'Session updated',
-      created_at: session.ended_at || session.started_at || session.created_at,
-      href: `/sessions/${session.id}/results`
-    })),
-    ...(enrichedProjects || []).slice(0, 20).map((project) => ({
-      id: `project-${project.id}`,
-      type: 'project',
-      title: `${project.name}`,
-      description: `Project ${project.status.replace('_', ' ')}`,
-      created_at: project.updated_at || project.created_at,
-      href: `/projects/${project.id}`
-    }))
+    ...(sessions || []).slice(0, 20).map((session) => {
+      const itemCount = session.item_count || 0;
+      const partCount = session.participant_count || 0;
+      let description;
+      if (session.status === 'completed') {
+        description = `Session afsluttet · ${itemCount} item${itemCount !== 1 ? 's' : ''}${partCount ? ` · ${partCount} deltagere` : ''}`;
+      } else if (session.status === 'active') {
+        description = `Session i gang · ${itemCount} item${itemCount !== 1 ? 's' : ''}${partCount ? ` · ${partCount} deltagere` : ''}`;
+      } else {
+        description = `Session klar · ${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+      }
+      return {
+        id: `session-${session.id}`,
+        type: 'session',
+        title: session.name,
+        description,
+        created_at: session.ended_at || session.started_at || session.created_at,
+        href: `/sessions/${session.id}/results`
+      };
+    }),
+    ...(enrichedProjects || []).slice(0, 20).map((project) => {
+      const progress = project.progress ?? 0;
+      const totalItems = project.total_items || 0;
+      const doneItems = project.done_items || 0;
+      const nextMilestone = project.next_milestone;
+      let description;
+      if (nextMilestone) {
+        const daysLeft = Math.ceil((new Date(nextMilestone.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (daysLeft < 0) {
+          description = `${doneItems}/${totalItems} items · ${nextMilestone.name} overskredet`;
+        } else if (daysLeft === 0) {
+          description = `${doneItems}/${totalItems} items · ${nextMilestone.name} udløber i dag`;
+        } else {
+          description = `${doneItems}/${totalItems} items · ${nextMilestone.name} om ${daysLeft} dag${daysLeft !== 1 ? 'e' : ''}`;
+        }
+      } else if (totalItems > 0) {
+        description = `${doneItems}/${totalItems} items · ${progress}% færdig`;
+      } else {
+        description = `Projekt ${project.status.replace('_', ' ')} · ingen items endnu`;
+      }
+      return {
+        id: `project-${project.id}`,
+        type: 'project',
+        title: project.name,
+        description,
+        created_at: project.updated_at || project.created_at,
+        href: `/projects/${project.id}`
+      };
+    })
   ]
     .filter((item) => item.created_at)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
