@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameMode } from '../shared/GameModeContext';
 import { Card } from '../components/ui/Card';
 import { supabase } from '../lib/supabase';
+import IntegrationsSettings from '../components/IntegrationsSettings';
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -348,6 +349,17 @@ export default function WorkspaceSettings({ onBack }) {
             </div>
           </div>
           <TeamRoles myPermissions={myPermissions} />
+        </div>
+
+        {/* Integrations section */}
+        <div style={{ marginTop: 48 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>🔗 Integrationer</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+              Forbind eksterne systemer som Jira, Azure DevOps og TopDesk.
+            </div>
+          </div>
+          <IntegrationsSettings />
         </div>
       </div>
     </div>

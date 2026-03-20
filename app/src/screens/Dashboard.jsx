@@ -28,6 +28,7 @@ import {
 import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import GameStatsBar from '../components/GameStatsBar';
+import DailyMissionsCard from '../components/DailyMissionsCard';
 import { KpiCard, Pill } from '../components/ui/Card';
 import { RoomsSection } from '../components/RoomCard';
 import SprintCloseModal from '../components/SprintCloseModal';
@@ -813,11 +814,15 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
 
       <QuickCreatePanel projects={activeProjects} assignees={assignees} onCreated={() => { refreshGovernance(); loadRecentItems(); }} onOpenWorkspace={onWorkspace} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+      {/* Daily Missions + KPIs side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, marginBottom: 28 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <KpiCard label="At Risk" value={atRiskCount + riskItems.length} sub={riskItems.length > 0 ? riskItems.slice(0, 2).map(r => r.title.slice(0, 20)).join(' · ') : 'alt ser godt ud'} color={(atRiskCount + riskItems.length) > 0 ? 'var(--danger)' : 'var(--text)'} />
         <EditableKpiCard label="Total Blocked" value={blockedCount} sub={mttrVal ? `Avg MTTR ${mttrVal}h` : 'blokkerede items'} color={blockedCount > 0 ? 'var(--danger)' : 'var(--text)'} editing={editingMetric === 'blocked'} onEdit={() => setEditingMetric('blocked')} onSave={(val, prev) => handleSaveMetric('total_blocked', val, prev)} onCancel={() => setEditingMetric(null)} extraKey="avg_mttr" extraLabel="Avg MTTR (h)" extraValue={mttrVal} onSaveExtra={(val) => upsertOrgMetric(orgId, 'avg_mttr', val, null, null).then(() => setOrgMetrics(prev => ({ ...prev, avg_mttr: { value_num: val } })))} />
         <EditableKpiCard label="Portfolio Confidence" value={confidenceVal !== null ? `${confidenceVal}%` : '—'} sub={confidencePrev !== null ? `${confidenceVal >= confidencePrev ? '+' : ''}${confidenceVal - confidencePrev}% vs last sprint` : 'klik for at sætte'} color={confidenceVal >= 70 ? 'var(--jade)' : confidenceVal >= 50 ? 'var(--warn)' : 'var(--text)'} editing={editingMetric === 'confidence'} onEdit={() => setEditingMetric('confidence')} onSave={(val, prev) => handleSaveMetric('portfolio_confidence', val, prev)} onCancel={() => setEditingMetric(null)} isPercent />
         <KpiCard label="Pending Approvals" value={pendingCount} sub={pendingCount > 0 ? 'afventer review' : 'all clear'} color={pendingCount > 0 ? 'var(--warn)' : 'var(--text)'} />
+        </div>
+        <DailyMissionsCard organizationId={orgId} onNavigate={(mission) => { if (onWorkspace && mission.context?.includes('projects:')) onWorkspace(null); }} />
       </div>
 
       <RiskBand riskItems={riskItems} onAdd={handleAddRisk} onResolve={handleResolveRisk} onEdit={handleEditRisk} />

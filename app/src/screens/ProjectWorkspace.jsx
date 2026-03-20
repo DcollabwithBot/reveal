@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { getProject, getProjectSprints, getSprintItems, updateItem, startSprintEstimation, startBulkEstimation } from '../lib/api';
+import { getProject, getProjectSprints, getSprintItems, updateItem, startSprintEstimation, startBulkEstimation, createUnplannedItem, getSprintUnplannedStats, bulkImportItems, getImportBatches, undoImportBatch } from '../lib/api';
 import { useGameFeature } from '../shared/useGameFeature';
 import ItemDetailModal from '../components/ItemDetailModal';
 import SprintCharts from '../components/SprintCharts';
@@ -206,6 +206,156 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
   const [estBusy, setEstBusy] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // Unplanned work
+  const [showUnplannedForm, setShowUnplannedForm] = useState(false);
+  const [unplannedTitle, setUnplannedTitle] = useState('');
+  const [unplannedBusy, setUnplannedBusy] = useState(false);
+  const [unplannedStats, setUnplannedStats] = useState(null);
+
+  // Import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importData, setImportData] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importBatches, setImportBatches] = useState([]);
+
+  // Column name mapping for smart detection
+  const COLUMN_ALIASES = {
+    title: ['title', 'titel', 'summary', 'name', 'story', 'opgave', 'task'],
+    description: ['description', 'beskrivelse', 'desc', 'details', 'detaljer'],
+    estimated_hours: ['estimate', 'hours', 'timer', 'story_points', 'points', 'estimat', 'hours_est'],
+    priority: ['priority', 'prioritet', 'prio'],
+    item_status: ['status', 'state', 'tilstand'],
+    assigned_to: ['assignee', 'assigned', 'tildelt', 'owner', 'ejer'],
+  };
+
+  function detectColumns(headers) {
+    const mapping = {};
+    for (const header of headers) {
+      const h = header.toLowerCase().trim();
+      for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+        if (aliases.includes(h) || aliases.some(a => h.includes(a))) {
+          mapping[header] = field;
+          break;
+        }
+      }
+    }
+    return mapping;
+  }
+
+  function parseCSV(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return null;
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim());
+    const rows = lines.slice(1).map(line => {
+      const cols = line.split(sep).map(c => c.replace(/^"|"$/g, '').trim());
+      const row = {};
+      headers.forEach((h, i) => { row[h] = cols[i] || ''; });
+      return row;
+    });
+    return { headers, rows, mapping: detectColumns(headers) };
+  }
+
+  function handleFileDrop(e) {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    if (file.name.endsWith('.csv') || file.name.endsWith('.tsv') || file.name.endsWith('.txt')) {
+      reader.onload = (ev) => {
+        const parsed = parseCSV(ev.target.result);
+        if (parsed) {
+          setImportData(parsed);
+          setShowImportModal(true);
+        } else {
+          setToast('Kunne ikke parse filen');
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      setToast('Kun CSV/TSV filer understøttes. For Excel: kopier og paste data.');
+    }
+  }
+
+  function handlePasteImport(text) {
+    const parsed = parseCSV(text);
+    if (parsed && parsed.rows.length > 0) {
+      setImportData(parsed);
+      setShowImportModal(true);
+    }
+  }
+
+  async function handleConfirmImport() {
+    if (!importData || !activeSprint) return;
+    setImportBusy(true);
+    try {
+      const mapped = importData.rows.map(row => {
+        const item = {};
+        for (const [header, field] of Object.entries(importData.mapping)) {
+          if (row[header]) item[field] = row[header];
+        }
+        return item;
+      }).filter(item => item.title?.trim());
+
+      const result = await bulkImportItems(activeSprint.id, mapped, 'csv');
+      setToast(`✅ Importerede ${result.imported} items`);
+      setShowImportModal(false);
+      setImportData(null);
+      loadData();
+      loadBatches();
+    } catch (e) {
+      setToast(`Import fejl: ${e.message}`);
+    }
+    setImportBusy(false);
+  }
+
+  async function handleAddUnplanned() {
+    if (!unplannedTitle.trim() || !activeSprint) return;
+    setUnplannedBusy(true);
+    try {
+      const newItem = await createUnplannedItem(activeSprint.id, { title: unplannedTitle });
+      setItems(prev => [...prev, newItem]);
+      setUnplannedTitle('');
+      setShowUnplannedForm(false);
+      setToast('⚡ Uplanlagt opgave tilføjet');
+      loadUnplannedStats();
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
+    setUnplannedBusy(false);
+  }
+
+  async function handleUndoBatch(batchId) {
+    try {
+      await undoImportBatch(batchId);
+      setToast('Import fortrudt');
+      loadData();
+      loadBatches();
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
+  }
+
+  async function loadUnplannedStats() {
+    if (!activeSprint) return;
+    try {
+      const stats = await getSprintUnplannedStats(activeSprint.id);
+      setUnplannedStats(stats);
+    } catch { /* ignore */ }
+  }
+
+  async function loadBatches() {
+    try {
+      const batches = await getImportBatches(projectId);
+      setImportBatches(batches.filter(b => {
+        // Show undo button for 1 hour after import
+        const age = Date.now() - new Date(b.created_at).getTime();
+        return age < 60 * 60 * 1000;
+      }));
+    } catch { /* ignore */ }
+  }
+
   function toggleSelect(id) {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -293,7 +443,13 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
       setActiveSprint(active);
       const sprintItems = await getSprintItems(active.id);
       setItems(sprintItems);
+      // Load unplanned stats
+      getSprintUnplannedStats(active.id).then(setUnplannedStats).catch(() => {});
     }
+    // Load import batches
+    getImportBatches(projectId).then(batches => {
+      setImportBatches(batches.filter(b => Date.now() - new Date(b.created_at).getTime() < 60 * 60 * 1000));
+    }).catch(() => {});
     setLoading(false);
   }
 
@@ -429,8 +585,19 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
             </button>
           )}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-          {total} items · {doneCount} done · {progress}% complete
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text2)' }}>
+          <span>{total} items · {doneCount} done · {progress}% complete</span>
+          {unplannedStats && unplannedStats.unplannedCount > 0 && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+              background: unplannedStats.rate > 0.20 ? 'rgba(232,84,84,0.1)' : 'rgba(200,168,75,0.1)',
+              border: `1px solid ${unplannedStats.rate > 0.20 ? 'rgba(232,84,84,0.3)' : 'rgba(200,168,75,0.3)'}`,
+              color: unplannedStats.rate > 0.20 ? 'var(--danger)' : 'var(--gold)',
+            }}>
+              ⚡ Unplanned: {unplannedStats.unplannedCount} ({Math.round(unplannedStats.rate * 100)}%)
+            </span>
+          )}
         </div>
       </div>
 
@@ -459,6 +626,166 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
       {/* Main grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 22 }}>
         <div>
+          {/* Action bar: Unplanned + Import + Undo */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={() => setShowUnplannedForm(!showUnplannedForm)}
+              style={{
+                fontSize: 11, padding: '5px 12px', borderRadius: 16, cursor: 'pointer',
+                border: '1px solid rgba(200,168,75,0.3)', background: 'rgba(200,168,75,0.08)',
+                color: 'var(--gold)', fontWeight: 600,
+              }}
+            >
+              ⚡ Tilføj uplanlagt opgave
+            </button>
+
+            <label style={{
+              fontSize: 11, padding: '5px 12px', borderRadius: 16, cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--bg2)',
+              color: 'var(--text2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5,
+            }}>
+              📥 Import CSV
+              <input type="file" accept=".csv,.tsv,.txt" style={{ display: 'none' }} onChange={handleFileDrop} />
+            </label>
+
+            {importBatches.map(batch => (
+              <button
+                key={batch.id}
+                onClick={() => handleUndoBatch(batch.id)}
+                style={{
+                  fontSize: 10, padding: '4px 10px', borderRadius: 12, cursor: 'pointer',
+                  border: '1px solid rgba(232,84,84,0.3)', background: 'rgba(232,84,84,0.08)',
+                  color: 'var(--danger)', fontWeight: 500,
+                }}
+              >
+                ↩ Undo {batch.source_type} import ({batch.items_count} items)
+              </button>
+            ))}
+          </div>
+
+          {/* Unplanned form */}
+          {showUnplannedForm && (
+            <div style={{
+              display: 'flex', gap: 8, marginBottom: 14, padding: '10px 14px',
+              background: 'var(--bg2)', border: '1px solid var(--gold)', borderRadius: 'var(--radius)',
+            }}>
+              <input
+                value={unplannedTitle}
+                onChange={e => setUnplannedTitle(e.target.value)}
+                placeholder="Titel på uplanlagt opgave..."
+                onKeyDown={e => e.key === 'Enter' && handleAddUnplanned()}
+                style={{
+                  flex: 1, background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', color: 'var(--text)',
+                  fontSize: 12, padding: '6px 10px',
+                }}
+              />
+              <button
+                onClick={handleAddUnplanned}
+                disabled={unplannedBusy || !unplannedTitle.trim()}
+                style={{
+                  fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 'var(--radius)',
+                  cursor: unplannedBusy ? 'wait' : 'pointer', border: 'none',
+                  background: 'var(--gold)', color: '#0c0c0f',
+                }}
+              >
+                {unplannedBusy ? '...' : '⚡ Tilføj'}
+              </button>
+              <button
+                onClick={() => { setShowUnplannedForm(false); setUnplannedTitle(''); }}
+                style={{
+                  fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)',
+                  cursor: 'pointer', border: '1px solid var(--border)',
+                  background: 'var(--bg3)', color: 'var(--text2)',
+                }}
+              >
+                Annuller
+              </button>
+            </div>
+          )}
+
+          {/* Import Preview Modal */}
+          {showImportModal && importData && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)',
+              display: 'grid', placeItems: 'center',
+            }} onClick={() => setShowImportModal(false)}>
+              <div style={{
+                background: 'var(--bg2)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)', padding: 24, minWidth: 600, maxWidth: 800,
+                maxHeight: '80vh', overflow: 'auto',
+              }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>📥 Import Preview</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>
+                  {importData.rows.length} rækker fundet · Sprint: {activeSprint?.name}
+                </div>
+
+                {/* Column mapping */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {importData.headers.map(h => (
+                    <span key={h} style={{
+                      fontSize: 10, padding: '3px 8px', borderRadius: 8,
+                      background: importData.mapping[h] ? 'var(--jade-dim)' : 'var(--bg3)',
+                      border: `1px solid ${importData.mapping[h] ? 'rgba(0,200,150,0.3)' : 'var(--border)'}`,
+                      color: importData.mapping[h] ? 'var(--jade)' : 'var(--text3)',
+                    }}>
+                      {h} → {importData.mapping[h] || '(ignored)'}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Preview table */}
+                <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr>{Object.values(importData.mapping).map((f, i) => (
+                        <th key={i} style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{f}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {importData.rows.slice(0, 20).map((row, ri) => {
+                        const mapped = {};
+                        for (const [h, f] of Object.entries(importData.mapping)) {
+                          mapped[f] = row[h];
+                        }
+                        const valid = mapped.title?.trim();
+                        return (
+                          <tr key={ri} style={{ borderBottom: '1px solid var(--border)', background: valid ? 'transparent' : 'rgba(232,84,84,0.05)' }}>
+                            {Object.values(importData.mapping).map((f, ci) => (
+                              <td key={ci} style={{ padding: '6px 8px', color: valid ? 'var(--text)' : 'var(--danger)' }}>
+                                {mapped[f] || '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {importData.rows.length > 20 && (
+                    <div style={{ fontSize: 11, color: 'var(--text3)', padding: 8 }}>...og {importData.rows.length - 20} mere</div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={handleConfirmImport} disabled={importBusy} style={{
+                    fontSize: 12, fontWeight: 600, padding: '8px 18px', borderRadius: 'var(--radius)',
+                    cursor: importBusy ? 'wait' : 'pointer', border: 'none',
+                    background: 'var(--jade)', color: '#0c0c0f',
+                  }}>
+                    {importBusy ? 'Importerer...' : `✅ Import ${importData.rows.length} items`}
+                  </button>
+                  <button onClick={() => { setShowImportModal(false); setImportData(null); }} style={{
+                    fontSize: 12, padding: '8px 14px', borderRadius: 'var(--radius)',
+                    cursor: 'pointer', border: '1px solid var(--border)',
+                    background: 'var(--bg3)', color: 'var(--text2)',
+                  }}>
+                    Annuller
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Rarity legend */}
           {showRarityStrips && (
             <div style={{ display: 'flex', gap: 14, marginBottom: 14, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
@@ -778,6 +1105,13 @@ function KanbanColumn({
 
             {/* Title */}
             <div style={{ fontSize: 12.5, color: 'var(--text)', marginBottom: 4, lineHeight: 1.4 }}>
+              {item.is_unplanned && (
+                <span style={{
+                  fontSize: 9, padding: '1px 5px', marginRight: 5,
+                  background: 'rgba(200,168,75,0.12)', border: '1px solid rgba(200,168,75,0.3)',
+                  borderRadius: 6, color: 'var(--gold)', fontWeight: 700,
+                }}>⚡ Unplanned</span>
+              )}
               {item.item_code && <span style={{ color: 'var(--text3)', marginRight: 6 }}>{item.item_code}</span>}
               {item.title}
             </div>

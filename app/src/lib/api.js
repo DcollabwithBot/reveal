@@ -1828,3 +1828,153 @@ export async function deleteComment(commentId) {
   if (error) throw new Error(error.message);
   return { ok: true };
 }
+
+// ── Integration Connections ───────────────────────────────────────────────────
+export async function getIntegrationConnections() {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return [];
+
+  const { data } = await supabase
+    .from('integration_connections')
+    .select('*')
+    .eq('organization_id', membership.organization_id)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+// ── Import Batches ────────────────────────────────────────────────────────────
+export async function getImportBatches(projectId) {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) return [];
+
+  let query = supabase
+    .from('import_batches')
+    .select('*')
+    .eq('organization_id', membership.organization_id)
+    .is('undone_at', null)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (projectId) query = query.eq('project_id', projectId);
+
+  const { data } = await query;
+  return data || [];
+}
+
+export async function undoImportBatch(batchId) {
+  const { error: deleteErr } = await supabase
+    .from('session_items')
+    .delete()
+    .eq('import_batch_id', batchId);
+  if (deleteErr) throw new Error(deleteErr.message);
+
+  const { error: updateErr } = await supabase
+    .from('import_batches')
+    .update({ undone_at: new Date().toISOString() })
+    .eq('id', batchId);
+  if (updateErr) throw new Error(updateErr.message);
+
+  return { ok: true };
+}
+
+// ── Bulk Import (Excel/CSV with batch tracking) ──────────────────────────────
+export async function bulkImportItems(sprintId, items, sourceType = 'excel') {
+  const membership = await resolveMembership();
+  if (!membership?.organization_id) throw new Error('No org');
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: sprint } = await supabase
+    .from('sprints')
+    .select('project_id')
+    .eq('id', sprintId)
+    .maybeSingle();
+
+  const { data: batch, error: batchErr } = await supabase
+    .from('import_batches')
+    .insert({
+      organization_id: membership.organization_id,
+      project_id: sprint?.project_id || null,
+      sprint_id: sprintId,
+      source_type: sourceType,
+      items_count: items.length,
+      created_by: user?.id,
+    })
+    .select('id')
+    .single();
+  if (batchErr) throw new Error(batchErr.message);
+
+  const rows = items.map((it, idx) => ({
+    sprint_id: sprintId,
+    title: it.title || 'Untitled',
+    description: it.description || null,
+    estimated_hours: it.estimated_hours || null,
+    priority: it.priority || 'medium',
+    item_status: it.item_status || 'backlog',
+    assigned_to: it.assigned_to || null,
+    import_batch_id: batch.id,
+    item_order: idx,
+    status: 'pending',
+    progress: 0,
+  })).filter(r => r.title?.trim());
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('session_items')
+    .insert(rows)
+    .select();
+  if (insertErr) throw new Error(insertErr.message);
+
+  return { imported: inserted?.length || 0, batch_id: batch.id };
+}
+
+// ── Unplanned Work ────────────────────────────────────────────────────────────
+export async function createUnplannedItem(sprintId, payload) {
+  const { data, error } = await supabase
+    .from('session_items')
+    .insert({
+      sprint_id: sprintId,
+      title: (payload.title || '').trim(),
+      description: payload.description || null,
+      priority: payload.priority || 'medium',
+      item_status: payload.item_status || 'backlog',
+      is_unplanned: true,
+      status: 'pending',
+      progress: 0,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getSprintUnplannedStats(sprintId) {
+  const { data: items } = await supabase
+    .from('session_items')
+    .select('id, is_unplanned, estimated_hours')
+    .eq('sprint_id', sprintId);
+
+  const all = items || [];
+  const total = all.length;
+  const unplanned = all.filter(i => i.is_unplanned);
+  const unplannedCount = unplanned.length;
+  const rate = total > 0 ? unplannedCount / total : 0;
+  const hoursPlanned = all.filter(i => !i.is_unplanned).reduce((s, i) => s + (Number(i.estimated_hours) || 0), 0);
+  const hoursUnplanned = unplanned.reduce((s, i) => s + (Number(i.estimated_hours) || 0), 0);
+
+  return { total, unplannedCount, rate, hoursPlanned, hoursUnplanned };
+}
+
+// ── Daily Missions ────────────────────────────────────────────────────────────
+export async function generateMissions(orgId) {
+  return edgeFn('generate-missions', { org_id: orgId });
+}
+
+export async function getUserMissions() {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data } = await supabase
+    .from('user_missions')
+    .select('*, missions(*)')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .order('assigned_at', { ascending: false });
+  return data || [];
+}
