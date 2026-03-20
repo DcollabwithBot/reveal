@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyRequest,
   approveRequest,
   createConflictResolutionRequest,
   getDashboardGovernance,
+  getMembership,
+  getRiskItems,
+  createRiskItem,
+  resolveRiskItem,
+  updateRiskItem,
+  getOrgMetrics,
+  upsertOrgMetric,
   rejectRequest,
   updateProjectStatus
 } from '../lib/api';
@@ -42,49 +49,182 @@ function pillLabel(status) {
 }
 
 // ── sub-components ───────────────────────────────────────────────────────────
-function RiskBand({ projects, conflicts }) {
-  const atRisk = projects.filter(p => p.status === 'at_risk' || p.health === 'at_risk');
-  const blocked = conflicts.length;
+// ── RiskBand — live editable ──────────────────────────────────────────────────
+function RiskBand({ riskItems, onAdd, onResolve, onEdit }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ title: '', meta: '', assignee_text: '', type: 'risk' });
+  const titleRef = useRef(null);
 
-  if (!atRisk.length && !blocked) return null;
+  function openAdd() { setForm({ title: '', meta: '', assignee_text: '', type: 'risk' }); setEditingId(null); setShowForm(true); setTimeout(() => titleRef.current?.focus(), 50); }
+  function openEdit(item) { setForm({ title: item.title, meta: item.meta || '', assignee_text: item.assignee_text || '', type: item.type }); setEditingId(item.id); setShowForm(true); setTimeout(() => titleRef.current?.focus(), 50); }
+  function closeForm() { setShowForm(false); setEditingId(null); }
 
-  const items = [
-    ...atRisk.map(p => ({
-      id: p.id,
-      text: `${p.icon || '📋'} ${p.name} er markeret som at risk`,
-      meta: p.next_milestone
-        ? `Næste milestone: ${p.next_milestone.name} · ${daysLeft(p.next_milestone.end_date) ?? '?'}d tilbage`
-        : `${p.done_items || 0}/${p.total_items || 0} items færdige`,
-    })),
-    ...conflicts.slice(0, 3).map(c => ({
-      id: c.id,
-      text: `Blokeret write: ${c.target_type} #${String(c.target_id || '').slice(0, 8)}`,
-      meta: `Registreret ${new Date(c.created_at).toLocaleDateString('da-DK')} · kræver PM-godkendelse`,
-    })),
-  ];
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    if (editingId) {
+      await onEdit(editingId, form);
+    } else {
+      await onAdd(form);
+    }
+    closeForm();
+  }
+
+  if (!riskItems.length && !showForm) {
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <button
+          onClick={openAdd}
+          style={{ fontSize: 11, color: 'var(--text3)', background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--radius)', padding: '7px 14px', cursor: 'pointer' }}
+        >
+          + Tilføj risk / blocker
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div style={{
-      background: 'var(--danger-dim)',
-      border: '1px solid rgba(232,84,84,0.18)',
-      borderRadius: 'var(--radius-lg)',
-      padding: '18px 22px',
-      marginBottom: 28,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+    <div style={{ background: 'var(--danger-dim)', border: '1px solid rgba(232,84,84,0.18)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: riskItems.length ? 10 : 0 }}>
         <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--danger)' }}>
-          ⚠ {items.length} {items.length === 1 ? 'item kræver' : 'items kræver'} din opmærksomhed
+          ⚠ {riskItems.length} {riskItems.length === 1 ? 'item kræver' : 'items kræver'} din opmærksomhed
         </div>
+        <button onClick={openAdd} style={{ fontSize: 11, color: 'var(--danger)', background: 'rgba(232,84,84,0.12)', border: '1px solid rgba(232,84,84,0.22)', borderRadius: 'var(--radius)', padding: '3px 10px', cursor: 'pointer' }}>
+          + Tilføj
+        </button>
       </div>
-      {items.map(item => (
-        <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '9px 0', borderTop: '1px solid rgba(232,84,84,0.08)' }}>
+
+      {riskItems.map(item => (
+        <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderTop: '1px solid rgba(232,84,84,0.10)' }}>
           <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--danger)', flexShrink: 0, marginTop: 6 }} />
-          <div>
-            <div style={{ fontSize: 13, color: 'var(--text)' }}>{item.text}</div>
-            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{item.meta}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{item.title}</div>
+            {item.meta && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{item.meta}</div>}
+            {item.assignee_text && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{item.assignee_text}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+            <button onClick={() => openEdit(item)} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius)', background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }}>Redigér</button>
+            <button onClick={() => onResolve(item.id)} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius)', background: 'rgba(0,200,150,0.12)', border: '1px solid rgba(0,200,150,0.25)', color: 'var(--jade)', cursor: 'pointer' }}>✓ Løst</button>
           </div>
         </div>
       ))}
+
+      {showForm && (
+        <form onSubmit={handleSubmit} style={{ borderTop: '1px solid rgba(232,84,84,0.15)', paddingTop: 12, marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input
+            ref={titleRef}
+            value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            placeholder="Risk / blocker titel..."
+            required
+            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, padding: '8px 12px', outline: 'none' }}
+            onFocus={e => e.target.style.borderColor = 'var(--danger)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border2)'}
+          />
+          <input
+            value={form.meta}
+            onChange={e => setForm(f => ({ ...f, meta: e.target.value }))}
+            placeholder="Beskrivelse / detaljer (valgfri)..."
+            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 12, padding: '7px 12px', outline: 'none' }}
+          />
+          <input
+            value={form.assignee_text}
+            onChange={e => setForm(f => ({ ...f, assignee_text: e.target.value }))}
+            placeholder="Ansvarlig / eskaleret til (valgfri)..."
+            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 12, padding: '7px 12px', outline: 'none' }}
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+              style={{ fontSize: 11, padding: '5px 8px', borderRadius: 'var(--radius)', background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', cursor: 'pointer', outline: 'none' }}>
+              <option value="risk">Risk</option>
+              <option value="blocker">Blocker</option>
+              <option value="attention">Attention</option>
+            </select>
+            <button type="submit" style={{ flex: 1, fontSize: 12, fontWeight: 600, padding: '6px', borderRadius: 'var(--radius)', background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              {editingId ? 'Gem ændringer' : 'Tilføj risk'}
+            </button>
+            <button type="button" onClick={closeForm} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>Annuller</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ── Editable KPI card ─────────────────────────────────────────────────────────
+function EditableKpiCard({ label, value, sub, color, editing, onEdit, onSave, onCancel, isPercent, extraKey, extraLabel, extraValue, onSaveExtra }) {
+  const [val, setVal] = useState('');
+  const [prev, setPrev] = useState('');
+  const [extra, setExtra] = useState('');
+
+  function open() {
+    setVal(typeof value === 'string' ? value.replace('%', '') : String(value ?? ''));
+    setPrev('');
+    setExtra(extraValue ?? '');
+    onEdit();
+  }
+
+  function save() {
+    const n = parseFloat(val);
+    const p = parseFloat(prev) || null;
+    if (!isNaN(n)) {
+      onSave(n, p);
+      if (extraKey && onSaveExtra && extra !== '') onSaveExtra(parseFloat(extra) || 0);
+    } else {
+      onCancel();
+    }
+  }
+
+  if (editing) {
+    return (
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--jade)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 10 }}>{label}</div>
+        <input
+          autoFocus
+          type="number"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          placeholder={isPercent ? '0–100' : '0'}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onCancel(); }}
+          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 20, padding: '6px 10px', outline: 'none', marginBottom: 6, boxSizing: 'border-box' }}
+        />
+        <input
+          type="number"
+          value={prev}
+          onChange={e => setPrev(e.target.value)}
+          placeholder="Forrige sprint værdi (valgfri)"
+          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: 11, padding: '4px 8px', outline: 'none', marginBottom: extraKey ? 6 : 8, boxSizing: 'border-box' }}
+        />
+        {extraKey && (
+          <input
+            type="number"
+            step="0.1"
+            value={extra}
+            onChange={e => setExtra(e.target.value)}
+            placeholder={extraLabel}
+            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: 11, padding: '4px 8px', outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+          />
+        )}
+        <div style={{ display: 'flex', gap: 5 }}>
+          <button onClick={save} style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '5px', borderRadius: 'var(--radius)', background: 'var(--jade)', color: '#fff', border: 'none', cursor: 'pointer' }}>Gem</button>
+          <button onClick={onCancel} style={{ fontSize: 11, padding: '5px 10px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>✕</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={open}
+      style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px', cursor: 'pointer', transition: 'border-color 0.15s' }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--jade)'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+      title="Klik for at redigere"
+    >
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 10 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: 32, lineHeight: 1, color: color || 'var(--text)', letterSpacing: '-0.02em' }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 7 }}>{sub}</div>
     </div>
   );
 }
@@ -218,6 +358,10 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
   const [health, setHealth] = useState({ queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
   const [conflicts, setConflicts] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  const [riskItems, setRiskItems] = useState([]);
+  const [orgMetrics, setOrgMetrics] = useState({});
+  const [orgId, setOrgId] = useState(null);
+  const [editingMetric, setEditingMetric] = useState(null); // 'confidence' | 'blocked' | null
 
   async function refreshGovernance() {
     setLoadingGov(true);
@@ -235,7 +379,45 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
     }
   }
 
-  useEffect(() => { refreshGovernance(); }, []);
+  useEffect(() => {
+    refreshGovernance();
+    loadRiskData();
+  }, []); // eslint-disable-line
+
+  async function loadRiskData() {
+    try {
+      const membership = await getMembership();
+      if (!membership?.organization_id) return;
+      const oid = membership.organization_id;
+      setOrgId(oid);
+      const [risks, metrics] = await Promise.all([getRiskItems(oid), getOrgMetrics(oid)]);
+      setRiskItems(risks);
+      setOrgMetrics(metrics);
+    } catch (e) { /* silent */ }
+  }
+
+  async function handleAddRisk(form) {
+    if (!orgId) return;
+    const item = await createRiskItem(orgId, form);
+    if (item) setRiskItems(prev => [item, ...prev]);
+  }
+
+  async function handleResolveRisk(id) {
+    await resolveRiskItem(id);
+    setRiskItems(prev => prev.filter(r => r.id !== id));
+  }
+
+  async function handleEditRisk(id, form) {
+    const updated = await updateRiskItem(id, form);
+    if (updated) setRiskItems(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r));
+  }
+
+  async function handleSaveMetric(key, valueNum, prevValueNum) {
+    if (!orgId) return;
+    const saved = await upsertOrgMetric(orgId, key, valueNum, prevValueNum, null);
+    if (saved) setOrgMetrics(prev => ({ ...prev, [key]: { value_num: valueNum, prev_value_num: prevValueNum } }));
+    setEditingMetric(null);
+  }
 
   const pending = useMemo(() => approvalRequests.filter(r => r.state === 'pending_approval').slice(0, 5), [approvalRequests]);
   const approvedReady = useMemo(() => approvalRequests.filter(r => r.state === 'approved').slice(0, 3), [approvalRequests]);
@@ -288,11 +470,12 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
   const totalProjects = (dashboard.projects || []).length;
   const activeCount = activeProjects.length;
   const pendingCount = pending.length;
-  const blockedCount = health.blocked_writes || 0;
-  const healthScore = blockedCount === 0 && health.queue_depth < 5 ? 100 : health.queue_depth < 10 ? 82 : 61;
-  const healthColor = healthScore === 100 ? 'var(--jade)' : healthScore === 82 ? 'var(--warn)' : 'var(--danger)';
+  const blockedCount = orgMetrics['total_blocked']?.value_num ?? (health.blocked_writes || 0);
+  const confidenceVal = orgMetrics['portfolio_confidence']?.value_num ?? null;
+  const confidencePrev = orgMetrics['portfolio_confidence']?.prev_value_num ?? null;
+  const mttrVal = orgMetrics['avg_mttr']?.value_num ?? null;
+  const healthScore = health.blocked_writes === 0 && health.queue_depth < 5 ? 100 : health.queue_depth < 10 ? 82 : 61;
 
-  // Topbar subtitle
   const atRiskLabel = atRiskCount > 0 ? ` · ${atRiskCount} at risk` : '';
   const blockerLabel = blockedCount > 0 ? ` · ${blockedCount} blokkere` : '';
 
@@ -302,16 +485,35 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
       {/* ── KPI Grid (V8+ style) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
         <KpiCard
-          label="Active Projects"
-          value={activeCount}
-          sub={`${totalProjects} total${atRiskLabel}`}
-          color="var(--jade)"
-        />
-        <KpiCard
           label="At Risk"
-          value={atRiskCount}
-          sub={atRiskCount > 0 ? 'kræver opmærksomhed' : 'alt ser godt ud'}
-          color={atRiskCount > 0 ? 'var(--danger)' : 'var(--text)'}
+          value={atRiskCount + riskItems.length}
+          sub={riskItems.length > 0 ? riskItems.slice(0, 2).map(r => r.title.slice(0, 20)).join(' · ') : 'alt ser godt ud'}
+          color={(atRiskCount + riskItems.length) > 0 ? 'var(--danger)' : 'var(--text)'}
+        />
+        <EditableKpiCard
+          label="Total Blocked"
+          value={blockedCount}
+          sub={mttrVal ? `Avg MTTR ${mttrVal}h` : 'blokkerede items'}
+          color={blockedCount > 0 ? 'var(--danger)' : 'var(--text)'}
+          editing={editingMetric === 'blocked'}
+          onEdit={() => setEditingMetric('blocked')}
+          onSave={(val, prev) => handleSaveMetric('total_blocked', val, prev)}
+          onCancel={() => setEditingMetric(null)}
+          extraKey="avg_mttr"
+          extraLabel="Avg MTTR (h)"
+          extraValue={mttrVal}
+          onSaveExtra={(val) => upsertOrgMetric(orgId, 'avg_mttr', val, null, null).then(() => setOrgMetrics(prev => ({ ...prev, avg_mttr: { value_num: val } })))}
+        />
+        <EditableKpiCard
+          label="Portfolio Confidence"
+          value={confidenceVal !== null ? `${confidenceVal}%` : '—'}
+          sub={confidencePrev !== null ? `${confidenceVal >= confidencePrev ? '+' : ''}${confidenceVal - confidencePrev}% vs last sprint` : 'klik for at sætte'}
+          color={confidenceVal >= 70 ? 'var(--jade)' : confidenceVal >= 50 ? 'var(--warn)' : 'var(--text)'}
+          editing={editingMetric === 'confidence'}
+          onEdit={() => setEditingMetric('confidence')}
+          onSave={(val, prev) => handleSaveMetric('portfolio_confidence', val, prev)}
+          onCancel={() => setEditingMetric(null)}
+          isPercent
         />
         <KpiCard
           label="Pending Approvals"
@@ -319,16 +521,15 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, 
           sub={pendingCount > 0 ? 'afventer review' : 'all clear'}
           color={pendingCount > 0 ? 'var(--warn)' : 'var(--text)'}
         />
-        <KpiCard
-          label="Portfolio Health"
-          value={`${healthScore}%`}
-          sub={blockedCount > 0 ? `${blockedCount} blokerede writes` : 'no blocks'}
-          color={healthColor}
-        />
       </div>
 
-      {/* ── Risk Band (kun hvis der er noget) ── */}
-      <RiskBand projects={dashboard.projects || []} conflicts={conflicts} />
+      {/* ── Risk Band — live editable ── */}
+      <RiskBand
+        riskItems={riskItems}
+        onAdd={handleAddRisk}
+        onResolve={handleResolveRisk}
+        onEdit={handleEditRisk}
+      />
 
       {/* ── Active Projects tabel (V8+ style) ── */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>

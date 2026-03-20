@@ -418,6 +418,73 @@ export async function addItemComment(itemId, body, authorName) {
   return data;
 }
 
+// ── Risk Items ────────────────────────────────────────────────────────────────
+export async function getRiskItems(organizationId) {
+  const { data } = await supabase
+    .from('risk_items')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function createRiskItem(organizationId, payload) {
+  const { data } = await supabase
+    .from('risk_items')
+    .insert({ organization_id: organizationId, ...payload })
+    .select()
+    .single();
+  return data;
+}
+
+export async function updateRiskItem(id, updates) {
+  const { data } = await supabase
+    .from('risk_items')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  return data;
+}
+
+export async function resolveRiskItem(id) {
+  const { data } = await supabase
+    .from('risk_items')
+    .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  return data;
+}
+
+// ── Org Metrics ───────────────────────────────────────────────────────────────
+export async function getOrgMetrics(organizationId) {
+  const { data } = await supabase
+    .from('org_metrics')
+    .select('key, value_num, value_text, prev_value_num')
+    .eq('organization_id', organizationId);
+  const map = {};
+  (data || []).forEach(r => { map[r.key] = r; });
+  return map;
+}
+
+export async function upsertOrgMetric(organizationId, key, valueNum, prevValueNum, valueText) {
+  const { data } = await supabase
+    .from('org_metrics')
+    .upsert({
+      organization_id: organizationId,
+      key,
+      value_num: valueNum ?? null,
+      prev_value_num: prevValueNum ?? null,
+      value_text: valueText ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'organization_id,key' })
+    .select()
+    .single();
+  return data;
+}
+
 export async function updateProjectStatus(projectId, status) {
   const { data } = await supabase
     .from('projects')
