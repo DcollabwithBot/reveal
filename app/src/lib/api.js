@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3eWZjYXRod2NkcGdraXJ3aWhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NTA1MTAsImV4cCI6MjA4OTQyNjUxMH0.9plelXfU7k9Y3sJaLFpwWeDtPTfZQHadxpxBEHrPqog';
 const SUPABASE_URL = 'https://swyfcathwcdpgkirwihh.supabase.co';
 
@@ -503,4 +504,37 @@ export async function closeItem(itemId) {
     .select()
     .single();
   return data;
+}
+
+async function apiFetch(path, options = {}) {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'API error');
+  }
+
+  return res.json();
+}
+
+export async function loadGameSessionState({ projectId, nodeId }) {
+  if (!projectId || !nodeId) return null;
+  return apiFetch(`/api/game-session-state?project_id=${encodeURIComponent(projectId)}&node_id=${encodeURIComponent(nodeId)}`);
+}
+
+export async function persistGameSessionState({ projectId, nodeId, state }) {
+  if (!projectId || !nodeId || !state) return null;
+  return apiFetch('/api/game-session-state', {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId, node_id: nodeId, state }),
+  });
 }

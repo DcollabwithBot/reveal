@@ -79,6 +79,9 @@ export default function RetroScreen({ onNavigate }) {
   const [error, setError] = useState(null);
   const [retroTableExists, setRetroTableExists] = useState(true);
   const [dismissed, setDismissed] = useState([]);
+  const [actionMessage, setActionMessage] = useState(null);
+  const [acceptingNoteId, setAcceptingNoteId] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null));
@@ -142,6 +145,111 @@ export default function RetroScreen({ onNavigate }) {
   }
 
   function handleNoteAdded(note) { setNotes(prev => [...prev, note]); }
+
+  async function handleAcceptToNextSprint(note) {
+    if (!selectedSprintId || !note || acceptingNoteId) return;
+    setAcceptingNoteId(note.id);
+    setActionMessage(null);
+
+    try {
+      const currentSprint = sprints.find(s => s.id === selectedSprintId) || null;
+      const inSameProject = sprints.filter(s => s.project_id === currentSprint?.project_id);
+      const preferredStatuses = ['planned', 'upcoming', 'active'];
+      const nextSprint = inSameProject.find(s => s.id !== selectedSprintId && preferredStatuses.includes(s.status))
+        || inSameProject.find(s => s.id !== selectedSprintId)
+        || currentSprint;
+
+      if (!nextSprint?.id) throw new Error('Ingen sprint fundet til overførsel');
+
+      const title = note.body.trim().slice(0, 180) || 'Action fra retro';
+      const description = `Auto-oprettet fra retro note ${note.id} (${selectedSprint?.name || selectedSprintId}).\n\nOriginal note:\n${note.body}`;
+
+      const { error } = await supabase
+        .from('session_items')
+        .insert({
+          sprint_id: nextSprint.id,
+          title,
+          description,
+          priority: 'medium',
+          item_status: 'backlog',
+          status: 'pending',
+          progress: 0,
+        });
+
+      if (error) throw error;
+
+      setDismissed(prev => [...prev, note.id]);
+      setActionMessage(`✅ Action flyttet til ${nextSprint.name}`);
+    } catch (err) {
+      setActionMessage(`❌ Kunne ikke flytte action: ${err.message}`);
+    } finally {
+      setAcceptingNoteId(null);
+    }
+  }
+
+  function handleExportSprintReport() {
+    if (!selectedSprint) return;
+    setExporting(true);
+    setActionMessage(null);
+
+    try {
+      const now = new Date();
+      const actionNotes = notes.filter(n => n.cat === 'action');
+      const wellNotes = notes.filter(n => n.cat === 'well');
+      const improveNotes = notes.filter(n => n.cat === 'improve');
+      const doneItems = items.filter(i => i.item_status === 'done');
+      const openItems = items.filter(i => i.item_status !== 'done');
+      const totalHours = items.reduce((sum, i) => sum + (i.hours_fak || 0) + (i.hours_int || 0) + (i.hours_ub || 0), 0);
+
+      const report = [
+        `# Sprint rapport — ${selectedSprint.name}`,
+        '',
+        `Eksporteret: ${now.toISOString()}`,
+        `Projekt: ${project?.name || 'Ukendt'}`,
+        '',
+        '## Summary',
+        `- Leveret: ${doneItems.length}/${items.length}`,
+        `- Rolled over: ${openItems.length}`,
+        `- Timer logget: ${totalHours.toFixed(1)}h`,
+        `- Retro noter: ${notes.length}`,
+        '',
+        '## What went well',
+        ...(wellNotes.length ? wellNotes.map(n => `- ${n.body} (${n.author_name})`) : ['- Ingen noter']),
+        '',
+        '## Improve',
+        ...(improveNotes.length ? improveNotes.map(n => `- ${n.body} (${n.author_name})`) : ['- Ingen noter']),
+        '',
+        '## Actions til næste sprint',
+        ...(actionNotes.length ? actionNotes.map(n => `- ${n.body} (${n.author_name})`) : ['- Ingen actions']),
+        '',
+        '## Sprint items',
+        ...(items.length
+          ? items.map(item => {
+              const h = (item.hours_fak || 0) + (item.hours_int || 0) + (item.hours_ub || 0);
+              return `- [${item.item_status === 'done' ? 'x' : ' '}] ${item.item_code || 'ITEM'} ${item.title} · est ${item.estimated_hours || '-'}h · log ${h || 0}h`;
+            })
+          : ['- Ingen items']),
+        '',
+      ].join('\n');
+
+      const blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const safeSprint = selectedSprint.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sprint-rapport-${safeSprint || selectedSprint.id}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setActionMessage('✅ Sprint rapport eksporteret');
+    } catch (err) {
+      setActionMessage(`❌ Kunne ikke eksportere rapport: ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const selectedSprint = sprints.find(s => s.id === selectedSprintId);
   const project = selectedSprint ? projects[selectedSprint.project_id] : null;
@@ -291,10 +399,11 @@ export default function RetroScreen({ onNavigate }) {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
-                    onClick={() => {/* future: create task from note */}}
-                    style={{ fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 'var(--radius)', background: 'var(--epic)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                    onClick={() => handleAcceptToNextSprint(note)}
+                    disabled={acceptingNoteId === note.id}
+                    style={{ fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 'var(--radius)', background: 'var(--epic)', color: '#fff', border: 'none', cursor: acceptingNoteId === note.id ? 'wait' : 'pointer', opacity: acceptingNoteId === note.id ? 0.6 : 1 }}
                   >
-                    Accept → Næste sprint
+                    {acceptingNoteId === note.id ? 'Flytter…' : 'Accept → Næste sprint'}
                   </button>
                   <button
                     onClick={() => setDismissed(prev => [...prev, note.id])}
@@ -335,6 +444,12 @@ export default function RetroScreen({ onNavigate }) {
         })}
       </div>
 
+      {actionMessage && (
+        <div style={{ marginBottom: 12, fontSize: 12, color: actionMessage.startsWith('❌') ? 'var(--danger, #ef4444)' : 'var(--jade)' }}>
+          {actionMessage}
+        </div>
+      )}
+
       {/* Actions */}
       <div style={{ display: 'flex', gap: 10 }}>
         <button
@@ -344,9 +459,11 @@ export default function RetroScreen({ onNavigate }) {
           ⚡ Start næste sprint estimation
         </button>
         <button
-          style={{ padding: '11px 20px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', fontSize: 13, cursor: 'pointer' }}
+          onClick={handleExportSprintReport}
+          disabled={exporting || !selectedSprint}
+          style={{ padding: '11px 20px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', fontSize: 13, cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.7 : 1 }}
         >
-          Export sprint rapport
+          {exporting ? 'Eksporterer…' : 'Export sprint rapport'}
         </button>
       </div>
     </div>

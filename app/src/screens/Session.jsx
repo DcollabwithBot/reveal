@@ -23,6 +23,7 @@ import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
 import { useGameFeature } from "../shared/useGameFeature.js";
 import { dk } from "../shared/utils.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
+import { loadGameSessionState, persistGameSessionState } from "../lib/api.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -84,6 +85,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
 
   const [retro, dispatchRetro] = useReducer(sessionRetroReducer, undefined, createInitialSessionRetroState);
   const { bossStep, retroEvents, currentEvtIdx, eventVotes, oracleEvents, oracleUsed, rootCauses, bossBattleHp, problemEvents, rootCauseIdx } = retro;
+  const [hydrated, setHydrated] = useState(false);
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -115,6 +117,79 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   useEffect(() => { bossHpRef.current = bossHp; }, [bossHp]);
   const bossBattleHpRef = useRef(bossBattleHp);
   useEffect(() => { bossBattleHpRef.current = bossBattleHp; }, [bossBattleHp]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrateSessionState() {
+      if (!project?.id || !node?.id) {
+        if (active) setHydrated(true);
+        return;
+      }
+
+      try {
+        const result = await loadGameSessionState({ projectId: project.id, nodeId: node.id });
+        const persisted = result?.state;
+        if (!active || !persisted) {
+          if (active) setHydrated(true);
+          return;
+        }
+
+        dispatchFlow({
+          type: 'merge',
+          patch: {
+            pv: persisted.pv ?? null,
+            votes: Array.isArray(persisted.votes) ? persisted.votes : [],
+            rdy: Boolean(persisted.rdy),
+            rev: Boolean(persisted.rev),
+            step: Number.isInteger(persisted.step) ? persisted.step : 0,
+            cv: persisted.cv ?? null,
+            finalEstimate: persisted.finalEstimate ?? null,
+          }
+        });
+      } catch {
+        // best-effort hydrate
+      } finally {
+        if (active) setHydrated(true);
+      }
+    }
+
+    hydrateSessionState();
+    return () => { active = false; };
+  }, [project?.id, node?.id]);
+
+  useEffect(() => {
+    if (!hydrated || !project?.id || !node?.id) return;
+
+    const timer = setTimeout(() => {
+      const allVotes = [pv, ...votes.map((vote) => vote.val)].filter((value) => value !== null && value !== undefined);
+      const numericVotes = allVotes
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+      const finalEstimate = numericVotes.length
+        ? clamp(Math.round(numericVotes.reduce((sum, value) => sum + value, 0) / numericVotes.length))
+        : null;
+
+      persistGameSessionState({
+        projectId: project.id,
+        nodeId: node.id,
+        state: {
+          step,
+          pv,
+          votes,
+          rdy,
+          rev,
+          cv,
+          finalEstimate,
+          savedAt: new Date().toISOString(),
+        },
+      }).catch(() => {
+        // best-effort persist
+      });
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [hydrated, project?.id, node?.id, step, pv, votes, rdy, rev, cv]);
 
   function setBossHp(updater) {
     const current = bossHpRef.current;

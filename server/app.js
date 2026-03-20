@@ -477,6 +477,74 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+app.get('/api/game-session-state', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const projectId = String(req.query.project_id || '').trim();
+  const nodeId = String(req.query.node_id || '').trim();
+  if (!projectId || !nodeId) return res.status(400).json({ error: 'project_id and node_id required' });
+
+  const targetId = `${projectId}:${nodeId}`;
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('payload,created_at')
+    .eq('organization_id', membership.organization_id)
+    .eq('event_type', 'game.session.state.saved')
+    .eq('target_type', 'game_session')
+    .eq('target_id', targetId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.json({
+    state: data?.payload?.state || null,
+    saved_at: data?.created_at || null
+  });
+});
+
+app.post('/api/game-session-state', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const projectId = String(req.body?.project_id || '').trim();
+  const nodeId = String(req.body?.node_id || '').trim();
+  const state = req.body?.state || null;
+
+  if (!projectId || !nodeId || !state) {
+    return res.status(400).json({ error: 'project_id, node_id and state required' });
+  }
+
+  const targetId = `${projectId}:${nodeId}`;
+  await appendAuditLog({
+    eventType: 'game.session.state.saved',
+    actor: 'game',
+    sourceLayer: 'game',
+    organizationId: membership.organization_id,
+    teamId: membership.team_id,
+    targetType: 'game_session',
+    targetId,
+    payload: {
+      project_id: projectId,
+      node_id: nodeId,
+      state,
+      saved_by: user.id,
+      saved_at: new Date().toISOString()
+    },
+    outcome: 'accepted'
+  });
+
+  return res.json({ ok: true });
+});
+
 app.get('/api/sessions/join/:code', async (req, res) => {
   const { code } = req.params;
   const { data, error } = await supabase
