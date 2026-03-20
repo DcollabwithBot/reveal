@@ -1,8 +1,77 @@
+import { useEffect, useState } from 'react';
 import { useGameFeature } from '../shared/useGameFeature';
+import { getMembership } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
-export default function AppShell({ user, activeScreen, onNavigate, isLight, toggleTheme, children }) {
+// ── nav-tree inline styles ────────────────────────────────────────────────────
+const treeStyles = {
+  tree: { padding: '2px 8px 4px 18px', marginTop: 2 },
+  item: { fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'default' },
+  itemActive: { fontSize: 11, color: 'var(--jade)', display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0' },
+  dot: { width: 5, height: 5, borderRadius: '50%', background: 'var(--border2)', flexShrink: 0 },
+  dotActive: { width: 5, height: 5, borderRadius: '50%', background: 'var(--jade)', flexShrink: 0 },
+  sub: { fontSize: 11, color: 'var(--text3)', padding: '1px 0 1px 11px' },
+  subSidequest: { fontSize: 11, color: 'var(--epic)', opacity: 0.75, padding: '1px 0 1px 11px' },
+};
+
+export default function AppShell({ user, activeScreen, activeProjectId, onNavigate, onWorkspaceNavigate, isLight, toggleTheme, children }) {
   const showGameWidget = useGameFeature('gameWidget');
   const showStreakBadge = useGameFeature('streakBadge');
+  const [projects, setProjects] = useState([]);
+  const [projectInsights, setProjectInsights] = useState({});
+
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const membership = await getMembership();
+        if (!membership?.organization_id) return;
+
+        const { data: projs } = await supabase
+          .from('projects')
+          .select('id,name,icon,status')
+          .eq('organization_id', membership.organization_id)
+          .eq('status', 'active')
+          .order('updated_at', { ascending: false });
+
+        if (!projs?.length) return;
+        setProjects(projs);
+
+        // Hent sprint + item counts per project
+        const { data: sprints } = await supabase
+          .from('sprints')
+          .select('id,name,status,project_id')
+          .in('project_id', projs.map(p => p.id))
+          .eq('status', 'active');
+
+        const sprintIds = (sprints || []).map(s => s.id);
+        let items = [];
+        if (sprintIds.length) {
+          const { data: itemData } = await supabase
+            .from('session_items')
+            .select('id,item_status,sprint_id')
+            .in('sprint_id', sprintIds);
+          items = itemData || [];
+        }
+
+        const insights = {};
+        for (const proj of projs) {
+          const projSprints = (sprints || []).filter(s => s.project_id === proj.id);
+          const projSprintIds = projSprints.map(s => s.id);
+          const projItems = items.filter(i => projSprintIds.includes(i.sprint_id));
+          const activeSprint = projSprints[0];
+          insights[proj.id] = {
+            sprintName: activeSprint?.name || null,
+            totalItems: projItems.length,
+            doneItems: projItems.filter(i => i.item_status === 'done').length,
+          };
+        }
+        setProjectInsights(insights);
+      } catch (e) {
+        // Silent — sidebar projekter er ikke kritisk
+      }
+    }
+    loadProjects();
+  }, []);
 
   const navItems = [
     { id: 'portfolio', label: 'Portfolio', icon: '◈', screen: 'dashboard' },
@@ -10,7 +79,7 @@ export default function AppShell({ user, activeScreen, onNavigate, isLight, togg
   ];
 
   const rituals = [
-    { id: 'session', label: 'Estimation', icon: '⚡', screen: 'game' },
+    { id: 'session', label: 'Estimation', icon: '⚡', screen: 'game', badge: { text: 'Join', variant: 'epic' } },
     { id: 'retro', label: 'Retro & Close', icon: '◎', screen: 'retro' },
   ];
 
@@ -37,11 +106,46 @@ export default function AppShell({ user, activeScreen, onNavigate, isLight, togg
               key={item.id}
               icon={item.icon}
               label={item.label}
-              active={activeScreen === item.screen}
+              active={activeScreen === item.screen || activeScreen === item.id}
               onClick={() => onNavigate(item.screen)}
             />
           ))}
         </NavSection>
+
+        {/* Projects section */}
+        {projects.length > 0 && (
+          <NavSection label="Projects">
+            {projects.map(proj => {
+              const insight = projectInsights[proj.id] || {};
+              const isActive = activeScreen === 'workspace' && activeProjectId === proj.id;
+              return (
+                <div key={proj.id}>
+                  <NavItem
+                    icon={proj.icon || '▸'}
+                    label={proj.name}
+                    active={isActive}
+                    onClick={() => onWorkspaceNavigate ? onWorkspaceNavigate(proj.id) : onNavigate('workspace')}
+                  />
+                  {insight.sprintName && (
+                    <div style={treeStyles.tree}>
+                      <div style={isActive ? treeStyles.itemActive : treeStyles.item}>
+                        <div style={isActive ? treeStyles.dotActive : treeStyles.dot} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {insight.sprintName}
+                        </span>
+                      </div>
+                      {insight.totalItems > 0 && (
+                        <div style={treeStyles.sub}>
+                          Tasks ({insight.doneItems}/{insight.totalItems})
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </NavSection>
+        )}
 
         {/* Sprint Rituals */}
         <NavSection label="Sprint Rituals">
@@ -50,14 +154,24 @@ export default function AppShell({ user, activeScreen, onNavigate, isLight, togg
               key={item.id}
               icon={item.icon}
               label={item.label}
-              active={activeScreen === item.screen}
+              active={activeScreen === item.screen || activeScreen === item.id}
               onClick={() => onNavigate(item.screen)}
-              badge={item.id === 'session' ? { text: 'Join', variant: 'epic' } : null}
+              badge={item.badge || null}
             />
           ))}
         </NavSection>
 
         <div style={{ borderTop: '1px solid var(--border)', margin: '14px 18px' }} />
+
+        {/* Timelog shortcut */}
+        <div style={{ padding: '0 10px', marginBottom: 2 }}>
+          <NavItem
+            icon="⏱"
+            label="Timelog"
+            active={activeScreen === 'timelog'}
+            onClick={() => onNavigate('timelog')}
+          />
+        </div>
 
         {/* Game Widget */}
         {showGameWidget && (
@@ -119,9 +233,7 @@ export default function AppShell({ user, activeScreen, onNavigate, isLight, togg
         </div>
 
         {/* Content */}
-        <div>
-          {children}
-        </div>
+        <div>{children}</div>
       </main>
     </div>
   );
@@ -132,6 +244,7 @@ function screenTitle(screen) {
     dashboard: 'Portfolio',
     teamkanban: 'Team Kanban',
     timelog: 'Timelog',
+    workspace: 'Project Workspace',
     settings: 'Settings',
     retro: 'Retrospective',
   };
@@ -162,14 +275,16 @@ function NavItem({ icon, label, active, onClick, badge }) {
         border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left',
         transition: 'background 0.15s, color 0.15s'
       }}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--border)'; e.currentTarget.style.color = 'var(--text)'; }}}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text2)'; }}}
     >
-      <span style={{ fontSize: 13, opacity: 0.7 }}>{icon}</span>
-      {label}
+      <span style={{ fontSize: 13, opacity: 0.7, flexShrink: 0 }}>{icon}</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{label}</span>
       {badge && (
         <span style={{
-          marginLeft: 'auto', fontSize: 10, fontWeight: 600,
-          background: badge.variant === 'epic' ? 'var(--epic)' : 'var(--danger)',
-          color: '#fff', borderRadius: 10, padding: '1px 5px', lineHeight: 1.4
+          marginLeft: 'auto', fontSize: 10, fontWeight: 600, flexShrink: 0,
+          background: badge.variant === 'epic' ? 'var(--epic)' : badge.variant === 'live' ? 'var(--danger)' : 'var(--border2)',
+          color: '#fff', borderRadius: 10, padding: '1px 6px', lineHeight: 1.4
         }}>
           {badge.text}
         </span>

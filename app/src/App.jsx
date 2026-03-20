@@ -182,7 +182,13 @@ export default function App() {
         <AppShell
           user={user}
           activeScreen="dashboard"
+          activeProjectId={workspaceProjectId}
           onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
           isLight={isLight}
           toggleTheme={toggleTheme}
         >
@@ -217,7 +223,13 @@ export default function App() {
         <AppShell
           user={user}
           activeScreen="settings"
+          activeProjectId={workspaceProjectId}
           onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
           isLight={isLight}
           toggleTheme={toggleTheme}
         >
@@ -240,7 +252,13 @@ export default function App() {
         <AppShell
           user={user}
           activeScreen="timelog"
+          activeProjectId={workspaceProjectId}
           onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
           isLight={isLight}
           toggleTheme={toggleTheme}
         >
@@ -261,7 +279,7 @@ export default function App() {
   if (user && authScreen === "workspace" && workspaceProjectId) {
     return (
       <GameModeProvider organizationId={organizationId}>
-        <AppShell user={user} activeScreen="workspace" onNavigate={handleShellNavigate} isLight={isLight} toggleTheme={toggleTheme}>
+        <AppShell user={user} activeScreen="workspace" activeProjectId={workspaceProjectId} onNavigate={handleShellNavigate} onWorkspaceNavigate={(projectId) => { setWorkspaceProjectId(projectId); window.history.pushState({}, '', `/projects/${projectId}`); setAuthScreen('workspace'); }} isLight={isLight} toggleTheme={toggleTheme}>
           <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
             <ProjectWorkspace
               projectId={workspaceProjectId}
@@ -288,7 +306,13 @@ export default function App() {
         <AppShell
           user={user}
           activeScreen="teamkanban"
+          activeProjectId={workspaceProjectId}
           onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
           isLight={isLight}
           toggleTheme={toggleTheme}
         >
