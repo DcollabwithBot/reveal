@@ -196,17 +196,37 @@ export default function RetroScreen({ onNavigate }) {
         ))}
       </div>
 
-      {/* Achievement banner */}
-      {done.length === items.length && items.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: 'var(--jade-dim)', border: '1px solid rgba(0,200,150,0.3)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24 }}>
-          <span style={{ fontSize: 28 }}>🏆</span>
+      {/* Achievement banner — V8+ gold style */}
+      {done.length > 0 && items.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 16,
+          background: 'linear-gradient(135deg, rgba(200,168,75,0.12) 0%, rgba(200,168,75,0.05) 100%)',
+          border: '1px solid rgba(200,168,75,0.3)',
+          borderRadius: 'var(--radius-lg)', padding: '18px 22px', marginBottom: 24,
+        }}>
+          <span style={{ fontSize: 30 }}>🏆</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--jade)' }}>Perfekt sprint — alle items leveret!</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>Alle {items.length} items afsluttet · {totalH.toFixed(0)}h investeret</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--gold)', marginBottom: 3 }}>
+              {done.length === items.length
+                ? 'Challenge Defeated: Perfekt sprint!'
+                : `${done.length}/${items.length} items leveret`}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+              {done.length === items.length
+                ? `Alle ${items.length} items afsluttet · ${totalH.toFixed(0)}h investeret`
+                : `${rolledOver.length} item${rolledOver.length !== 1 ? 's' : ''} rolled over · ${totalH.toFixed(0)}h logget`}
+            </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 24, color: 'var(--gold)' }}>+{items.length * 20} XP</div>
-            <div style={{ fontSize: 10, color: 'var(--text3)' }}>Team reward</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 28, color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+              +{done.length * 20} XP
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Team reward</div>
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold)', background: 'rgba(200,168,75,0.12)', border: '1px solid rgba(200,168,75,0.25)', borderRadius: 20, padding: '2px 10px' }}>
+                Lv.{Math.floor(done.length / 3) + 4} → Lv.{Math.floor(done.length / 3) + 5} progress
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -246,6 +266,45 @@ export default function RetroScreen({ onNavigate }) {
           </div>
         </>
       )}
+
+      {/* Side Quest Discovery — auto-generated fra action-noter */}
+      {retroTableExists && (() => {
+        const actionNotes = notes.filter(n => n.cat === 'action');
+        const [dismissed, setDismissed] = useState([]);
+        const pending = actionNotes.filter(n => !dismissed.includes(n.id));
+        if (!pending.length) return null;
+        return (
+          <div style={{ background: 'var(--epic-dim)', border: '1px solid var(--epic-border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', marginBottom: 24 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--epic)', marginBottom: 12 }}>
+              ⚔ {pending.length} New Side Quest{pending.length > 1 ? 's' : ''} discovered from retro
+            </div>
+            {pending.map(note => (
+              <div key={note.id} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, marginBottom: 3 }}>
+                  "{note.body.slice(0, 60)}{note.body.length > 60 ? '…' : ''}" · auto-generated from retro action
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10 }}>
+                  Oprettet af {note.author_name} · Kan konverteres til sprint task
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => {/* future: create task from note */}}
+                    style={{ fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 'var(--radius)', background: 'var(--epic)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                  >
+                    Accept → Næste sprint
+                  </button>
+                  <button
+                    onClick={() => setDismissed(prev => [...prev, note.id])}
+                    style={{ fontSize: 12, padding: '7px 14px', borderRadius: 'var(--radius)', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Items overview */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
