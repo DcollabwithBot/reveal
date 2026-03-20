@@ -7,6 +7,7 @@ import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
 import AppShell from "./components/AppShell.jsx";
 import { GameModeProvider } from "./shared/GameModeContext.jsx";
+import SearchModal from "./components/SearchModal.jsx";
 import "./shared/animations.css";
 
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
@@ -32,6 +33,7 @@ export default function App() {
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
   const [isLight, setIsLight] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const sound = useSound();
 
   function toggleTheme() {
@@ -130,6 +132,18 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Global Cmd+K / Ctrl+K search shortcut
+  useEffect(() => {
+    function onKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (user) setSearchOpen(s => !s);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [user]);
+
   useEffect(() => {
     if (window.location.pathname === '/auth/callback' && user) {
       window.history.replaceState({}, document.title, '/');
@@ -140,6 +154,18 @@ export default function App() {
   if (loading) {
     return <LoadingScreen />;
   }
+
+  const searchModalEl = user && searchOpen ? (
+    <SearchModal
+      onClose={() => setSearchOpen(false)}
+      onNavigate={(projectId) => {
+        setWorkspaceProjectId(projectId);
+        window.history.pushState({}, '', `/projects/${projectId}`);
+        setAuthScreen('workspace');
+        setSearchOpen(false);
+      }}
+    />
+  ) : null;
 
   if (!user && authScreen !== "game") {
     if (authScreen === "login" || window.location.pathname.startsWith('/game')) {
@@ -182,6 +208,7 @@ export default function App() {
   if (user && authScreen === "dashboard") {
     return (
       <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
         <AppShell
           user={user}
           activeScreen="dashboard"
@@ -223,6 +250,7 @@ export default function App() {
   if (user && authScreen === "settings") {
     return (
       <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
         <AppShell
           user={user}
           activeScreen="settings"
@@ -252,6 +280,7 @@ export default function App() {
   if (user && authScreen === "timelog" && timelogProjectId) {
     return (
       <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
         <AppShell
           user={user}
           activeScreen="timelog"
@@ -282,6 +311,7 @@ export default function App() {
   if (user && authScreen === "workspace" && workspaceProjectId) {
     return (
       <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
         <AppShell user={user} activeScreen="workspace" activeProjectId={workspaceProjectId} onNavigate={handleShellNavigate} onWorkspaceNavigate={(projectId) => { setWorkspaceProjectId(projectId); window.history.pushState({}, '', `/projects/${projectId}`); setAuthScreen('workspace'); }} isLight={isLight} toggleTheme={toggleTheme}>
           <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
             <ProjectWorkspace
@@ -306,6 +336,7 @@ export default function App() {
   if (user && authScreen === "teamkanban") {
     return (
       <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
         <AppShell
           user={user}
           activeScreen="teamkanban"
@@ -330,6 +361,7 @@ export default function App() {
   if (user && authScreen === "retro") {
     return (
       <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
         <AppShell
           user={user}
           activeScreen="retro"

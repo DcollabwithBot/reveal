@@ -2442,6 +2442,350 @@ app.post('/api/estimation-results/:session_item_id/apply', async (req, res) => {
   return res.status(201).json({ approval_request_id: approval.id });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// Feature: Roles & Permissions
+// ══════════════════════════════════════════════════════════════════
+
+const ROLE_PERMISSIONS = {
+  owner:     ['create_session','manage_sprints','manage_items','approve_estimates','view_all','change_owner','manage_members'],
+  admin:     ['create_session','manage_sprints','manage_items','approve_estimates','view_all','manage_members'],
+  pm:        ['create_session','manage_sprints','manage_items','approve_estimates','view_all'],
+  tech_lead: ['create_session','manage_items','view_all'],
+  developer: ['create_session','vote','view_team'],
+  member:    ['create_session','vote','view_team'],
+  observer:  ['view_only'],
+  guest:     ['view_only'],
+};
+
+function getPermissionsForRole(role) {
+  return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS['member'];
+}
+
+function requirePermission(permission) {
+  return async (req, res, next) => {
+    const user = await getUserFromAuth(req, res);
+    if (!user) return;
+    const membership = await resolveMembership(user.id);
+    if (!membership) return res.status(403).json({ error: 'No membership' });
+    const perms = getPermissionsForRole(membership.role);
+    if (!perms.includes(permission)) return res.status(403).json({ error: `Permission denied: ${permission}` });
+    req.currentUser = user;
+    req.membership = membership;
+    next();
+  };
+}
+
+app.get('/api/org/members', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  // Get organization_members with roles
+  const { data: orgMembers, error: omErr } = await supabase
+    .from('organization_members')
+    .select('id, user_id, role, joined_at')
+    .eq('organization_id', membership.organization_id);
+
+  if (omErr) return res.status(500).json({ error: omErr.message });
+
+  const userIds = (orgMembers || []).map(m => m.user_id).filter(Boolean);
+
+  let profileMap = new Map();
+  if (userIds.length) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, display_name, avatar_class')
+      .in('id', userIds);
+    (profiles || []).forEach(p => profileMap.set(p.id, p));
+  }
+
+  const result = (orgMembers || []).map(m => {
+    const profile = profileMap.get(m.user_id);
+    return {
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role || 'member',
+      joined_at: m.joined_at,
+      display_name: profile?.display_name || m.user_id?.slice(0, 8) || 'Unknown',
+      avatar_class: profile?.avatar_class || null,
+      is_me: m.user_id === user.id,
+    };
+  });
+
+  res.json(result);
+});
+
+app.patch('/api/org/members/:id/role', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(400).json({ error: 'No org' });
+
+  const myPerms = getPermissionsForRole(membership.role);
+  if (!myPerms.includes('manage_members')) {
+    return res.status(403).json({ error: 'Kun owner/admin kan ændre roller' });
+  }
+
+  const { role } = req.body;
+  const validRoles = ['owner','admin','member','observer'];
+  if (!validRoles.includes(role)) return res.status(400).json({ error: 'Ugyldig rolle' });
+
+  // Cannot set owner if not owner yourself
+  if (role === 'owner' && !myPerms.includes('change_owner')) {
+    return res.status(403).json({ error: 'Kun owner kan overføre ownership' });
+  }
+
+  const { data, error } = await supabase
+    .from('organization_members')
+    .update({ role })
+    .eq('id', req.params.id)
+    .eq('organization_id', membership.organization_id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: 'Member ikke fundet' });
+
+  res.json({ ok: true, member: data });
+});
+
+app.get('/api/me/permissions', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership) return res.json({ role: 'guest', permissions: getPermissionsForRole('guest') });
+
+  res.json({
+    role: membership.role || 'member',
+    permissions: getPermissionsForRole(membership.role || 'member'),
+    organization_id: membership.organization_id,
+    team_id: membership.team_id,
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Feature: Comments
+// ══════════════════════════════════════════════════════════════════
+
+app.get('/api/items/:id/comments', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(403).json({ error: 'No membership' });
+
+  const { data, error } = await supabase
+    .from('comments')
+    .select('id, body, parent_id, created_at, updated_at, author_id')
+    .eq('item_id', req.params.id)
+    .order('created_at', { ascending: true });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const authorIds = [...new Set((data || []).map(c => c.author_id).filter(Boolean))];
+  let authorMap = new Map();
+  if (authorIds.length) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', authorIds);
+    (profiles || []).forEach(p => authorMap.set(p.id, p.display_name || p.id.slice(0,8)));
+  }
+
+  const enriched = (data || []).map(c => ({
+    ...c,
+    author_name: authorMap.get(c.author_id) || 'Unknown',
+    is_own: c.author_id === user.id,
+  }));
+
+  res.json(enriched);
+});
+
+app.post('/api/items/:id/comments', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.status(403).json({ error: 'No membership' });
+
+  const { body, parent_id } = req.body;
+  if (!body?.trim()) return res.status(400).json({ error: 'body required' });
+  if (body.trim().length > 5000) return res.status(400).json({ error: 'body too long' });
+
+  const { data, error } = await supabase
+    .from('comments')
+    .insert({
+      item_id: req.params.id,
+      author_id: user.id,
+      body: body.trim(),
+      parent_id: parent_id || null,
+    })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Fetch author name
+  const { data: profile } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+
+  res.status(201).json({
+    ...data,
+    author_name: profile?.display_name || user.id.slice(0,8),
+    is_own: true,
+  });
+});
+
+app.patch('/api/comments/:id', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+
+  const { body } = req.body;
+  if (!body?.trim()) return res.status(400).json({ error: 'body required' });
+  if (body.trim().length > 5000) return res.status(400).json({ error: 'body too long' });
+
+  const { data, error } = await supabase
+    .from('comments')
+    .update({ body: body.trim(), updated_at: new Date().toISOString() })
+    .eq('id', req.params.id)
+    .eq('author_id', user.id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: 'Kommentar ikke fundet eller ikke din' });
+
+  res.json(data);
+});
+
+app.delete('/api/comments/:id', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+
+  const myPerms = getPermissionsForRole(membership?.role || 'member');
+  const isAdmin = myPerms.includes('manage_members');
+
+  // Author can always delete own; admin/owner can delete any
+  let query = supabase.from('comments').delete().eq('id', req.params.id);
+  if (!isAdmin) {
+    query = query.eq('author_id', user.id);
+  }
+
+  const { error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Feature: Global Search
+// ══════════════════════════════════════════════════════════════════
+
+app.get('/api/search', async (req, res) => {
+  const user = await getUserFromAuth(req, res);
+  if (!user) return;
+  const membership = await resolveMembership(user.id);
+  if (!membership?.organization_id) return res.json({ items: [], projects: [], sprints: [] });
+
+  const q = (req.query.q || '').trim();
+  const types = (req.query.type || 'items,projects,sprints').split(',');
+  const orgId = membership.organization_id;
+
+  if (!q || q.length < 2) return res.json({ items: [], projects: [], sprints: [] });
+
+  const results = { items: [], projects: [], sprints: [] };
+
+  const searches = [];
+
+  if (types.includes('items')) {
+    searches.push(
+      supabase
+        .from('session_items')
+        .select('id, title, item_code, item_status, sprint_id, sprints!inner(id, name, project_id, projects!inner(id, name, organization_id))')
+        .eq('sprints.projects.organization_id', orgId)
+        .textSearch('search_vector', q, { type: 'websearch', config: 'danish' })
+        .limit(10)
+        .then(({ data, error }) => {
+          if (error) {
+            // Fallback: ILIKE
+            return supabase
+              .from('session_items')
+              .select('id, title, item_code, item_status, sprint_id, sprints!inner(id, name, project_id, projects!inner(id, name, organization_id))')
+              .eq('sprints.projects.organization_id', orgId)
+              .ilike('title', `%${q}%`)
+              .limit(10);
+          }
+          return { data, error: null };
+        })
+        .then(({ data }) => {
+          results.items = (data || []).map(item => ({
+            id: item.id,
+            title: item.title,
+            item_code: item.item_code,
+            item_status: item.item_status,
+            sprint_name: item.sprints?.name || null,
+            project_name: item.sprints?.projects?.name || null,
+            project_id: item.sprints?.projects?.id || null,
+          }));
+        })
+        .catch(() => {})
+    );
+  }
+
+  if (types.includes('projects')) {
+    searches.push(
+      supabase
+        .from('projects')
+        .select('id, name, description')
+        .eq('organization_id', orgId)
+        .textSearch('search_vector', q, { type: 'websearch', config: 'danish' })
+        .limit(8)
+        .then(({ data, error }) => {
+          if (error) {
+            return supabase
+              .from('projects')
+              .select('id, name, description')
+              .eq('organization_id', orgId)
+              .ilike('name', `%${q}%`)
+              .limit(8);
+          }
+          return { data, error: null };
+        })
+        .then(({ data }) => {
+          results.projects = (data || []).map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+          }));
+        })
+        .catch(() => {})
+    );
+  }
+
+  if (types.includes('sprints')) {
+    searches.push(
+      supabase
+        .from('sprints')
+        .select('id, name, project_id, projects!inner(id, name, organization_id)')
+        .eq('projects.organization_id', orgId)
+        .ilike('name', `%${q}%`)
+        .limit(8)
+        .then(({ data }) => {
+          results.sprints = (data || []).map(s => ({
+            id: s.id,
+            name: s.name,
+            project_name: s.projects?.name || null,
+            project_id: s.projects?.id || null,
+          }));
+        })
+        .catch(() => {})
+    );
+  }
+
+  await Promise.all(searches);
+
+  res.json(results);
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(staticRoot, 'index.html'));
 });

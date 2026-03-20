@@ -1,5 +1,150 @@
+import { useEffect, useState } from 'react';
 import { useGameMode } from '../shared/GameModeContext';
 import { Card } from '../components/ui/Card';
+import { supabase } from '../lib/supabase';
+
+async function authHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token
+    ? { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' };
+}
+
+const ORG_ROLES = [
+  { value: 'owner', label: 'Owner', color: 'var(--gold)' },
+  { value: 'admin', label: 'Admin', color: 'var(--epic)' },
+  { value: 'member', label: 'Member', color: 'var(--jade)' },
+  { value: 'observer', label: 'Observer', color: 'var(--text3)' },
+];
+
+function RoleTag({ role }) {
+  const def = ORG_ROLES.find(r => r.value === role) || { label: role, color: 'var(--text3)' };
+  return (
+    <span style={{
+      fontSize: 10, padding: '2px 7px', borderRadius: 10,
+      background: 'var(--bg3)', border: `1px solid ${def.color}44`,
+      color: def.color, fontWeight: 600,
+    }}>
+      {def.label}
+    </span>
+  );
+}
+
+function TeamRoles({ myPermissions }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const canManage = myPermissions.includes('manage_members');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const r = await fetch('/api/org/members', { headers });
+        if (r.ok) setMembers(await r.json());
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleRoleChange(memberId, newRole) {
+    setSaving(memberId);
+    try {
+      const headers = await authHeaders();
+      const r = await fetch(`/api/org/members/${memberId}/role`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (r.ok) {
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+        setToast('Rolle opdateret');
+        setTimeout(() => setToast(null), 3000);
+      } else {
+        const data = await r.json();
+        setToast(`Fejl: ${data.error}`);
+        setTimeout(() => setToast(null), 4000);
+      }
+    } catch { /* ignore */ }
+    setSaving(null);
+  }
+
+  return (
+    <div>
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+          background: 'var(--jade)', color: '#0c0c0f',
+          borderRadius: 'var(--radius)', padding: '10px 16px',
+          fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        }}>
+          {toast}
+        </div>
+      )}
+
+      {loading && <div style={{ fontSize: 13, color: 'var(--text3)', padding: '12px 0' }}>Henter teammedlemmer...</div>}
+
+      {!loading && members.length === 0 && (
+        <div style={{ fontSize: 13, color: 'var(--text3)', padding: '12px 0' }}>Ingen teammedlemmer fundet.</div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {members.map(m => (
+          <div
+            key={m.id}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 16px', background: 'var(--bg2)',
+              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+            }}
+          >
+            {/* Avatar */}
+            <div style={{
+              width: 34, height: 34, borderRadius: '50%',
+              background: 'var(--bg3)', border: '1px solid var(--border2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 700, color: 'var(--text2)', flexShrink: 0,
+            }}>
+              {(m.display_name || '?').slice(0, 2).toUpperCase()}
+            </div>
+
+            {/* Name + you badge */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {m.display_name}
+                {m.is_me && (
+                  <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--bg3)', borderRadius: 6, padding: '1px 5px' }}>dig</span>
+                )}
+              </div>
+            </div>
+
+            {/* Role */}
+            {canManage && !m.is_me ? (
+              <select
+                value={m.role}
+                disabled={saving === m.id}
+                onChange={e => handleRoleChange(m.id, e.target.value)}
+                style={{
+                  fontSize: 12, padding: '4px 8px', borderRadius: 'var(--radius)',
+                  background: 'var(--bg3)', border: '1px solid var(--border2)',
+                  color: 'var(--text)', cursor: 'pointer',
+                }}
+              >
+                {ORG_ROLES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            ) : (
+              <RoleTag role={m.role} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const MODES = [
   {
@@ -27,6 +172,20 @@ const MODES = [
 
 export default function WorkspaceSettings({ onBack }) {
   const { gameMode, updateGameMode } = useGameMode();
+  const [myPermissions, setMyPermissions] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const r = await fetch('/api/me/permissions', { headers });
+        if (r.ok) {
+          const data = await r.json();
+          setMyPermissions(data.permissions || []);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--sans)' }}>
@@ -97,6 +256,20 @@ export default function WorkspaceSettings({ onBack }) {
               </Card>
             );
           })}
+        </div>
+
+        {/* Team & Roller section */}
+        <div style={{ marginTop: 48 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>👥 Team & Roller</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+              Administrér teammedlemmer og deres roller i organisationen.
+              {!myPermissions.includes('manage_members') && (
+                <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text3)' }}>(Du har ikke adgang til at ændre roller)</span>
+              )}
+            </div>
+          </div>
+          <TeamRoles myPermissions={myPermissions} />
         </div>
       </div>
     </div>

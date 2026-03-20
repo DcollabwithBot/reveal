@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { addItemComment, closeItem, getItemComments, updateItem } from '../lib/api';
-import { supabase } from '../lib/supabase';
+import { closeItem, updateItem } from '../lib/api';
 import { Pill } from './ui/Card';
+import CommentsPanel from './CommentsPanel';
 
 const STATUS_OPTIONS = [
   { value: 'backlog',     label: 'Backlog',      color: 'var(--text3)' },
@@ -27,20 +27,10 @@ function formatDateShort(str) {
 
 export default function ItemDetailModal({ item: initialItem, onClose, onUpdated }) {
   const [item, setItem] = useState(initialItem);
-  const [comments, setComments] = useState([]);
-  const [commentBody, setCommentBody] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('detail'); // detail | history
+  const [activeTab, setActiveTab] = useState('detail'); // detail | history | comments
   const [confirmClose, setConfirmClose] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
   const textareaRef = useRef(null);
-  const commentInputRef = useRef(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null));
-    loadComments();
-  }, []); // eslint-disable-line
 
   useEffect(() => {
     // Close on Escape
@@ -48,11 +38,6 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-
-  async function loadComments() {
-    const data = await getItemComments(item.id);
-    setComments(data);
-  }
 
   async function handleFieldUpdate(field, value) {
     setSaving(true);
@@ -78,22 +63,6 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
     } finally {
       setSaving(false);
       setConfirmClose(false);
-    }
-  }
-
-  async function handleAddComment(e) {
-    e.preventDefault();
-    if (!commentBody.trim()) return;
-    setSubmitting(true);
-    try {
-      const authorName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || 'Unknown';
-      const comment = await addItemComment(item.id, commentBody.trim(), authorName);
-      if (comment) {
-        setComments(prev => [...prev, comment]);
-        setCommentBody('');
-      }
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -188,7 +157,7 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {[{ key: 'detail', label: 'Detaljer' }, { key: 'comments', label: `Kommentarer${comments.length ? ` (${comments.length})` : ''}` }, { key: 'history', label: 'Historik' }].map(tab => (
+          {[{ key: 'detail', label: 'Detaljer' }, { key: 'comments', label: 'Kommentarer 💬' }, { key: 'history', label: 'Historik' }].map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -320,57 +289,7 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
 
           {/* ── COMMENTS TAB ── */}
           {activeTab === 'comments' && (
-            <div>
-              {comments.length === 0 && (
-                <div style={{ color: 'var(--text3)', fontSize: 13, marginBottom: 16 }}>Ingen kommentarer endnu.</div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
-                {comments.map(c => (
-                  <div key={c.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--jade-dim)', color: 'var(--jade)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
-                        {c.author_name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.author_name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDate(c.created_at)}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{c.body}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* New comment input */}
-              <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <textarea
-                  ref={commentInputRef}
-                  value={commentBody}
-                  onChange={e => setCommentBody(e.target.value)}
-                  placeholder="Skriv en kommentar..."
-                  rows={3}
-                  style={{
-                    background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                    color: 'var(--text)', fontSize: 13, padding: '10px 12px', resize: 'vertical',
-                    outline: 'none', fontFamily: 'var(--sans)', lineHeight: 1.5,
-                  }}
-                  onFocus={e => e.target.style.borderColor = 'var(--jade)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    type="submit"
-                    disabled={submitting || !commentBody.trim()}
-                    style={{
-                      fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 'var(--radius)',
-                      background: commentBody.trim() ? 'var(--jade)' : 'var(--bg3)',
-                      color: commentBody.trim() ? '#fff' : 'var(--text3)',
-                      border: 'none', cursor: commentBody.trim() ? 'pointer' : 'default',
-                    }}
-                  >
-                    {submitting ? 'Sender...' : 'Send kommentar'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <CommentsPanel itemId={item.id} />
           )}
 
           {/* ── HISTORY TAB ── */}
@@ -383,15 +302,6 @@ export default function ItemDetailModal({ item: initialItem, onClose, onUpdated 
                 {item.actual_hours > 0 && <HistoryRow icon="⏱" label="Actual timer" value={`${item.actual_hours}h`} />}
                 {(item.invoiced_dkk > 0) && <HistoryRow icon="💰" label="Faktureret" value={`${item.invoiced_dkk?.toLocaleString('da-DK')} DKK`} color="var(--jade)" />}
                 {(item.to_invoice_dkk > 0) && <HistoryRow icon="📋" label="Mangler fakturering" value={`${item.to_invoice_dkk?.toLocaleString('da-DK')} DKK`} color="var(--warn)" />}
-                {comments.length > 0 && (
-                  <>
-                    <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Kommentarhistorik</div>
-                    {comments.map(c => (
-                      <HistoryRow key={c.id} icon="💬" label={c.author_name} value={`${c.body.slice(0, 60)}${c.body.length > 60 ? '...' : ''} · ${formatDateShort(c.created_at)}`} />
-                    ))}
-                  </>
-                )}
               </div>
             </div>
           )}
