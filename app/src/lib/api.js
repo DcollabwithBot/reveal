@@ -318,3 +318,41 @@ export async function joinSessionByCode(code) {
     .maybeSingle();
   return data;
 }
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+export async function getProject(projectId) {
+  const { data } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', projectId)
+    .single();
+  return data;
+}
+
+export async function getProjectSprints(projectId) {
+  const { data } = await supabase
+    .from('sprints')
+    .select('id, name, sprint_code, status')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: true });
+  return data || [];
+}
+
+export async function getSprintItems(sprintId) {
+  const { data } = await supabase
+    .from('session_items')
+    .select('id, item_code, parent_code, title, status, estimated_hours, hours_fak, hours_int, invoiced_dkk, to_invoice_dkk, assigned_to')
+    .eq('sprint_id', sprintId)
+    .order('item_code', { ascending: true });
+  return data || [];
+}
+
+export async function updateItemStatus(itemId, status) {
+  const { data } = await supabase
+    .from('session_items')
+    .update({ status })
+    .eq('id', itemId)
+    .select()
+    .single();
+  return data;
+}

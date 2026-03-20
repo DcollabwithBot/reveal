@@ -17,6 +17,7 @@ const Session = lazy(() => import("./screens/Session.jsx"));
 const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
 const WorkspaceSettings = lazy(() => import("./screens/WorkspaceSettings.jsx"));
 const TeamKanban = lazy(() => import("./screens/TeamKanban.jsx"));
+const ProjectWorkspace = lazy(() => import("./screens/ProjectWorkspace.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -25,6 +26,7 @@ export default function App() {
   const [organizationId, setOrganizationId] = useState(null);
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [timelogProjectId, setTimelogProjectId] = useState(null);
+  const [workspaceProjectId, setWorkspaceProjectId] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -68,6 +70,12 @@ export default function App() {
     if (timelogMatch) {
       setTimelogProjectId(timelogMatch[1]);
       setAuthScreen('timelog');
+      return;
+    }
+    const workspaceMatch = pathname.match(/^\/projects\/([^/]+)$/);
+    if (workspaceMatch) {
+      setWorkspaceProjectId(workspaceMatch[1]);
+      setAuthScreen('workspace');
       return;
     }
     if (pathname === '/' || pathname === '/login' || pathname === '/auth/callback') {
@@ -191,6 +199,11 @@ export default function App() {
                 setTimelogProjectId(projectId);
                 setAuthScreen("timelog");
               }}
+              onWorkspace={(projectId) => {
+                setWorkspaceProjectId(projectId);
+                window.history.pushState({}, '', `/projects/${projectId}`);
+                setAuthScreen('workspace');
+              }}
             />
           </Suspense>
         </AppShell>
@@ -237,6 +250,29 @@ export default function App() {
               onBack={() => {
                 window.history.pushState({}, document.title, '/dashboard');
                 setAuthScreen("dashboard");
+              }}
+            />
+          </Suspense>
+        </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "workspace" && workspaceProjectId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <AppShell user={user} activeScreen="workspace" onNavigate={handleShellNavigate} isLight={isLight} toggleTheme={toggleTheme}>
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <ProjectWorkspace
+              projectId={workspaceProjectId}
+              onBack={() => {
+                window.history.pushState({}, '', '/dashboard');
+                setAuthScreen('dashboard');
+              }}
+              onTimelog={(id) => {
+                window.history.pushState({}, '', `/projects/${id}/timelog`);
+                setTimelogProjectId(id);
+                setAuthScreen('timelog');
               }}
             />
           </Suspense>

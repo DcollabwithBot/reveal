@@ -10,7 +10,7 @@ import GovernanceSummary from '../components/governance/GovernanceSummary';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import { KpiCard, Pill } from '../components/ui/Card';
 
-export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog }) {
+export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog, onWorkspace }) {
   const [loadingGov, setLoadingGov] = useState(true);
   const [error, setError] = useState(null);
   const [dashboard, setDashboard] = useState({ active: [], upcoming: [], finished: [], projects: [], activity: [] });
@@ -118,11 +118,12 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog }
             return (
               <div
                 key={project.id}
+                onClick={() => onWorkspace && onWorkspace(project.id)}
                 style={{
                   padding: '12px 0',
                   borderBottom: '1px solid var(--border)',
                   display: 'flex', flexDirection: 'column', gap: 6,
-                  cursor: onTimelog ? 'pointer' : 'default'
+                  cursor: onWorkspace ? 'pointer' : 'default'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -133,7 +134,7 @@ export default function Dashboard({ user, onBackToLobby, onContinue, onTimelog }
                     <Pill variant={pillVariant}>{status}</Pill>
                     {onTimelog && (
                       <button
-                        onClick={() => onTimelog(project.id)}
+                        onClick={(e) => { e.stopPropagation(); onTimelog(project.id); }}
                         style={{
                           background: 'var(--jade-dim)', border: '1px solid rgba(0,200,150,0.28)',
                           borderRadius: 'var(--radius)', color: 'var(--jade)',
