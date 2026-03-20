@@ -372,7 +372,7 @@ export async function getProjectSprints(projectId) {
 export async function getSprintItems(sprintId) {
   const { data } = await supabase
     .from('session_items')
-    .select('id, item_code, parent_code, title, status, estimated_hours, hours_fak, hours_int, invoiced_dkk, to_invoice_dkk, assigned_to, priority, due_date, notes')
+    .select('id, item_code, parent_code, title, status, item_status, estimated_hours, hours_fak, hours_int, invoiced_dkk, to_invoice_dkk, assigned_to, priority, due_date, notes')
     .eq('sprint_id', sprintId)
     .order('item_code', { ascending: true });
   return data || [];

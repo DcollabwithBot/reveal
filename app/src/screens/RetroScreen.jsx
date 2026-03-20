@@ -78,6 +78,7 @@ export default function RetroScreen({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retroTableExists, setRetroTableExists] = useState(true);
+  const [dismissed, setDismissed] = useState([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null));
@@ -85,7 +86,10 @@ export default function RetroScreen({ onNavigate }) {
   }, []); // eslint-disable-line
 
   useEffect(() => {
-    if (selectedSprintId) loadNotes(selectedSprintId);
+    if (selectedSprintId) {
+      setDismissed([]);
+      loadNotes(selectedSprintId);
+    }
   }, [selectedSprintId]); // eslint-disable-line
 
   async function loadData() {
@@ -270,7 +274,6 @@ export default function RetroScreen({ onNavigate }) {
       {/* Side Quest Discovery — auto-generated fra action-noter */}
       {retroTableExists && (() => {
         const actionNotes = notes.filter(n => n.cat === 'action');
-        const [dismissed, setDismissed] = useState([]);
         const pending = actionNotes.filter(n => !dismissed.includes(n.id));
         if (!pending.length) return null;
         return (

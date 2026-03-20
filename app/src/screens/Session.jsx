@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useReducer } from "react";
-import { C, NPC_TEAM } from "../shared/constants.js";
+import { C, PF, NPC_TEAM, CLASSES } from "../shared/constants.js";
 import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
 import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/session/rewards/achievements.js";
 import { projectBossEncounter } from "../domain/session/boss/bossProjection.js";
@@ -21,6 +21,8 @@ import { createChallengeCompletionResult, createConfidenceResult, createLifeline
 import { useSessionData } from "../hooks/useSessionData.js";
 import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
 import { useGameFeature } from "../shared/useGameFeature.js";
+import { dk } from "../shared/utils.js";
+import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -50,17 +52,18 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     ...NPC_TEAM,
   ];
 
-  const [flow, dispatchFlow] = useReducer(sessionFlowReducer, maxHp, createInitialSessionFlowState);
-  const { step, pv, votes, rdy, rev, cd, cv, ac, bossHp, combo, achieves, loot, rc, ll, llr, activeChallenge, initialVote, revoting } = flow;
-  const [sessionUi, dispatchUi] = useReducer(sessionUiReducer, initialSessionUiState);
-  const { bossHit, bossDead, atk, npcAtk, npcHits, dmgNums, flash, shake, showAchieve, spellName, showRoulette, showLoot } = sessionUi;
-
-  const { bossName, maxHp, bossDamageMultiplier } = projectBossEncounter({
-    projectionConfig,
+  const { maxHp: initialMaxHp } = projectBossEncounter({
+    projectionConfig: null,
     node,
     project,
     bossKey: 'delivery-pressure-default',
   });
+
+  const [flow, dispatchFlow] = useReducer(sessionFlowReducer, initialMaxHp, createInitialSessionFlowState);
+  const { step, pv, votes, rdy, rev, cd, cv, ac, bossHp, combo, achieves, loot, rc, ll, llr, activeChallenge, initialVote, revoting } = flow;
+  const [sessionUi, dispatchUi] = useReducer(sessionUiReducer, initialSessionUiState);
+  const { bossHit, bossDead, atk, npcAtk, npcHits, dmgNums, flash, shake, showAchieve, spellName, showRoulette, showLoot } = sessionUi;
+
   const { projectionConfig, approvalState, advisoryBusy, advisoryError, setApprovalState, sendToApprovalQueue } = useSessionData({
     nodeId: node?.id,
     projectId: project?.id,
@@ -69,6 +72,14 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     cv,
     rootEstimate: pv ?? 0,
   });
+
+  const { bossName, maxHp, bossDamageMultiplier } = projectBossEncounter({
+    projectionConfig,
+    node,
+    project,
+    bossKey: 'delivery-pressure-default',
+  });
+
   const finCalled = useRef(false);
 
   const [retro, dispatchRetro] = useReducer(sessionRetroReducer, undefined, createInitialSessionRetroState);
@@ -100,6 +111,25 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const world = projectWorld(rootState, projectionConfig, { xp: C.xp, acc: C.acc, org: C.org, pur: C.pur, gld: C.gld, yel: C.yel, blu: C.blu, red: C.red, grn: C.grn, dim: C.dim });
   const currentChallenge = buildChallenge(rootState, world);
 
+  const bossHpRef = useRef(bossHp);
+  useEffect(() => { bossHpRef.current = bossHp; }, [bossHp]);
+  const bossBattleHpRef = useRef(bossBattleHp);
+  useEffect(() => { bossBattleHpRef.current = bossBattleHp; }, [bossBattleHp]);
+
+  function setBossHp(updater) {
+    const current = bossHpRef.current;
+    const next = typeof updater === 'function' ? updater(current) : updater;
+    bossHpRef.current = next;
+    dispatchFlow({ type: 'merge', patch: { bossHp: next } });
+  }
+
+  function setBossBattleHp(updater) {
+    const current = bossBattleHpRef.current;
+    const next = typeof updater === 'function' ? updater(current) : updater;
+    bossBattleHpRef.current = next;
+    dispatchRetro({ type: 'merge', patch: { bossBattleHp: next } });
+  }
+
   function addDmg(val, x, critical = false) { dispatchUi({ type: 'dmgNums:add', value: { id: Date.now() + Math.random(), val, x, critical } }); setTimeout(() => dispatchUi({ type: 'dmgNums:trimFront', count: 1 }), 1200); }
   function addAchieve(a) {
     const resolved = typeof a === 'string' ? resolveProjectionAchievement(a) : a;
@@ -108,9 +138,11 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     dispatchUi({ type: 'showAchieve', value: resolved });
     sound("achieve");
   }
+  function doBossHit(dmg) { dispatchUi({ type: 'bossHit', value: true }); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => dispatchUi({ type: 'bossHit', value: false }), 200); sound("hit"); }
+
+  const orchestration = useSessionOrchestration({ dispatchUi, dispatchFlow, TEAM, sound, doBossHit, addDmg });
   function doFlash(col) { orchestration.flash(col); }
   function doShake() { orchestration.shake(); }
-  function doBossHit(dmg) { dispatchUi({ type: 'bossHit', value: true }); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => dispatchUi({ type: 'bossHit', value: false }), 200); sound("hit"); }
 
   useEffect(() => {
     if (pv === null || rdy) return;
