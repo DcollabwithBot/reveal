@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { getMembership, reportExportEvent } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { buildSprintExportFileBase, buildSprintExportPayload, buildSprintItemsCsv, resolveNextSprint } from '../domain/session/retro/sprintFlow';
+import { Sprite } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES } from '../shared/constants.js';
+import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound } from '../hooks/useGameSound.js';
+import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const RETRO_COLS = [
   { key: 'well',    label: '↑ What went well',   color: 'var(--jade)',   bg: 'rgba(0,200,150,0.08)',   border: 'rgba(0,200,150,0.25)' },
@@ -24,7 +30,10 @@ function Sticky({ note, colColor, colBg, colBorder, currentUser, onDelete }) {
     }}>
       <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, marginBottom: 6 }}>{note.body}</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 10, color: colColor, fontWeight: 600 }}>— {note.author_name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {isOwn && <Sprite m={{ name: '', cls: CLASSES[0], lv: 1, hat: CLASSES[0].color, body: CLASSES[0].color, skin: '#fdd' }} size={0.5} idle />}
+          <span style={{ fontSize: 10, color: colColor, fontWeight: 600 }}>— {note.author_name}</span>
+        </div>
         {isOwn && (
           <button onClick={() => onDelete(note.id)} style={{ fontSize: 10, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕</button>
         )}
@@ -69,6 +78,7 @@ function AddNoteForm({ colKey, colColor, sprintId, orgId, currentUser, onAdded }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function RetroScreen({ onNavigate }) {
+  const { soundEnabled, toggleSound } = useGameSound();
   const [sprints, setSprints] = useState([]);
   const [selectedSprintId, setSelectedSprintId] = useState(null);
   const [projects, setProjects] = useState({});
@@ -83,6 +93,7 @@ export default function RetroScreen({ onNavigate }) {
   const [actionMessage, setActionMessage] = useState(null);
   const [acceptingNoteId, setAcceptingNoteId] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const veteranTriggered = useRef(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null));
@@ -145,7 +156,24 @@ export default function RetroScreen({ onNavigate }) {
     setNotes(prev => prev.filter(n => n.id !== noteId));
   }
 
-  function handleNoteAdded(note) { setNotes(prev => [...prev, note]); }
+  function handleNoteAdded(note) {
+    setNotes(prev => {
+      const updated = [...prev, note];
+      // Retrospective Veteran: 10+ notes by this user → achievement
+      if (currentUser?.id && !veteranTriggered.current) {
+        const myCount = updated.filter(n => n.user_id === currentUser.id).length;
+        if (myCount >= 10) {
+          veteranTriggered.current = true;
+          supabase.from('achievement_unlocks').insert({
+            user_id: currentUser.id,
+            achievement_key: 'retrospective_veteran',
+            xp_awarded: 75,
+          }).then(() => {}).catch(() => {});
+        }
+      }
+      return updated;
+    });
+  }
 
   async function handleAcceptToNextSprint(note) {
     if (!selectedSprintId || !note || acceptingNoteId) return;
@@ -280,6 +308,14 @@ export default function RetroScreen({ onNavigate }) {
 
   return (
     <div style={{ padding: 32 }}>
+      {/* Game soul: XP bar + sound toggle */}
+      {currentUser?.id && <XPBadgeNotifier userId={currentUser.id} />}
+      {currentUser?.id && (
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
+          <GameXPBar userId={currentUser.id} />
+        </div>
+      )}
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: 'var(--serif)', fontSize: 30, letterSpacing: '-0.02em', marginBottom: 5 }}>
