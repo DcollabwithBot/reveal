@@ -368,8 +368,8 @@ function Leaderboard() {
         <p style={{ margin: '0 0 0.75rem', color: TEXT }}>
           <strong>Dette er en demo.</strong> Din rigtige session gemmer estimaterne til dit PM-board, tracker nøjagtighed over tid og giver dit team XP. Prøv det med dit team →
         </p>
-        <a
-          href="/login"
+        <button
+          onClick={() => window.location.href = '/login'}
           style={{
             display: 'inline-block',
             background: JADE,
@@ -377,12 +377,13 @@ function Leaderboard() {
             fontWeight: 700,
             borderRadius: '8px',
             padding: '0.6rem 1.2rem',
-            textDecoration: 'none',
+            border: 'none',
+            cursor: 'pointer',
             fontSize: '0.9rem',
           }}
         >
           ⚔️ Start gratis
-        </a>
+        </button>
       </div>
     </div>
   )
@@ -394,6 +395,27 @@ export default function DemoScreen() {
 
   return (
     <div style={s.root}>
+      {/* Fixed topbar */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0,
+        padding: '1rem 1.5rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'rgba(15,17,23,0.9)', backdropFilter: 'blur(8px)',
+        zIndex: 100, borderBottom: '1px solid rgba(255,255,255,0.08)'
+      }}>
+        <a href="/" style={{
+          fontFamily: 'Instrument Serif, serif', fontSize: '1.25rem',
+          color: '#22c55e', textDecoration: 'none', fontWeight: 700
+        }}>REVEAL</a>
+        <span style={{fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em'}}>
+          DEMO MODE
+        </span>
+        <a href="/login" style={{
+          fontSize: '0.85rem', color: '#22c55e', textDecoration: 'none',
+          border: '1px solid #22c55e', padding: '0.35rem 0.85rem', borderRadius: '6px'
+        }}>Log ind →</a>
+      </div>
+
       {/* Subtle scanlines */}
       <div style={{
         position: 'fixed',
@@ -403,7 +425,7 @@ export default function DemoScreen() {
         zIndex: 0,
       }} />
 
-      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '560px' }}>
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '560px', paddingTop: '4rem' }}>
         {/* Logo */}
         <p style={s.header}>⚔️ REVEAL</p>
         <div style={{ textAlign: 'center' }}>

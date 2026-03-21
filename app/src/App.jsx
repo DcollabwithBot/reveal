@@ -102,6 +102,7 @@ export default function App() {
   }
 
   function syncAuthScreenFromPath(pathname, hasUser) {
+    if (pathname === '/demo') { setAuthScreen('demo'); return; }
     if (!hasUser) return;
     if (pathname === '/dashboard') {
       setAuthScreen('dashboard');
