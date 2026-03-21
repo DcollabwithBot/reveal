@@ -47,19 +47,7 @@ export default function App() {
   const [screen, setScreen] = useState("avatar"); // avatar → worlds → map → session
   const [timelogProjectId, setTimelogProjectId] = useState(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState(null);
-  const [draftSessionId, setDraftSessionId] = useState(null);
-  const [specWarsSessionId, setSpecWarsSessionId] = useState(null);
-  const [perspectiveSessionId, setPerspectiveSessionId] = useState(null);
-  const [bluffPokerSessionId, setBluffPokerSessionId] = useState(null);
-  const [nestingScopeSessionId, setNestingScopeSessionId] = useState(null);
-  const [speedScopeSessionId, setSpeedScopeSessionId] = useState(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [truthSerumSessionId, setTruthSerumSessionId] = useState(null);
-  const [flowPokerSessionId, setFlowPokerSessionId] = useState(null);
-  const [riskPokerSessionId, setRiskPokerSessionId] = useState(null);
-  const [assumptionSlayerSessionId, setAssumptionSlayerSessionId] = useState(null);
-  const [refinementRouletteSessionId, setRefinementRouletteSessionId] = useState(null);
-  const [dependencyMapperSessionId, setDependencyMapperSessionId] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [currentSessionMode, setCurrentSessionMode] = useState(null);
   const [avatar, setAvatar] = useState(null);
@@ -103,107 +91,45 @@ export default function App() {
     }
   }
 
+  const slugToMode = {
+    'planning-poker': 'planning_poker',
+    'boss-battle-retro': 'boss_battle_retro',
+    'spec-wars': 'spec_wars',
+    'perspective-poker': 'perspective_poker',
+    'bluff-poker': 'bluff_poker',
+    'nesting-scope': 'nesting_scope',
+    'speed-scope': 'speed_scope',
+    'truth-serum': 'truth_serum',
+    'flow-poker': 'flow_poker',
+    'risk-poker': 'risk_poker',
+    'assumption-slayer': 'assumption_slayer',
+    'refinement-roulette': 'refinement_roulette',
+    'dependency-mapper': 'dependency_mapper',
+    'draft': 'sprint_draft',
+  };
+
   function syncAuthScreenFromPath(pathname, hasUser) {
     if (pathname === '/demo') { setAuthScreen('demo'); return; }
     if (!hasUser) return;
-    if (pathname === '/dashboard') {
-      setAuthScreen('dashboard');
-      return;
+    if (pathname === '/dashboard') { setAuthScreen('dashboard'); return; }
+    if (pathname === '/settings') { setAuthScreen('settings'); return; }
+    if (pathname === '/analytics') { setAuthScreen('analytics'); return; }
+    if (pathname === '/quest-log') { setAuthScreen('quest_log'); return; }
+    if (pathname === '/welcome') { setAuthScreen('welcome'); return; }
+
+    // Unified session route: /sessions/:id/:slug
+    const sessionMatch = pathname.match(/^\/sessions\/([^/]+)\/([^/]+)$/);
+    if (sessionMatch) {
+      const [, id, slug] = sessionMatch;
+      const mode = slugToMode[slug];
+      if (mode) {
+        setCurrentSessionId(id);
+        setCurrentSessionMode(mode);
+        setAuthScreen('session_active');
+        return;
+      }
     }
-    if (pathname === '/settings') {
-      setAuthScreen('settings');
-      return;
-    }
-    if (pathname === '/analytics') {
-      setAuthScreen('analytics');
-      return;
-    }
-    const planningPokerMatch = pathname.match(/^\/sessions\/([^/]+)\/planning-poker$/);
-    if (planningPokerMatch) {
-      setCurrentSessionId(planningPokerMatch[1]);
-      setCurrentSessionMode('planning_poker');
-      setAuthScreen('session_direct');
-      return;
-    }
-    const bossRetroMatch = pathname.match(/^\/sessions\/([^/]+)\/boss-battle-retro$/);
-    if (bossRetroMatch) {
-      setCurrentSessionId(bossRetroMatch[1]);
-      setCurrentSessionMode('boss_battle_retro');
-      setAuthScreen('session_direct');
-      return;
-    }
-    const truthSerumMatch = pathname.match(/^\/sessions\/([^/]+)\/truth-serum$/);
-    if (truthSerumMatch) {
-      setTruthSerumSessionId(truthSerumMatch[1]);
-      setAuthScreen('truth_serum');
-      return;
-    }
-    const flowPokerMatch = pathname.match(/^\/sessions\/([^/]+)\/flow-poker$/);
-    if (flowPokerMatch) {
-      setFlowPokerSessionId(flowPokerMatch[1]);
-      setAuthScreen('flow_poker');
-      return;
-    }
-    const riskPokerMatch = pathname.match(/^\/sessions\/([^/]+)\/risk-poker$/);
-    if (riskPokerMatch) {
-      setRiskPokerSessionId(riskPokerMatch[1]);
-      setAuthScreen('risk_poker');
-      return;
-    }
-    const assumptionSlayerMatch = pathname.match(/^\/sessions\/([^/]+)\/assumption-slayer$/);
-    if (assumptionSlayerMatch) {
-      setAssumptionSlayerSessionId(assumptionSlayerMatch[1]);
-      setAuthScreen('assumption_slayer');
-      return;
-    }
-    const refinementRouletteMatch = pathname.match(/^\/sessions\/([^/]+)\/refinement-roulette$/);
-    if (refinementRouletteMatch) {
-      setRefinementRouletteSessionId(refinementRouletteMatch[1]);
-      setAuthScreen('refinement_roulette');
-      return;
-    }
-    const dependencyMapperMatch = pathname.match(/^\/sessions\/([^/]+)\/dependency-mapper$/);
-    if (dependencyMapperMatch) {
-      setDependencyMapperSessionId(dependencyMapperMatch[1]);
-      setAuthScreen('dependency_mapper');
-      return;
-    }
-    const draftMatch = pathname.match(/^\/sessions\/([^/]+)\/draft$/);
-    if (draftMatch) {
-      setDraftSessionId(draftMatch[1]);
-      setAuthScreen('sprint_draft');
-      return;
-    }
-    const specWarsMatch = pathname.match(/^\/sessions\/([^/]+)\/spec-wars$/);
-    if (specWarsMatch) {
-      setSpecWarsSessionId(specWarsMatch[1]);
-      setAuthScreen('spec_wars');
-      return;
-    }
-    const perspMatch = pathname.match(/^\/sessions\/([^/]+)\/perspective-poker$/);
-    if (perspMatch) {
-      setPerspectiveSessionId(perspMatch[1]);
-      setAuthScreen('perspective_poker');
-      return;
-    }
-    const bluffMatch = pathname.match(/^\/sessions\/([^/]+)\/bluff-poker$/);
-    if (bluffMatch) {
-      setBluffPokerSessionId(bluffMatch[1]);
-      setAuthScreen('bluff_poker');
-      return;
-    }
-    const nestingMatch = pathname.match(/^\/sessions\/([^/]+)\/nesting-scope$/);
-    if (nestingMatch) {
-      setNestingScopeSessionId(nestingMatch[1]);
-      setAuthScreen('nesting_scope');
-      return;
-    }
-    const speedMatch = pathname.match(/^\/sessions\/([^/]+)\/speed-scope$/);
-    if (speedMatch) {
-      setSpeedScopeSessionId(speedMatch[1]);
-      setAuthScreen('speed_scope');
-      return;
-    }
+
     const timelogMatch = pathname.match(/^\/projects\/([^/]+)\/timelog$/);
     if (timelogMatch) {
       setTimelogProjectId(timelogMatch[1]);
@@ -214,18 +140,6 @@ export default function App() {
     if (workspaceMatch) {
       setWorkspaceProjectId(workspaceMatch[1]);
       setAuthScreen('workspace');
-      return;
-    }
-    if (pathname === '/quest-log') {
-      setAuthScreen('quest_log');
-      return;
-    }
-    if (pathname === '/welcome') {
-      setAuthScreen('welcome');
-      return;
-    }
-    if (pathname === '/demo') {
-      setAuthScreen('demo');
       return;
     }
     if (pathname === '/' || pathname === '/login' || pathname === '/auth/callback') {
@@ -633,248 +547,63 @@ export default function App() {
     );
   }
 
-  if (user && authScreen === "truth_serum" && truthSerumSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Truth Serum...</div>}>
-          <TruthSerumScreen
-            sessionId={truthSerumSessionId}
-            userId={user?.id}
-            isGm={true}
-            organizationId={organizationId}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
+  if (user && authScreen === "session_active" && currentSessionId && currentSessionMode) {
+    const backToDashboard = () => {
+      window.history.pushState({}, '', '/dashboard');
+      setAuthScreen('dashboard');
+    };
 
-  if (user && authScreen === "flow_poker" && flowPokerSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Flow Poker...</div>}>
-          <FlowPokerScreen
-            sessionId={flowPokerSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
+    const renderSessionScreen = () => {
+      switch (currentSessionMode) {
+        case 'planning_poker':
+        case 'boss_battle_retro': {
+          const nodeType = currentSessionMode === 'boss_battle_retro' ? 'b' : 'p';
+          const modeName = currentSessionMode === 'boss_battle_retro' ? 'Boss Battle Retro' : 'Planning Poker';
+          return (
+            <Session
+              avatar={avatar}
+              node={{ id: currentSessionId, tp: nodeType, name: modeName, sessionId: currentSessionId }}
+              project={{ id: 'direct', name: modeName, nodes: [], paths: [] }}
+              onBack={backToDashboard}
+              onComplete={backToDashboard}
+              sound={sound}
+            />
+          );
+        }
+        case 'truth_serum':
+          return <TruthSerumScreen sessionId={currentSessionId} userId={user?.id} isGm={true} organizationId={organizationId} onBack={backToDashboard} />;
+        case 'flow_poker':
+          return <FlowPokerScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'risk_poker':
+          return <RiskPokerScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'assumption_slayer':
+          return <AssumptionSlayerScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'refinement_roulette':
+          return <RefinementRouletteScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'dependency_mapper':
+          return <DependencyMapperScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'sprint_draft':
+          return <SprintDraftScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'spec_wars':
+          return <SpecWarsScreen sessionId={currentSessionId} user={user} onBack={backToDashboard} />;
+        case 'perspective_poker':
+          return <PerspectivePokerScreen sessionId={currentSessionId} user={user} avatar={avatar} onBack={backToDashboard} />;
+        case 'bluff_poker':
+          return <BluffPokerScreen sessionId={currentSessionId} user={user} avatar={avatar} onBack={backToDashboard} />;
+        case 'nesting_scope':
+          return <NestingScopeScreen sessionId={currentSessionId} user={user} avatar={avatar} onBack={backToDashboard} />;
+        case 'speed_scope':
+          return <SpeedScopeScreen sessionId={currentSessionId} user={user} avatar={avatar} onBack={backToDashboard} />;
+        default:
+          return null;
+      }
+    };
 
-  if (user && authScreen === "risk_poker" && riskPokerSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Risk Poker...</div>}>
-          <RiskPokerScreen
-            sessionId={riskPokerSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "assumption_slayer" && assumptionSlayerSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Assumption Slayer...</div>}>
-          <AssumptionSlayerScreen
-            sessionId={assumptionSlayerSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "refinement_roulette" && refinementRouletteSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Refinement Roulette...</div>}>
-          <RefinementRouletteScreen
-            sessionId={refinementRouletteSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "dependency_mapper" && dependencyMapperSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Dependency Mapper...</div>}>
-          <DependencyMapperScreen
-            sessionId={dependencyMapperSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "sprint_draft" && draftSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        {searchModalEl}
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
-          <SprintDraftScreen
-            sessionId={draftSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "spec_wars" && specWarsSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Spec Wars...</div>}>
-          <SpecWarsScreen
-            sessionId={specWarsSessionId}
-            user={user}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "perspective_poker" && perspectiveSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Perspektiv-Poker...</div>}>
-          <PerspectivePokerScreen
-            sessionId={perspectiveSessionId}
-            user={user}
-            avatar={avatar}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "bluff_poker" && bluffPokerSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Bluff Poker...</div>}>
-          <BluffPokerScreen
-            sessionId={bluffPokerSessionId}
-            user={user}
-            avatar={avatar}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "nesting_scope" && nestingScopeSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Russian Nesting Scope...</div>}>
-          <NestingScopeScreen
-            sessionId={nestingScopeSessionId}
-            user={user}
-            avatar={avatar}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "speed_scope" && speedScopeSessionId) {
-    return (
-      <GameModeProvider organizationId={organizationId}>
-        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
-        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Speed Scope...</div>}>
-          <SpeedScopeScreen
-            sessionId={speedScopeSessionId}
-            user={user}
-            avatar={avatar}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-          />
-        </Suspense>
-      </GameModeProvider>
-    );
-  }
-
-  if (user && authScreen === "session_direct" && currentSessionId) {
-    const nodeType = currentSessionMode === 'boss_battle_retro' ? 'b' : currentSessionMode === 'planning_poker' ? 'p' : 'p';
     return (
       <GameModeProvider organizationId={organizationId}>
         <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
         <Suspense fallback={<LoadingScreen label="LOADING SESSION..." />}>
-          <Session
-            avatar={avatar}
-            node={{ id: currentSessionId, tp: nodeType, name: currentSessionMode === 'boss_battle_retro' ? 'Boss Battle Retro' : 'Planning Poker', sessionId: currentSessionId }}
-            project={{ id: 'direct', name: currentSessionMode === 'boss_battle_retro' ? 'Boss Battle Retro' : 'Planning Poker', nodes: [], paths: [] }}
-            onBack={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-            onComplete={() => {
-              window.history.pushState({}, '', '/dashboard');
-              setAuthScreen('dashboard');
-            }}
-            sound={sound}
-          />
+          {renderSessionScreen()}
         </Suspense>
       </GameModeProvider>
     );
@@ -894,26 +623,25 @@ export default function App() {
             avatar={avatar}
             onSelect={(w) => { setWorld(w); setScreen("map"); }}
             onSelectMode={(mode) => {
-              // Route to the correct game screen based on mode id
-              const modeRoutes = {
-                planning_poker: (id) => { setCurrentSessionId(id); setCurrentSessionMode('planning_poker'); setAuthScreen('session_direct'); },
-                boss_battle_retro: (id) => { setCurrentSessionId(id); setCurrentSessionMode('boss_battle_retro'); setAuthScreen('session_direct'); },
-                sprint_draft: (id) => { setDraftSessionId(id); setAuthScreen('sprint_draft'); },
-                spec_wars: (id) => { setSpecWarsSessionId(id); setAuthScreen('spec_wars'); },
-                perspective_poker: (id) => { setPerspectiveSessionId(id); setAuthScreen('perspective_poker'); },
-                bluff_poker: (id) => { setBluffPokerSessionId(id); setAuthScreen('bluff_poker'); },
-                nesting_scope: (id) => { setNestingScopeSessionId(id); setAuthScreen('nesting_scope'); },
-                speed_scope: (id) => { setSpeedScopeSessionId(id); setAuthScreen('speed_scope'); },
-                truth_serum: (id) => { setTruthSerumSessionId(id); setAuthScreen('truth_serum'); },
-                flow_poker: (id) => { setFlowPokerSessionId(id); setAuthScreen('flow_poker'); },
-                risk_poker: (id) => { setRiskPokerSessionId(id); setAuthScreen('risk_poker'); },
-                assumption_slayer: (id) => { setAssumptionSlayerSessionId(id); setAuthScreen('assumption_slayer'); },
-                refinement_roulette: (id) => { setRefinementRouletteSessionId(id); setAuthScreen('refinement_roulette'); },
-                dependency_mapper: (id) => { setDependencyMapperSessionId(id); setAuthScreen('dependency_mapper'); },
-              };
               const modeId = mode.id;
-              const routeFn = modeRoutes[modeId];
-              if (routeFn) {
+              const modeRouteSlugs = {
+                planning_poker: 'planning-poker',
+                boss_battle_retro: 'boss-battle-retro',
+                spec_wars: 'spec-wars',
+                perspective_poker: 'perspective-poker',
+                bluff_poker: 'bluff-poker',
+                nesting_scope: 'nesting-scope',
+                speed_scope: 'speed-scope',
+                truth_serum: 'truth-serum',
+                flow_poker: 'flow-poker',
+                risk_poker: 'risk-poker',
+                assumption_slayer: 'assumption-slayer',
+                refinement_roulette: 'refinement-roulette',
+                dependency_mapper: 'dependency-mapper',
+                sprint_draft: 'draft',
+              };
+              const slug = modeRouteSlugs[modeId];
+              if (slug) {
                 // Create a session and navigate to the game screen
                 import("./lib/supabase.js").then(({ supabase: sb }) => {
                   sb.from("sessions")
@@ -930,9 +658,10 @@ export default function App() {
                         console.error("Failed to create session for mode", modeId, error);
                         return;
                       }
-                      const slug = modeId.replace(/_/g, '-');
+                      setCurrentSessionId(data.id);
+                      setCurrentSessionMode(modeId);
                       window.history.pushState({}, '', `/sessions/${data.id}/${slug}`);
-                      routeFn(data.id);
+                      setAuthScreen('session_active');
                     });
                 });
               } else {
