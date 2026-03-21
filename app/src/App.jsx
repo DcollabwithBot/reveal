@@ -8,11 +8,14 @@ import Lobby from "./screens/Lobby.jsx";
 import AppShell from "./components/AppShell.jsx";
 import { GameModeProvider } from "./shared/GameModeContext.jsx";
 import SearchModal from "./components/SearchModal.jsx";
+import XPBadgeNotifier from "./components/XPBadgeNotifier.jsx";
 import "./shared/animations.css";
 
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
 const AvatarCreator = lazy(() => import("./screens/AvatarCreator.jsx"));
 const WorldSelect = lazy(() => import("./screens/WorldSelect.jsx"));
+const SpecWarsScreen = lazy(() => import("./screens/SpecWarsScreen.jsx"));
+const PerspectivePokerScreen = lazy(() => import("./screens/PerspectivePokerScreen.jsx"));
 const Overworld = lazy(() => import("./screens/Overworld.jsx"));
 const Session = lazy(() => import("./screens/Session.jsx"));
 const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
@@ -32,6 +35,8 @@ export default function App() {
   const [timelogProjectId, setTimelogProjectId] = useState(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState(null);
   const [draftSessionId, setDraftSessionId] = useState(null);
+  const [specWarsSessionId, setSpecWarsSessionId] = useState(null);
+  const [perspectiveSessionId, setPerspectiveSessionId] = useState(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
@@ -79,6 +84,18 @@ export default function App() {
     if (draftMatch) {
       setDraftSessionId(draftMatch[1]);
       setAuthScreen('sprint_draft');
+      return;
+    }
+    const specWarsMatch = pathname.match(/^\/sessions\/([^/]+)\/spec-wars$/);
+    if (specWarsMatch) {
+      setSpecWarsSessionId(specWarsMatch[1]);
+      setAuthScreen('spec_wars');
+      return;
+    }
+    const perspMatch = pathname.match(/^\/sessions\/([^/]+)\/perspective-poker$/);
+    if (perspMatch) {
+      setPerspectiveSessionId(perspMatch[1]);
+      setAuthScreen('perspective_poker');
       return;
     }
     const timelogMatch = pathname.match(/^\/projects\/([^/]+)\/timelog$/);
@@ -427,6 +444,42 @@ export default function App() {
         <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
           <SprintDraftScreen
             sessionId={draftSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "spec_wars" && specWarsSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Spec Wars...</div>}>
+          <SpecWarsScreen
+            sessionId={specWarsSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "perspective_poker" && perspectiveSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Perspektiv-Poker...</div>}>
+          <PerspectivePokerScreen
+            sessionId={perspectiveSessionId}
             user={user}
             onBack={() => {
               window.history.pushState({}, '', '/dashboard');
