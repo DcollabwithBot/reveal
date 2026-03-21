@@ -591,7 +591,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
                             mode={mode}
                             hovered={hov === mode.id}
                             t={t}
-                            onClick={() => handleModeSelect(mode)}
+                            onClick={() => setLaunchMode(mode)}
                             isRecommended={recommendedTop === mode.id}
                             missions={modeActiveMissions}
                             hasRandomEvent={modeHasRandomEvent}
