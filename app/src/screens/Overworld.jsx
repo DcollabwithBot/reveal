@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase.js";
 import { C, PF, NPC_TEAM } from "../shared/constants.js";
 import { dk, pick } from "../shared/utils.js";
 
@@ -18,6 +19,22 @@ function buildTeam(avatar) {
   return [player, ...NPC_TEAM.map(m => ({ ...m, hat: m.hat, body: m.body, skin: m.skin, cls: m.cls }))];
 }
 
+// Map item to node color based on type/risk
+function nodeColor(item) {
+  if (item.risk_flag) return PUR;
+  if (item.priority === 'high') return RED;
+  if (item.item_status === 'in_progress') return BLU;
+  return GRN;
+}
+
+// Map item to node icon
+function nodeIcon(item) {
+  if (item.risk_flag) return "👾";
+  if (item.priority === 'high') return "⚡";
+  if (item.item_status === 'in_progress') return "🔧";
+  return "🃏";
+}
+
 export default function Overworld({ project, avatar, onBack, onNode, sound }) {
   const [t, setT] = useState(0);
   const [hov, setHov] = useState(null);
@@ -30,9 +47,112 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
   const [dRoll, setDRoll] = useState(false);
   const [dResult, setDResult] = useState(null);
   const [weather, setWeather] = useState([]);
+  const [fetchedNodes, setFetchedNodes] = useState(null);
+  const [fetchedPaths, setFetchedPaths] = useState(null);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [bossInfo, setBossInfo] = useState(null);
 
-  const NODES = project?.nodes || [];
-  const PATHS = project?.paths || [];
+  const projectId = project?.projectId || project?.id;
+
+  // Fetch real data from Supabase
+  useEffect(() => {
+    if (!projectId) { setDataLoading(false); return; }
+
+    async function fetchData() {
+      try {
+        // 1. Get active sprints for the project
+        const { data: sprints, error: sprintErr } = await supabase
+          .from('sprints')
+          .select('id, name, status, end_date')
+          .eq('project_id', projectId)
+          .eq('status', 'active');
+
+        if (sprintErr || !sprints || sprints.length === 0) {
+          // No active sprints — show empty state
+          setFetchedNodes([{
+            id: 'empty', name: 'Ingen opgaver endnu', l: 'Ingen opgaver endnu',
+            tp: 'c', dn: false, cur: true,
+            x: 480, y: 220, c: EVT, i: '❓',
+          }]);
+          setFetchedPaths([]);
+          setBossInfo(null);
+          setDataLoading(false);
+          return;
+        }
+
+        // 2. Get items for active sprints
+        const sprintIds = sprints.map(s => s.id);
+        const { data: items, error: itemErr } = await supabase
+          .from('session_items')
+          .select('id, title, description, item_status, final_estimate, risk_score, risk_flag, sprint_id, item_order, priority')
+          .in('sprint_id', sprintIds)
+          .neq('item_status', 'done')
+          .order('item_order', { ascending: true })
+          .limit(20);
+
+        if (itemErr || !items || items.length === 0) {
+          setFetchedNodes([{
+            id: 'empty', name: 'Ingen opgaver endnu', l: 'Ingen opgaver endnu',
+            tp: 'c', dn: false, cur: true,
+            x: 480, y: 220, c: EVT, i: '❓',
+          }]);
+          setFetchedPaths([]);
+          setBossInfo(null);
+          setDataLoading(false);
+          return;
+        }
+
+        // 3. Map items to nodes
+        const nodes = items.map((item, i) => ({
+          id: item.id,
+          name: item.title,
+          l: item.title,
+          tp: item.risk_flag ? 'b' : 'p',
+          dn: item.item_status === 'done' || item.item_status === 'completed',
+          cur: i === 0, // first node is current
+          x: 200 + (i % 4) * 180,
+          y: 160 + Math.floor(i / 4) * 100,
+          c: nodeColor(item),
+          i: nodeIcon(item),
+          // Keep original item data for session launch
+          _item: item,
+        }));
+
+        // 4. Auto-generate paths (sequential chain)
+        const paths = [];
+        for (let i = 0; i < nodes.length - 1; i++) {
+          paths.push([i, i + 1]);
+        }
+
+        // 5. Boss info from sprint deadline
+        const sprintWithDeadline = sprints.find(s => s.end_date);
+        if (sprintWithDeadline) {
+          const now = new Date();
+          const end = new Date(sprintWithDeadline.end_date);
+          const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+          const sprintDuration = 14; // default 14 days
+          const hp = Math.min(100, Math.round((daysLeft / sprintDuration) * 100));
+          setBossInfo({ name: sprintWithDeadline.name, daysLeft, hp, endDate: sprintWithDeadline.end_date });
+        } else {
+          setBossInfo(null);
+        }
+
+        setFetchedNodes(nodes);
+        setFetchedPaths(paths);
+      } catch (err) {
+        console.error('Overworld fetch error:', err);
+        setFetchedNodes([]);
+        setFetchedPaths([]);
+      } finally {
+        setDataLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [projectId]);
+
+  const NODES = fetchedNodes ?? (project?.nodes || []);
+  const PATHS = fetchedPaths ?? (project?.paths || []);
   const TEAM = buildTeam(avatar);
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
@@ -120,6 +240,17 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
     );
   }
 
+  if (dataLoading) {
+    return (
+      <div style={{ height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg, flexDirection: 'column', gap: '12px' }}>
+        <div style={{ color: 'var(--jade, #44bb66)', fontFamily: PF, fontSize: '10px', letterSpacing: '2px' }}>INDLÆSER VERDEN...</div>
+        <div style={{ width: '120px', height: '6px', background: C.bgL || '#1a1c2e', border: '1px solid #374151', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: '60%', background: 'linear-gradient(90deg, #4c1d95, #7c3aed)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
       {flash && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: flash, opacity: 0.35, pointerEvents: "none", zIndex: 200, animation: "flashOut 0.4s ease-out forwards" }} />}
@@ -146,6 +277,12 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
           <div style={{ height: "100%", width: `${((project?.prog || 0) / (project?.tot || 1)) * 100}%`, background: project?.color || C.grn }} />
         </div>
         <span style={{ fontFamily: PF, fontSize: "3.5px", color: project?.color || C.grn }}>{project?.prog}/{project?.tot}</span>
+        {bossInfo && <>
+          <span style={{ fontFamily: PF, fontSize: "3.5px", color: C.red, marginLeft: "6px" }}>👾 {bossInfo.daysLeft}d</span>
+          <div style={{ width: "40px", height: "5px", background: C.bg, border: `2px solid ${C.red}`, overflow: "hidden", marginLeft: "2px" }}>
+            <div style={{ height: "100%", width: `${bossInfo.hp}%`, background: bossInfo.hp > 30 ? C.red : '#ff2222', transition: 'width 0.5s' }} />
+          </div>
+        </>}
       </div>
 
       {/* MAP */}
