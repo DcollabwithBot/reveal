@@ -236,13 +236,42 @@ Hvert projekt har en "Final Boss" — det er sprint-deadlinen eller et defineret
 - Når deadline nærmer sig: boss HP lav, urgency stiger
 - Når sprint afsluttes: Boss defeated → ny sprint = ny boss
 
+### ✅ Bekræftet vision (2026-03-21)
+
+Dette er den aftalte arkitektur. Overworld er IKKE deprecated — den er hjertet af produktet.
+
+```
+World Map (WorldSelect)
+  → portaler = projekter fra Supabase
+  → klik på portal → Overworld for det projekt
+
+Overworld (per projekt)
+  → populeres med data fra Supabase (sprints, items, team)
+  → nodes = rigtige sprint-items + aktiviteter
+  → karakterer = rigtige teammedlemmer (fra session_participants)
+  → boss = sprint-deadline (HP-bar tæller ned mod deadline)
+  → klik på node → vælg mode → SessionLaunchModal → spil
+```
+
+### Dataflow: Supabase → Overworld
+
+```
+projects (id, name, org_id)
+  └── sprints (id, project_id, end_date → boss HP)
+        └── session_items (id, sprint_id, title, estimate, status → nodes på kortet)
+
+profiles (id, avatar, class → karakter-sprites)
+  └── session_participants (session_id, user_id → hvem er med)
+```
+
 ### Nuværende flow vs. mål
 
 | Nu | Mål |
 |---|---|
-| WorldSelect → vælg mode → SessionLaunchModal → spil | WorldSelect → Project Hub → vælg aktivitet → SessionLaunchModal → spil |
-| Mode-valg er løsrevet fra projekt-kontekst | Alt foregår inde i projektets hub |
-| Ingen sprint-kontekst ved session-start | Sprint + items er synlige inden spillet starter |
+| WorldSelect → vælg mode → SessionLaunchModal → spil | WorldSelect → Overworld (per projekt, rigtige data) → klik node → vælg mode → spil |
+| Overworld har hardcoded dummy-nodes | Overworld nodes = rigtige sprint-items fra DB |
+| Ingen projekttilknytning | Hvert node er koblet til et konkret session_item |
+| Ingen boss | Boss = sprint-deadline med nedtælling |
 
 ### Sprints og projekter → synlige i spillet
 
