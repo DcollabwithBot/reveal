@@ -3,6 +3,7 @@ import { C, PF, BF, WORLDS } from "../shared/constants.js";
 import { dk } from "../shared/utils.js";
 import { getGameAvailability } from "../lib/api.js";
 import Leaderboard from "../components/leaderboard/Leaderboard.jsx";
+import SituationalRecommender, { ALL_MODES, ZONE_META } from "../components/discovery/SituationalRecommender.jsx";
 
 const WL = "#2a1f3d", WD = "#1a1230", FL = "#3a2820", FD = "#281a14", WO = "#5a3a20", ST = "#4a4460", SD = "#3a3450";
 
@@ -68,68 +69,132 @@ const AVAIL_CONFIG = {
   completed:    { color: "#5fcde4", dot: "#5fcde4",  icon: "✓",   label: null },
 };
 
-function AvailabilityDot({ state, reason, lastPlayedLabel }) {
-  const cfg = AVAIL_CONFIG[state] || AVAIL_CONFIG.available;
-  const [show, setShow] = useState(false);
+// Game-mode portal card for zones view
+function ModePortal({ mode, hovered, t, onClick, isRecommended, missions = [], hasRandomEvent }) {
+  const zoneMeta = ZONE_META[mode.zone] || { color: "#feae34", icon: "⭐" };
+  const activeMissions = missions.filter(m => m.required_mode === mode.id || m.mode === mode.id);
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
-      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <div style={{
-        width: 8, height: 8, borderRadius: "50%", background: cfg.dot,
-        boxShadow: state === "recommended" ? `0 0 6px ${cfg.dot}` : "none",
-        animation: state === "recommended" ? "availPulse 1.4s ease-in-out infinite" : "none",
-        cursor: "help",
-      }} />
-      {show && (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => {}}
+      style={{
+        position: "relative",
+        width: 140, cursor: "pointer",
+        transition: "all 0.2s",
+        transform: hovered ? "scale(1.06) translateY(-4px)" : "scale(1)",
+        opacity: mode.state === "locked" ? 0.4 : 1,
+      }}
+    >
+      {/* Mission overlay marker */}
+      {activeMissions.length > 0 && (
         <div style={{
-          position: "absolute", bottom: "120%", left: "50%", transform: "translateX(-50%)",
-          background: "#1a1230", border: `1px solid ${cfg.dot}44`, borderRadius: 6,
-          padding: "5px 9px", whiteSpace: "nowrap", zIndex: 50, pointerEvents: "none",
-          fontFamily: "sans-serif", fontSize: 10, color: "#ccc",
-        }}>
-          {cfg.icon && <span style={{ marginRight: 4 }}>{cfg.icon}</span>}
-          {reason}
-          {lastPlayedLabel && <span style={{ opacity: 0.6 }}> · Sidst spillet: {lastPlayedLabel}</span>}
-        </div>
+          position: "absolute", top: -8, right: -6, zIndex: 10,
+          fontSize: 14, animation: "float 2s ease-in-out infinite",
+          filter: "drop-shadow(0 0 4px #feae34)",
+        }}>📜</div>
       )}
-    </div>
-  );
-}
+      {/* Random event marker */}
+      {hasRandomEvent && (
+        <div style={{
+          position: "absolute", top: -8, left: -6, zIndex: 10,
+          fontSize: 14, animation: "availPulse 1s ease-in-out infinite",
+          filter: "drop-shadow(0 0 6px #feae34)",
+        }}>⚡</div>
+      )}
 
-// Game availability mini-bar shown on portal
-function GameAvailBar({ avail }) {
-  if (!avail) return null;
-  const games = [
-    { key: "planning_poker", icon: "🃏", label: "Poker" },
-    { key: "spec_wars",      icon: "🎭", label: "Spec" },
-    { key: "perspective_poker", icon: "📊", label: "Perspektiv" },
-    { key: "retro",          icon: "👾", label: "Retro" },
-  ];
-  return (
-    <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 4 }}>
-      {games.map(g => {
-        const ga = avail[g.key];
-        if (!ga) return null;
-        const cfg = AVAIL_CONFIG[ga.state] || AVAIL_CONFIG.available;
-        return (
-          <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 8, color: cfg.dot, opacity: ga.state === "locked" ? 0.35 : 1 }}
-            title={`${g.label}: ${ga.reason}${ga.lastPlayedLabel ? ` (${ga.lastPlayedLabel})` : ''}`}>
-            <span>{g.icon}</span>
-            {ga.state === "completed" && <span style={{ fontSize: 6 }}>✓</span>}
-            {ga.state === "recommended" && <span style={{ fontSize: 6, animation: "availPulse 1.4s ease-in-out infinite" }}>★</span>}
-            {ga.state === "locked" && <span style={{ fontSize: 6 }}>🔒</span>}
+      {/* Portal frame */}
+      <div style={{
+        width: 140, height: 90, position: "relative", overflow: "hidden",
+        border: `2px solid ${hovered || isRecommended ? zoneMeta.color : "#2a2040"}`,
+        borderRadius: 8,
+        background: `radial-gradient(ellipse at center, ${zoneMeta.color}18 0%, #0e1019 70%)`,
+        boxShadow: isRecommended
+          ? `0 0 18px ${zoneMeta.color}55, inset 0 0 10px ${zoneMeta.color}22`
+          : hovered ? `0 0 12px ${zoneMeta.color}33` : "none",
+        transition: "all 0.25s",
+      }}>
+        {/* Recommended pulse ring */}
+        {isRecommended && (
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 6,
+            border: `2px solid ${zoneMeta.color}`,
+            animation: "availPulse 1.4s ease-in-out infinite",
+          }} />
+        )}
+        {/* Icon */}
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-50%, -55%)",
+          fontSize: hovered ? 32 : 28,
+          transition: "font-size 0.2s",
+          filter: hovered ? "none" : "brightness(0.85)",
+          animation: hovered ? "bounce 0.5s ease-in-out infinite" : "none",
+        }}>
+          {mode.icon}
+        </div>
+        {/* Zone indicator */}
+        <div style={{
+          position: "absolute", top: 5, right: 6,
+          fontSize: 9, color: zoneMeta.color, opacity: 0.7,
+        }}>
+          {zoneMeta.icon}
+        </div>
+        {/* Recommended label */}
+        {isRecommended && (
+          <div style={{
+            position: "absolute", top: 4, left: 5,
+            fontFamily: PF, fontSize: 4, color: zoneMeta.color,
+            background: zoneMeta.color + "22", padding: "2px 4px", borderRadius: 3,
+            animation: "pulse 1.5s infinite",
+          }}>
+            ★ TOP
           </div>
-        );
-      })}
+        )}
+        {/* Particle effects on hover */}
+        {hovered && Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} style={{
+            position: "absolute",
+            left: `${20 + i * 20}%`, top: `${10 + Math.sin(t * 0.05 + i) * 30}%`,
+            width: 3, height: 3, borderRadius: "50%",
+            background: zoneMeta.color, opacity: 0.3 + Math.sin(t * 0.06 + i) * 0.3,
+            animation: `float ${1 + i % 2 * 0.5}s ease-in-out ${i * 0.15}s infinite`,
+          }} />
+        ))}
+        {/* Completion checkmark */}
+        {mode.state === "completed" && (
+          <div style={{
+            position: "absolute", bottom: 5, right: 6,
+            fontFamily: PF, fontSize: 5, color: "#5fcde4",
+          }}>✓</div>
+        )}
+      </div>
+
+      {/* Label */}
+      <div style={{ textAlign: "center", marginTop: 5 }}>
+        <div style={{
+          fontFamily: PF, fontSize: 5,
+          color: hovered ? zoneMeta.color : C.txt,
+          textShadow: hovered ? `0 0 6px ${zoneMeta.color}66` : "none",
+          marginBottom: 2,
+        }}>
+          {mode.name}
+        </div>
+        <div style={{ fontFamily: BF, fontSize: 9, color: C.dim, lineHeight: 1.3 }}>{mode.desc}</div>
+        {hovered && (
+          <div style={{ fontFamily: PF, fontSize: 4, color: zoneMeta.color, marginTop: 3, animation: "pulse 0.6s infinite" }}>
+            ▶ START
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+// Legacy world portal (kept for "Verdener" tab)
 function Portal({ w, hovered: isH, t, onClick, availability }) {
   const hasReco = availability && Object.values(availability).some(a => a?.state === 'recommended');
-  const isLocked = false; // World-level locking not implemented yet
   return (
-    <div onClick={isLocked ? undefined : onClick} style={{ cursor: isLocked ? "default" : "pointer", transition: "all 0.25s", transform: isH ? "scale(1.06) translateY(-4px)" : "scale(1)", width: "170px", opacity: isLocked ? 0.5 : 1 }}>
+    <div onClick={onClick} style={{ cursor: "pointer", transition: "all 0.25s", transform: isH ? "scale(1.06) translateY(-4px)" : "scale(1)", width: "170px" }}>
       <div style={{ width: "170px", position: "relative" }}>
         <div style={{ width: "170px", height: "22px", background: ST, borderRadius: "6px 6px 0 0", border: `3px solid ${SD}`, borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <span style={{ fontFamily: PF, fontSize: "5px", color: w.color, letterSpacing: "1px" }}>{w.lv}</span>
@@ -169,29 +234,29 @@ function Portal({ w, hovered: isH, t, onClick, availability }) {
           </div>
           <span style={{ fontFamily: PF, fontSize: "4px", color: w.color }}>{w.prog}/{w.tot}</span>
         </div>
-        <GameAvailBar avail={availability} />
         {isH && <div style={{ fontFamily: PF, fontSize: "4px", color: w.color, marginTop: "3px", animation: "pulse 0.6s infinite" }}>▶ ENTER</div>}
       </div>
     </div>
   );
 }
 
-export default function WorldSelect({ avatar, onSelect, sound, activeSprint, organizationId }) {
+export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, activeSprint, organizationId, activeMissions = [], activeRandomEvent = null }) {
   const [t, setT] = useState(0);
   const [hov, setHov] = useState(null);
   const [flash, setFlash] = useState(null);
-  const [availability, setAvailability] = useState({}); // keyed by world id
+  const [availability, setAvailability] = useState({});
+  const [tab, setTab] = useState("modes"); // "modes" | "worlds"
+  const [recommendedTop, setRecommendedTop] = useState(null);
+  const [showRecommender, setShowRecommender] = useState(false);
+  const [activeSideQuest, setActiveSideQuest] = useState(null);
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
 
-  // Load game availability for each world's sprint
   useEffect(() => {
-    // Use activeSprint prop if available, otherwise try to load from WORLDS
     const sprintId = activeSprint?.id;
     if (!sprintId) return;
     getGameAvailability(sprintId).then(avail => {
       if (avail) {
-        // Apply same availability to all worlds for now (will be per-world when worlds map to real sprints)
         const map = {};
         WORLDS.forEach(w => { map[w.id] = avail; });
         setAvailability(map);
@@ -199,7 +264,14 @@ export default function WorldSelect({ avatar, onSelect, sound, activeSprint, org
     }).catch(() => {});
   }, [activeSprint]);
 
-  // Derive player sprite colors from avatar (including equipment)
+  // Check for active side quest in missions
+  useEffect(() => {
+    if (activeMissions?.length) {
+      const sq = activeMissions.find(m => m.mission_type === "side_quest" && m.status === "active");
+      setActiveSideQuest(sq || null);
+    }
+  }, [activeMissions]);
+
   const playerHat = avatar?.helmet?.pv || avatar?.cls?.color || "#f04f78";
   const playerBody = avatar?.armor?.pv || avatar?.cls?.color || "#f04f78";
   const playerSkin = avatar?.skin || "#fdd";
@@ -211,17 +283,39 @@ export default function WorldSelect({ avatar, onSelect, sound, activeSprint, org
     setTimeout(() => { setFlash(null); onSelect(w); }, 500);
   }
 
+  function handleModeSelect(mode) {
+    sound("door");
+    const zoneMeta = ZONE_META[mode.zone] || {};
+    setFlash(zoneMeta.color || "#feae34");
+    setTimeout(() => {
+      setFlash(null);
+      if (onSelectMode) onSelectMode(mode);
+      else onSelect({ ...mode, id: mode.id, name: mode.name });
+    }, 400);
+  }
+
+  function handleRecommenderSelect(mode) {
+    setRecommendedTop(mode.id);
+    setShowRecommender(false);
+  }
+
+  // Group modes by zone
+  const zoneOrder = ["scrum", "scope", "speed", "strategy"];
+  const modesByZone = zoneOrder.reduce((acc, z) => {
+    acc[z] = ALL_MODES.filter(m => m.zone === z);
+    return acc;
+  }, {});
+
   return (
     <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden" }}>
       {flash && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: flash, opacity: 0.4, pointerEvents: "none", zIndex: 200, animation: "flashOut 0.5s ease-out forwards" }} />}
 
-      {/* Tavern wall */}
+      {/* Background */}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "35%", background: `linear-gradient(180deg,${WD},${WL})` }} />
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={`wb${i}`} style={{ position: "absolute", top: `${3 + Math.floor(i / 4) * 10}%`, left: `${(i % 4) * 26 + 2}%`, width: "22%", height: "8%", border: `1px solid ${WD}`, opacity: 0.12 }} />
       ))}
       <div style={{ position: "absolute", top: "33%", left: 0, right: 0, height: "3%", background: `linear-gradient(180deg,${WO},${dk(WO)})` }} />
-      {/* Floor */}
       <div style={{ position: "absolute", top: "36%", left: 0, right: 0, bottom: 0, background: `linear-gradient(180deg,${FL},${FD})` }} />
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={`fp${i}`} style={{ position: "absolute", top: `${36 + i * 8}%`, left: 0, right: 0, height: "1px", background: FD, opacity: 0.25 }} />
@@ -233,9 +327,6 @@ export default function WorldSelect({ avatar, onSelect, sound, activeSprint, org
       <Torch x={62} y={8} size={1} />
 
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "40%", background: "radial-gradient(ellipse at 50% 80%,#ff603008,transparent 60%)", pointerEvents: "none" }} />
-      {Array.from({ length: 10 }).map((_, i) => (
-        <div key={`dp${i}`} style={{ position: "absolute", left: `${(i * 10 + t * 0.015 * (i % 3 + 1)) % 105}%`, top: `${15 + Math.sin(t * 0.01 + i * 1.2) * 20}%`, width: `${2 + i % 2}px`, height: `${2 + i % 2}px`, borderRadius: "50%", background: C.gld, opacity: 0.05 + Math.sin(t * 0.015 + i) * 0.03 }} />
-      ))}
 
       {/* NPCs */}
       {NPC_DEFS.map((m, i) => (
@@ -250,16 +341,17 @@ export default function WorldSelect({ avatar, onSelect, sound, activeSprint, org
         <div style={{ fontFamily: PF, fontSize: "4px", color: C.acc, textAlign: "center", marginTop: "2px", animation: "pulse 1.5s infinite" }}>▼</div>
       </div>
 
-      {/* UI */}
-      <div style={{ position: "relative", zIndex: 5, padding: "8px 10px" }}>
-        <div style={{ textAlign: "center", marginBottom: "4px" }}>
+      {/* Main UI */}
+      <div style={{ position: "relative", zIndex: 5, padding: "8px 10px", paddingBottom: 40 }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: "6px" }}>
           <h1 style={{ fontFamily: PF, fontSize: "16px", color: C.acc, letterSpacing: "4px", margin: 0, animation: "victoryPulse 3s ease-in-out infinite" }}>REVEAL</h1>
           <div style={{ fontFamily: BF, fontSize: "13px", color: C.dim }}>◈ TAVERN HUB ◈</div>
         </div>
 
-        {/* Avatar class badge */}
+        {/* Avatar badge */}
         {avatar && (
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
             <div style={{ fontFamily: PF, fontSize: "5px", color: avatar.cls.color, padding: "3px 10px", background: avatar.cls.color + "22", border: `2px solid ${avatar.cls.color}`, display: "flex", alignItems: "center", gap: "4px" }}>
               <span>{avatar.cls.icon}</span>
               <span>{avatar.cls.name}</span>
@@ -269,24 +361,170 @@ export default function WorldSelect({ avatar, onSelect, sound, activeSprint, org
           </div>
         )}
 
-        {/* Portals */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
-          {WORLDS.map((w, i) => (
-            <div key={w.id} style={{ animation: `slideUp 0.3s ${i * 0.1}s both` }}
-              onMouseEnter={() => { setHov(w.id); sound("click"); }}
-              onMouseLeave={() => setHov(null)}>
-              <Portal w={w} hovered={hov === w.id} t={t} onClick={() => handleSelect(w)} availability={availability[w.id]} />
-            </div>
+        {/* Random Event Banner */}
+        {activeRandomEvent && (
+          <div style={{
+            maxWidth: 700, margin: "0 auto 10px",
+            padding: "10px 16px",
+            background: "rgba(254,174,52,0.12)",
+            border: "2px solid rgba(254,174,52,0.5)",
+            borderRadius: 8, textAlign: "center",
+            animation: "availPulse 1.5s ease-in-out infinite",
+          }}>
+            <span style={{ fontFamily: PF, fontSize: 6, color: C.acc }}>
+              ⚡ RANDOM EVENT: {activeRandomEvent.title || activeRandomEvent.event_type?.toUpperCase()}!
+            </span>
+            {activeRandomEvent.description && (
+              <div style={{ fontFamily: BF, fontSize: 10, color: C.dim, marginTop: 3 }}>
+                {activeRandomEvent.description}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Side Quest Banner */}
+        {activeSideQuest && (
+          <div style={{
+            maxWidth: 700, margin: "0 auto 10px",
+            padding: "8px 16px",
+            background: "rgba(181,80,136,0.1)",
+            border: "1px solid rgba(181,80,136,0.4)",
+            borderRadius: 8, textAlign: "center",
+          }}>
+            <span style={{ fontFamily: PF, fontSize: 6, color: "#b55088" }}>
+              🏆 SIDE QUEST AKTIV: {activeSideQuest.title}
+            </span>
+          </div>
+        )}
+
+        {/* Tab switcher */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 14 }}>
+          {[
+            { id: "modes", label: "🎮 Spilmodes", desc: "14 modes" },
+            { id: "worlds", label: "🗺️ Verdener", desc: "Sprints" },
+          ].map(tb => (
+            <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+              fontFamily: PF, fontSize: 6,
+              padding: "6px 14px",
+              background: tab === tb.id ? C.acc + "22" : "rgba(255,255,255,0.04)",
+              border: `2px solid ${tab === tb.id ? C.acc : "rgba(255,255,255,0.1)"}`,
+              borderRadius: 6, color: tab === tb.id ? C.acc : C.dim,
+              cursor: "pointer", transition: "all 0.15s",
+            }}>
+              {tb.label}
+            </button>
           ))}
         </div>
 
-        {/* E14: Hall of Fame — mini leaderboard strip */}
+        {/* MODES TAB */}
+        {tab === "modes" && (
+          <div style={{ maxWidth: 820, margin: "0 auto" }}>
+
+            {/* Recommender toggle */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+              <button
+                onClick={() => setShowRecommender(v => !v)}
+                style={{
+                  fontFamily: BF, fontSize: 12,
+                  padding: "8px 18px",
+                  background: showRecommender ? "rgba(254,174,52,0.15)" : "rgba(255,255,255,0.05)",
+                  border: `1.5px solid ${showRecommender ? C.acc + "88" : "rgba(255,255,255,0.12)"}`,
+                  borderRadius: 8, color: showRecommender ? C.acc : C.txt,
+                  cursor: "pointer", transition: "all 0.2s",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                🧭 {showRecommender ? "Skjul anbefaler" : "Hjælp mig vælge →"}
+                {recommendedTop && !showRecommender && (
+                  <span style={{ fontSize: 10, color: C.dim }}>
+                    (anbefaler: {ALL_MODES.find(m => m.id === recommendedTop)?.name})
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Situational Recommender */}
+            {showRecommender && (
+              <div style={{ marginBottom: 16, animation: "slideUp 0.2s both" }}>
+                <SituationalRecommender onSelect={handleRecommenderSelect} />
+              </div>
+            )}
+
+            {/* Zone sections */}
+            {zoneOrder.map(zone => {
+              const meta = ZONE_META[zone];
+              const modes = modesByZone[zone];
+              return (
+                <div key={zone} style={{ marginBottom: 20 }}>
+                  {/* Zone header */}
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    marginBottom: 10, padding: "6px 0",
+                    borderBottom: `1px solid ${meta.color}33`,
+                  }}>
+                    <span style={{ fontSize: 16 }}>{meta.icon}</span>
+                    <span style={{ fontFamily: PF, fontSize: 7, color: meta.color, letterSpacing: 2 }}>
+                      {meta.label.toUpperCase()}
+                    </span>
+                    <span style={{ fontFamily: BF, fontSize: 11, color: C.dim }}>
+                      {modes.length} modes
+                    </span>
+                  </div>
+
+                  {/* Mode portals */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "flex-start" }}>
+                    {modes.map((mode, i) => {
+                      const modeActiveMissions = activeMissions.filter(m =>
+                        m.required_mode === mode.id || m.mode === mode.id
+                      );
+                      const modeHasRandomEvent = activeRandomEvent &&
+                        (activeRandomEvent.mode_id === mode.id || activeRandomEvent.event_type === "mystery_mode");
+                      return (
+                        <div
+                          key={mode.id}
+                          style={{ animation: `slideUp 0.2s ${i * 0.04}s both` }}
+                          onMouseEnter={() => { setHov(mode.id); sound("click"); }}
+                          onMouseLeave={() => setHov(null)}
+                        >
+                          <ModePortal
+                            mode={mode}
+                            hovered={hov === mode.id}
+                            t={t}
+                            onClick={() => handleModeSelect(mode)}
+                            isRecommended={recommendedTop === mode.id}
+                            missions={modeActiveMissions}
+                            hasRandomEvent={modeHasRandomEvent}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* WORLDS TAB */}
+        {tab === "worlds" && (
+          <div style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
+            {WORLDS.map((w, i) => (
+              <div key={w.id} style={{ animation: `slideUp 0.3s ${i * 0.1}s both` }}
+                onMouseEnter={() => { setHov(w.id); sound("click"); }}
+                onMouseLeave={() => setHov(null)}>
+                <Portal w={w} hovered={hov === w.id} t={t} onClick={() => handleSelect(w)} availability={availability[w.id]} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Hall of Fame */}
         {organizationId && (
           <div style={{
-            marginTop: 20, padding: "10px 16px",
+            marginTop: 24, padding: "10px 16px",
             background: "rgba(0,0,0,0.35)",
             border: "1px solid rgba(200,168,75,0.2)",
-            borderRadius: 10, maxWidth: 700, margin: "20px auto 0",
+            borderRadius: 10, maxWidth: 700, margin: "24px auto 0",
           }}>
             <div style={{ fontFamily: PF, fontSize: "6px", color: C.gld, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
               🏆 HALL OF FAME
