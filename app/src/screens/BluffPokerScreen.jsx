@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Sprite } from '../components/session/SessionPrimitives.jsx';
-import { CLASSES } from '../shared/constants.js';
+import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -699,6 +699,15 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
 
   const [shaking, setShaking] = useState(false);
   const [showRevealBtn, setShowRevealBtn] = useState(false);
+  const [dmgNums, setDmgNums] = useState([]);
+  const [lootActive, setLootActive] = useState(false);
+
+  function addDmg(value, color = C.gld) {
+    const id = Date.now();
+    setDmgNums(p => [...p, { id, value, color }]);
+    setTimeout(() => setDmgNums(p => p.filter(d => d.id !== id)), 1200);
+  }
+  function triggerLoot() { setLootActive(true); setTimeout(() => setLootActive(false), 2000); }
 
   const timerRef = useRef(null);
   const guessTimerRef = useRef(null);
@@ -1046,6 +1055,9 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
       payload: { estimate },
     });
     playWin();
+    // Game soul: finalize effects
+    addDmg('🃏 +XP', C.gld);
+    triggerLoot();
   }
 
   function handleAchievementClose(idx) {
@@ -1054,9 +1066,20 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+    <Scene mc={C.red}>
+      {/* Damage numbers */}
+      {dmgNums.map(d => <DmgNum key={d.id} value={d.value} color={d.color} />)}
+      {/* Loot drops */}
+      <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+        <LootDrops active={lootActive} items={[{ icon: '🃏', label: '+XP', color: C.gld }, { icon: '🔍', label: 'BLUFF', color: C.red }]} />
+      </div>
+      {/* NPC Spectators */}
+      <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+        {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
+      </div>
     <div className={shaking ? 'bp-shake' : ''} style={{
       minHeight: '100vh',
-      background: 'var(--bg)',
+      background: 'transparent',
       color: 'var(--text)',
       position: 'relative',
       overflow: 'hidden',
@@ -1146,5 +1169,6 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
         )}
       </div>
     </div>
+    </Scene>
   );
 }

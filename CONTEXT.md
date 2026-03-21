@@ -1,16 +1,18 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-20 (sprints 7-10 dokumenteret, fase 1-4 komplet)
+Last updated: 2026-03-20 (sprints 7-11 dokumenteret, V8+ mockup live, sidebar refactor næste)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.6 (Sprint 6 foundation komplet ✅)
+- Fase: Aktiv udvikling — v0.11+ (Sprint 11 game_mode + time tracking landed ✅)
 - Live: https://reveal.blichert.net
+- Salgs-demo mockup: https://reveal.blichert.net/reveal-v8plus.html (V8+ — bruges mens sidebar refactores)
 - GitHub: https://github.com/DcollabwithBot/reveal
-- Branch: `main` (sprint 6 merged 2026-03-19)
+- Branch: `main` (sprint 11 merged 2026-03-20)
 - App: `app/` — Vite + React
+- **Næste:** Sidebar refactor — App.jsx → persistent app-shell (sidebar 232px + main)
 
 ## Hvad er bygget
 
@@ -168,8 +170,10 @@ Bygges EFTER vi har pilotkunder og validated use case.
 | 8 (Fase 2) | Burndown/Velocity, Dependencies, In-app Notifikationer | ✅ |
 | 9 (Fase 3) | Game-PM Bridge, Planning Poker fra Dashboard, GameStatsBar | ✅ |
 | 10 (Fase 4) | Sprint Draft "The Draft" — 4-step flow, priority tokens, capacity gauge | ✅ |
-| TODO | Admin Panel, Slack/Teams webhooks, Email (Resend), Jira Shadow Sync, Onboarding | ✅ |
-| 11 | Slack/Teams webhooks + Eksterne integrationer (Jira/Azure DevOps) | 🎯 næste |
+| 10 (Fase 4) | Sprint Draft "The Draft" — 4-step flow, priority tokens, capacity gauge | ✅ |
+| 10b | Time tracking + Excel import (FAK/INT/UB/Kørsel) · game_mode feature (focus/engaged/full) | ✅ |
+| 11 | Sidebar refactor (persistent app-shell) + V8+ React port | 🎯 næste |
+| 12 | Slack/Teams webhooks + Jira Shadow Sync | |
 | 12 | AI Lifelines + mønstergenkendelse | |
 
 ## Supabase

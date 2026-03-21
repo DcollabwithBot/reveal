@@ -10,8 +10,8 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Sprite } from '../components/session/SessionPrimitives.jsx';
-import { CLASSES } from '../shared/constants.js';
+import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -743,6 +743,15 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
   const [responseTimes, setResponseTimes] = useState({});
   const [achievement, setAchievement] = useState(null);
   const channelRef = useRef(null);
+  const [dmgNums, setDmgNums] = useState([]);
+  const [lootActive, setLootActive] = useState(false);
+
+  function addDmg(value, color = C.gld) {
+    const id = Date.now();
+    setDmgNums(p => [...p, { id, value, color }]);
+    setTimeout(() => setDmgNums(p => p.filter(d => d.id !== id)), 1200);
+  }
+  function triggerLoot() { setLootActive(true); setTimeout(() => setLootActive(false), 2000); }
 
   useEffect(() => {
     injectSSStyles();
@@ -876,6 +885,9 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
       setRound2All(r2);
 
       channelRef.current?.send({ type: 'broadcast', event: 'DELTA_READY', payload: {} });
+      // Game soul: speed round complete
+      addDmg('⚡ +XP', '#8b5cf6');
+      triggerLoot();
     } else {
       setCurrentItemIndex(nextIdx);
       setVoteCount(0);
@@ -888,7 +900,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
     setStep('speed');
   }
 
-  // Shared XP bar shown across all steps
+  // Shared XP bar + game soul overlays shown across all steps
   const xpBarEl = user?.id ? (
     <>
       <XPBadgeNotifier userId={user.id} />
@@ -898,19 +910,34 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
       </div>
     </>
   ) : null;
+  const gameSoulOverlays = (
+    <>
+      {dmgNums.map(d => <DmgNum key={d.id} value={d.value} color={d.color} />)}
+      <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+        <LootDrops active={lootActive} items={[{ icon: '⚡', label: '+XP', color: '#8b5cf6' }, { icon: '🎯', label: 'SPEED', color: C.gld }]} />
+      </div>
+      <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+        {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
+      </div>
+    </>
+  );
 
   if (step === 'loading') {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {xpBarEl}
-        <div style={{ fontFamily: PF, fontSize: 10, color: 'var(--text3)' }}>LOADING...</div>
-      </div>
+      <Scene mc="#8b5cf6">
+        <div style={{ minHeight: '100vh', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {xpBarEl}
+          {gameSoulOverlays}
+          <div style={{ fontFamily: PF, fontSize: 10, color: 'var(--text3)' }}>LOADING...</div>
+        </div>
+      </Scene>
     );
   }
 
   if (step === 'lobby') {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
+      <Scene mc="#8b5cf6">
+      <div style={{ minHeight: '100vh', background: 'transparent', padding: '24px 20px' }}>
         {xpBarEl}
         <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
@@ -946,13 +973,19 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
             </button>
           </div>
         </div>
+        {xpBarEl}
+        {gameSoulOverlays}
       </div>
+      </Scene>
     );
   }
 
   if (step === 'speed') {
     return (
-      <StepSpeed
+      <Scene mc="#8b5cf6">
+        {gameSoulOverlays}
+        {xpBarEl}
+        <StepSpeed
         items={items}
         currentItemIndex={currentItemIndex}
         onVote={handleSpeedVote}
@@ -962,62 +995,75 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
         voteCount={voteCount}
         onGMAdvance={gmAdvanceSpeed}
       />
+      </Scene>
     );
   }
 
   if (step === 'discuss') {
     return (
-      <StepDiscuss
-        items={items}
-        currentItemIndex={currentItemIndex}
-        onVote={handleDiscussVote}
-        votedItems={round2Votes}
-        mySpeedEstimates={round1Votes}
-        isGM={isGM}
-        participantCount={participants.length}
-        voteCount={voteCount}
-        showSpeedVotes={showSpeedVotes}
-        allRound1={round1All}
-        onGMAdvance={gmAdvanceDiscuss}
-        onToggleShowSpeed={() => setShowSpeedVotes(v => !v)}
-      />
+      <Scene mc="#8b5cf6">
+        {gameSoulOverlays}
+        {xpBarEl}
+        <StepDiscuss
+          items={items}
+          currentItemIndex={currentItemIndex}
+          onVote={handleDiscussVote}
+          votedItems={round2Votes}
+          mySpeedEstimates={round1Votes}
+          isGM={isGM}
+          participantCount={participants.length}
+          voteCount={voteCount}
+          showSpeedVotes={showSpeedVotes}
+          allRound1={round1All}
+          onGMAdvance={gmAdvanceDiscuss}
+          onToggleShowSpeed={() => setShowSpeedVotes(v => !v)}
+        />
+      </Scene>
     );
   }
 
   if (step === 'delta') {
     return (
-      <StepDelta
-        items={items}
-        round1Estimates={round1All}
-        round2Estimates={round2All}
-        isGM={isGM}
-        onContinue={() => {
-          channelRef.current?.send({ type: 'broadcast', event: 'STATS_READY', payload: {} });
-          setStep('stats');
-        }}
-        onApplyEstimates={async () => {
-          // Optional: update session_items with discussed estimates
-          for (const item of items) {
-            const avg = avgEstimate(round2All[item.id] || []);
-            if (avg) {
-              await supabase.from('session_items').update({ estimate: avg }).eq('id', item.id);
+      <Scene mc="#8b5cf6">
+        {gameSoulOverlays}
+        {xpBarEl}
+        <StepDelta
+          items={items}
+          round1Estimates={round1All}
+          round2Estimates={round2All}
+          isGM={isGM}
+          onContinue={() => {
+            channelRef.current?.send({ type: 'broadcast', event: 'STATS_READY', payload: {} });
+            setStep('stats');
+          }}
+          onApplyEstimates={async () => {
+            // Optional: update session_items with discussed estimates
+            for (const item of items) {
+              const avg = avgEstimate(round2All[item.id] || []);
+              if (avg) {
+                await supabase.from('session_items').update({ estimate: avg }).eq('id', item.id);
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+      </Scene>
     );
   }
 
   if (step === 'stats') {
     return (
-      <StepStats
-        items={items}
-        round1Estimates={round1All}
-        round2Estimates={round2All}
-        participants={participants}
-        responseTimes={responseTimes}
-        onBack={onBack}
-      />
+      <Scene mc="#8b5cf6">
+        {gameSoulOverlays}
+        {xpBarEl}
+        <StepStats
+          items={items}
+          round1Estimates={round1All}
+          round2Estimates={round2All}
+          participants={participants}
+          responseTimes={responseTimes}
+          onBack={onBack}
+        />
+      </Scene>
     );
   }
 

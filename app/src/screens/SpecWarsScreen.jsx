@@ -11,8 +11,8 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Sprite } from '../components/session/SessionPrimitives.jsx';
-import { CLASSES } from '../shared/constants.js';
+import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -52,6 +52,14 @@ function injectStyles() {
       70% { transform: scale(1.3); }
       100%{ transform: scale(1); }
     }
+    @keyframes sw-screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      20%       { transform: translate(-5px, 0); }
+      40%       { transform: translate(5px, 0); }
+      60%       { transform: translate(-3px, 0); }
+      80%       { transform: translate(3px, 0); }
+    }
+    .sw-shake { animation: sw-screenShake 0.5s ease-in-out; }
     @keyframes sw-avatar-float {
       0%, 100% { transform: translateY(0); }
       50%       { transform: translateY(-6px); }
@@ -425,6 +433,17 @@ export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
   const [isGM, setIsGM] = useState(false);
   const [session, setSession] = useState(null);
   const channelRef = useRef(null);
+  const [dmgNums, setDmgNums] = useState([]);
+  const [lootActive, setLootActive] = useState(false);
+  const [shaking, setShaking] = useState(false);
+
+  function addDmg(value, color = C.gld) {
+    const id = Date.now();
+    setDmgNums(p => [...p, { id, value, color }]);
+    setTimeout(() => setDmgNums(p => p.filter(d => d.id !== id)), 1200);
+  }
+  function triggerShake() { setShaking(true); setTimeout(() => setShaking(false), 500); }
+  function triggerLoot() { setLootActive(true); setTimeout(() => setLootActive(false), 2000); }
 
   useEffect(() => {
     loadSession();
@@ -516,6 +535,11 @@ export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
     setWinner(w);
     setPhase('winner');
     broadcastPhase({ phase: 'winner', winner: w });
+    // Game soul: winner reveal effects
+    addDmg('🏆 +20 XP', C.gld);
+    triggerShake();
+    triggerLoot();
+    playWinner();
   }
 
   async function onGMDecision(decision) {
@@ -569,70 +593,82 @@ export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
   }
 
   return (
-    <div style={styles.container}>
-      {/* XP Bar */}
-      {user?.id && <XPBadgeNotifier userId={user.id} />}
-      {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
-          <GameXPBar userId={user.id} />
+    <Scene mc={C.acc}>
+      <div className={shaking ? 'sw-shake' : ''} style={styles.container}>
+        {/* Damage numbers */}
+        {dmgNums.map(d => <DmgNum key={d.id} value={d.value} color={d.color} />)}
+        {/* Loot drops */}
+        <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+          <LootDrops active={lootActive} items={[{ icon: '📜', label: '+XP', color: C.gld }, { icon: '⭐', label: 'SPEC', color: C.yel }]} />
         </div>
-      )}
-      {/* Header */}
-      <div style={styles.header}>
-        <button onClick={onBack} style={styles.backBtn}>← BACK</button>
-        <div style={{ fontFamily: PF, fontSize: 9, color: 'var(--epic)', textShadow: '0 0 8px var(--epic)' }}>
-          ⚔️ SPEC WARS
+        {/* NPC Spectators */}
+        <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+          {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
         </div>
-        <div style={{ fontFamily: VT, fontSize: 16, color: 'var(--text3)' }}>
-          {currentIdx + 1}/{items.length}
-        </div>
-      </div>
-
-      {/* Scanlines */}
-      <div style={styles.scanlines} />
-
-      {/* Phase content */}
-      <div style={styles.content}>
-        {phase === 'write' && currentItem && (
-          <Step1Write
-            item={currentItem}
-            userId={user.id}
-            onSubmit={onWriteSubmit}
-          />
-        )}
-        {phase === 'write' && isGM && currentItem && (
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <button onClick={gmTriggerVote} style={styles.gmBtn}>
-              GM: START VOTING ▶
-            </button>
+        {/* XP Bar */}
+        {user?.id && <XPBadgeNotifier userId={user.id} />}
+        {user?.id && (
+          <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
+            <GameXPBar userId={user.id} />
           </div>
         )}
+        {/* Header */}
+        <div style={styles.header}>
+          <button onClick={onBack} style={styles.backBtn}>← BACK</button>
+          <div style={{ fontFamily: PF, fontSize: 9, color: 'var(--epic)', textShadow: '0 0 8px var(--epic)' }}>
+            ⚔️ SPEC WARS
+          </div>
+          <div style={{ fontFamily: VT, fontSize: 16, color: 'var(--text3)' }}>
+            {currentIdx + 1}/{items.length}
+          </div>
+        </div>
 
-        {phase === 'vote' && currentItem && (
-          <Step2Vote
-            submissions={submissions}
-            userId={user.id}
-            avatar={avatar}
-            sessionId={sessionId}
-            itemId={currentItem.id}
-            onDone={onVoteDone}
-            isGM={isGM}
-          />
-        )}
+        {/* Scanlines */}
+        <div style={styles.scanlines} />
 
-        {phase === 'winner' && winner && (
-          <Step3Winner
-            winner={winner}
-            submissions={submissions}
-            userId={user.id}
-            avatar={avatar}
-            onNext={onGMDecision}
-            isGM={isGM}
-          />
-        )}
+        {/* Phase content */}
+        <div style={styles.content}>
+          {phase === 'write' && currentItem && (
+            <Step1Write
+              item={currentItem}
+              userId={user.id}
+              onSubmit={onWriteSubmit}
+            />
+          )}
+          {phase === 'write' && isGM && currentItem && (
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <button onClick={gmTriggerVote} style={styles.gmBtn}>
+                GM: START VOTING ▶
+              </button>
+            </div>
+          )}
+
+          {phase === 'vote' && currentItem && (
+            <Step2Vote
+              submissions={submissions}
+              userId={user.id}
+              avatar={avatar}
+              sessionId={sessionId}
+              itemId={currentItem.id}
+              onDone={onVoteDone}
+              isGM={isGM}
+            />
+          )}
+
+          {phase === 'winner' && winner && (
+            <Step3Winner
+              winner={winner}
+              submissions={submissions}
+              userId={user.id}
+              avatar={avatar}
+              onNext={onGMDecision}
+              isGM={isGM}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </Scene>
   );
 }
 

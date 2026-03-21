@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Sprite } from '../components/session/SessionPrimitives.jsx';
-import { CLASSES } from '../shared/constants.js';
+import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -816,6 +816,17 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
   const [revealTotal, setRevealTotal] = useState(0);
   const [achievements, setAchievements] = useState([]);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [dmgNums, setDmgNums] = useState([]);
+  const [lootActive, setLootActive] = useState(false);
+  const [shaking, setShaking] = useState(false);
+
+  function addDmg(value, color = C.gld) {
+    const id = Date.now();
+    setDmgNums(p => [...p, { id, value, color }]);
+    setTimeout(() => setDmgNums(p => p.filter(d => d.id !== id)), 1200);
+  }
+  function triggerShake() { setShaking(true); setTimeout(() => setShaking(false), 500); }
+  function triggerLoot() { setLootActive(true); setTimeout(() => setLootActive(false), 2000); }
 
   // Load session data
   useEffect(() => {
@@ -902,12 +913,26 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
   const handleApprovalDone = () => {
     computeAchievements();
     setShowAchievements(true);
+    // Game soul: finalize effects
+    addDmg('⛏️ +XP', C.org);
+    triggerShake();
+    triggerLoot();
   };
 
   const stepLabel = ['', 'LOBBY', 'BREAKDOWN', 'GM MERGE', 'ESTIMATE', 'REVEAL', 'GAP', 'APPROVAL'][step];
 
   return (
-    <>
+    <Scene mc={C.org}>
+      {/* Damage numbers */}
+      {dmgNums.map(d => <DmgNum key={d.id} value={d.value} color={d.color} />)}
+      {/* Loot drops */}
+      <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+        <LootDrops active={lootActive} items={[{ icon: '⛏️', label: '+XP', color: C.org }, { icon: '🧬', label: 'SCOPE', color: C.gld }]} />
+      </div>
+      {/* NPC Spectators */}
+      <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+        {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
+      </div>
       {/* XP Bar + Achievement notifier */}
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
@@ -918,9 +943,17 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
       )}
       {/* CSS */}
       <style>{`
+        @keyframes ns-screenShake {
+          0%, 100% { transform: translate(0, 0); }
+          20%       { transform: translate(-5px, 0); }
+          40%       { transform: translate(5px, 0); }
+          60%       { transform: translate(-3px, 0); }
+          80%       { transform: translate(3px, 0); }
+        }
+        .ns-shake { animation: ns-screenShake 0.5s ease-in-out; }
         .ns-root {
           min-height: 100vh;
-          background: var(--bg);
+          background: transparent;
           display: flex;
           flex-direction: column;
           color: var(--text);
@@ -1084,7 +1117,7 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
         }
       `}</style>
 
-      <div className="ns-root">
+      <div className={`ns-root${shaking ? ' ns-shake' : ''}`}>
         {/* Header */}
         <div className="ns-header">
           <button className="ns-back-btn" onClick={onBack}>← BACK</button>
@@ -1179,6 +1212,6 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
           />
         )}
       </div>
-    </>
+    </Scene>
   );
 }

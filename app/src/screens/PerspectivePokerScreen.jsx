@@ -12,8 +12,8 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Sprite } from '../components/session/SessionPrimitives.jsx';
-import { CLASSES } from '../shared/constants.js';
+import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -84,6 +84,14 @@ function injectStyles() {
     .pp-crown-anim { animation: pp-crown 2s ease-in-out infinite; }
     .pp-bar-grow { animation: pp-barGrow 1s ease forwards; }
     .pp-timer-urgent { animation: pp-timer-pulse 0.8s ease-in-out infinite; }
+    @keyframes pp-screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      20%       { transform: translate(-5px, 0); }
+      40%       { transform: translate(5px, 0); }
+      60%       { transform: translate(-3px, 0); }
+      80%       { transform: translate(3px, 0); }
+    }
+    .pp-shake { animation: pp-screenShake 0.5s ease-in-out; }
   `;
   document.head.appendChild(s);
 }
@@ -367,6 +375,17 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
   const [isGM, setIsGM] = useState(false);
   const [finalData, setFinalData] = useState(null);
   const channelRef = useRef(null);
+  const [dmgNums, setDmgNums] = useState([]);
+  const [lootActive, setLootActive] = useState(false);
+  const [shaking, setShaking] = useState(false);
+
+  function addDmg(value, color = C.gld) {
+    const id = Date.now();
+    setDmgNums(p => [...p, { id, value, color }]);
+    setTimeout(() => setDmgNums(p => p.filter(d => d.id !== id)), 1200);
+  }
+  function triggerShake() { setShaking(true); setTimeout(() => setShaking(false), 500); }
+  function triggerLoot() { setLootActive(true); setTimeout(() => setLootActive(false), 2000); }
 
   const PERSPECTIVES_KEYS = Object.keys(PERSPECTIVES);
 
@@ -533,6 +552,10 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
     });
     const data = await res.json();
     setFinalData(data);
+    // Game soul: finalize effects
+    addDmg('🌐 +25 XP', C.grn);
+    triggerShake();
+    triggerLoot();
 
     if (currentIdx + 1 >= items.length) {
       setPhase('done');
@@ -595,17 +618,28 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
   }
 
   return (
-    <div style={styles.container}>
-      {/* XP Bar */}
-      {user?.id && <XPBadgeNotifier userId={user.id} />}
-      {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
-          <GameXPBar userId={user.id} />
+    <Scene mc={C.grn}>
+      <div className={shaking ? 'pp-shake' : ''} style={styles.container}>
+        {/* Damage numbers */}
+        {dmgNums.map(d => <DmgNum key={d.id} value={d.value} color={d.color} />)}
+        {/* Loot drops */}
+        <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+          <LootDrops active={lootActive} items={[{ icon: '🌐', label: '+XP', color: C.grn }, { icon: '🔮', label: 'PERSP', color: C.gld }]} />
         </div>
-      )}
-      {/* Scanlines */}
-      <div style={styles.scanlines} />
+        {/* NPC Spectators */}
+        <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+          {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
+        </div>
+        {/* XP Bar */}
+        {user?.id && <XPBadgeNotifier userId={user.id} />}
+        {user?.id && (
+          <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
+            <GameXPBar userId={user.id} />
+          </div>
+        )}
+        {/* Scanlines */}
+        <div style={styles.scanlines} />
 
       {/* Header */}
       <div style={styles.header}>
@@ -811,7 +845,8 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </Scene>
   );
 }
 
