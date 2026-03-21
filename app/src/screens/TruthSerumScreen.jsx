@@ -279,6 +279,19 @@ export default function TruthSerumScreen({ sessionId, userId, isGm, organization
 function SetupPhase({ items, selectedItems, onToggle, onStart, isGm, C, PF }) {
   return (
     <div>
+      {/* Purpose banner — kerneværdi: formål klar */}
+      <div style={{
+        background: `${C.pur}0d`, border: `1px solid ${C.pur}44`,
+        borderLeft: `3px solid ${C.pur}`,
+        padding: '10px 13px', marginBottom: '14px',
+        fontFamily: "'VT323', monospace", fontSize: '18px', color: C.dim, lineHeight: 1.6,
+      }}>
+        <span style={{ fontFamily: PF, fontSize: '6px', color: C.pur, display: 'block', marginBottom: '3px', letterSpacing: 1 }}>
+          HVAD LØSER DETTE?
+        </span>
+        Truth Serum afslører systematisk bias — hvem estimerer altid for lavt eller for højt? Alle estimerer hemmeligt, ingen påvirker hinanden.
+      </div>
+
       <div style={{ fontFamily: PF, fontSize: 7, color: C.dim, lineHeight: 2, marginBottom: 16 }}>
         {isGm
           ? `VÆLG 3-5 ITEMS TIL TRUTH SERUM · ALLE ESTIMERER HEMMELIGT`

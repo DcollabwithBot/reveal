@@ -238,6 +238,19 @@ function Step1Write({ item, onSubmit, userId }) {
 
   return (
     <div style={styles.step}>
+      {/* Purpose banner — kerneværdi: formål klar */}
+      <div style={{
+        background: 'rgba(232,84,84,0.07)', border: '1px solid rgba(232,84,84,0.25)',
+        borderLeft: '3px solid var(--danger)',
+        padding: '9px 13px', marginBottom: '16px',
+        fontFamily: VT, fontSize: '17px', color: 'var(--text2)', lineHeight: 1.6,
+      }}>
+        <span style={{ fontFamily: PF, fontSize: '6px', color: 'var(--danger)', display: 'block', marginBottom: '3px', letterSpacing: 1 }}>
+          HVAD LØSER DETTE?
+        </span>
+        Spec Wars afslører hvem der forstår kravet forskelligt. Skriv acceptance criteria — den bedste spec vinder og gemmes til projektet.
+      </div>
+
       <div style={styles.itemCard}>
         <div style={{ fontFamily: PF, fontSize: 7, color: 'var(--text3)', marginBottom: 8, letterSpacing: 2 }}>
           ITEM TO SPEC
@@ -407,6 +420,15 @@ function Step3Winner({ winner, submissions, userId, avatar, onNext, isGM }) {
           <button onClick={() => onNext('skip')} style={styles.secondaryBtn}>
             SKIP
           </button>
+        </div>
+      )}
+      {/* PM-kobling: vis at spec gemmes ved godkendelse */}
+      {isGM && (
+        <div style={{
+          marginTop: 10, fontFamily: VT, fontSize: 16, color: 'var(--jade)',
+          textAlign: 'center', opacity: 0.8,
+        }}>
+          ✅ Godkendelse gemmer spec til projektets historik
         </div>
       )}
       {!isGM && (

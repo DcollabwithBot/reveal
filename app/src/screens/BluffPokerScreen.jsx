@@ -270,6 +270,19 @@ function StepLobby({ participants, item, isGM, onStart, onBack }) {
         <div className="scanlines" style={{ position: 'absolute', inset: 0 }} />
       </div>
 
+      {/* Purpose banner — kerneværdi: formål klar */}
+      <div style={{
+        background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)',
+        borderLeft: '3px solid var(--epic)',
+        padding: '10px 14px', marginBottom: '20px', textAlign: 'left',
+        fontFamily: VT, fontSize: '18px', color: 'var(--text2)', lineHeight: 1.6,
+      }}>
+        <span style={{ fontFamily: PF, fontSize: '7px', color: 'var(--epic)', display: 'block', marginBottom: '4px', letterSpacing: 1 }}>
+          HVAD LØSER DETTE?
+        </span>
+        En spiller estimerer bevidst forkert. Find blufferen — og lær at kende dit teams estimeringsmønstre.
+      </div>
+
       {item && (
         <div style={{
           background: 'var(--bg2)', border: '2px solid var(--border2)',
