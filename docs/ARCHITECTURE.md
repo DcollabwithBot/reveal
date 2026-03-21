@@ -1,7 +1,7 @@
 # REVEAL — Arkitektur & Bindingsmodel
 
 **Source of truth for alle agenter og udviklere.**
-Opdateret: 2026-03-21
+Opdateret: 2026-03-21 (XP persistence, real team members, Overworld data binding)
 
 ---
 
@@ -29,12 +29,21 @@ Opdateret: 2026-03-21
 
 | Tabel | Beskrivelse |
 |---|---|
-| `game_profiles` | Karakter, XP, level, achievements per bruger |
+| `profiles.xp` / `profiles.level` | XP og level per bruger — **source of truth for XP** |
+| `leaderboard_org` | **VIEW** (ikke tabel) — auto-genereret fra `profiles` + `organization_members` |
+| `user_achievements` | Unlocked achievements per bruger (user_id + achievement_key, UNIQUE) |
+| `achievement_definitions` | Katalog over alle mulige achievements |
 | `missions` / `user_missions` | Daglige missioner + side quests |
-| `leaderboard_org` | XP-rangliste per org |
 | `random_events` | Random events per session |
 | `game_mode_config` | Hvilke modes er aktive per projekt |
 | `project_templates` | Session-skabeloner |
+
+### ⚠️ XP-arkitektur (opdateret 2026-03-21)
+- `profiles.xp` er source of truth — opdateres via `awardXP()` i api.js
+- `leaderboard_org` er en **VIEW** der joiner `profiles` + `organization_members` — **skriv ALDRIG direkte til den**
+- `awardXP()` opdaterer `profiles.xp` + `profiles.level` — VIEW reflekterer automatisk
+- XP tildeles ved session-afslutning i Session.jsx via `awardXP(userId, xpAmount, 'session_complete', orgId)`
+- Achievements gemmes via `unlockAchievement()` — idempotent (UNIQUE constraint)
 
 ---
 
@@ -425,27 +434,31 @@ projects (id, name, org_id)
   └── sprints (id, project_id, end_date → boss HP)
         └── session_items (id, sprint_id, title, estimate, status → nodes på kortet)
 
-profiles (id, avatar, class → karakter-sprites)
-  └── session_participants (session_id, user_id → hvem er med)
+organization_members (user_id, organization_id)
+  └── profiles (id, display_name, avatar_class, xp, level → karakter-sprites + XP)
 ```
 
-### Nuværende flow vs. mål
+### Team-visning (opdateret 2026-03-21)
+- **Overworld:** `buildTeam()` henter rigtige teammedlemmer fra `organization_members` + `profiles` via Supabase
+- **WorldSelect:** NPC-sprites viser rigtige org-members i stedet for hardcodede Mia/Jonas/Sara/Emil
+- **Fallback:** `NPC_TEAM` fra constants.js bruges KUN når ingen rigtige members findes (demo/tom org)
+- **Avatar mapping:** `profiles.avatar_class` → sprite farver/klasse. Hvis null → tildeles tilfældig klasse fra `CLASSES`
+- **Top bar XP:** Viser brugerens reelle `profiles.xp` fra DB (ikke hardcodet ⭐1240)
 
-| Nu | Mål |
+### Implementeringsstatus
+
+| Feature | Status |
 |---|---|
-| WorldSelect → vælg mode → SessionLaunchModal → spil | WorldSelect → Overworld (per projekt, rigtige data) → klik node → vælg mode → spil |
-| Overworld har hardcoded dummy-nodes | Overworld nodes = rigtige sprint-items fra DB |
-| Ingen projekttilknytning | Hvert node er koblet til et konkret session_item |
-| Ingen boss | Boss = sprint-deadline med nedtælling |
-
-### Sprints og projekter → synlige i spillet
-
-Korrekt binding (delvist implementeret):
-- World Map viser projekter fra DB ✅
-- Project Hub (ny screen) viser sprint + backlog per projekt ❌ (mangler)
-- SessionLaunchModal viser items fra valgt sprint til selektion ❌ (mangler)
-- Under session: item-titel + beskrivelse vises ✅ (i Session.jsx via node.name)
-- Efter session: sprint-velocity opdateres i KPI Dashboard ❌ (mangler)
+| World Map viser projekter fra DB | ✅ |
+| Overworld nodes = rigtige sprint-items fra DB | ✅ |
+| Overworld team = rigtige org-members fra DB | ✅ (2026-03-21) |
+| Top bar XP = rigtig XP fra profiles | ✅ (2026-03-21) |
+| Boss = sprint-deadline med HP nedtælling | ✅ |
+| XP skrives til DB ved session-slut | ✅ (2026-03-21) |
+| Achievements gemmes i DB | ✅ (2026-03-21) |
+| Project Hub screen (sprint + backlog per projekt) | ❌ (mangler) |
+| SessionLaunchModal item-selektion fra sprint | ❌ (mangler) |
+| Sprint-velocity opdateres i KPI Dashboard | ❌ (mangler) |
 
 ---
 
@@ -457,4 +470,12 @@ Korrekt binding (delvist implementeret):
 - [ ] **Risk score + antagelser** — Risk Poker og Assumption Slayer skriver til `session_items`
 - [ ] **Sprint velocity** — efter session: opdatér sprint-metrics i KPI Dashboard
 - [ ] **Projekt-fetch fix** — WorldSelect viser "Ingen projekter" hvis organization_id ikke matcher
-- [ ] **Overworld deprecated** — erstattes af direkte projekt-workspace som entry til sessions
+
+## Hvad der er done (2026-03-21)
+
+- [x] **XP persistence** — `awardXP()` skriver til `profiles.xp` ved session-slut
+- [x] **Achievements persistence** — `user_achievements` tabel oprettet, `unlockAchievement()` gemmer til DB
+- [x] **Leaderboard fix** — `leaderboard_org` er VIEW, kode skriver ikke længere direkte til den
+- [x] **Real team members** — Overworld + WorldSelect viser rigtige org-members fra Supabase
+- [x] **Real XP i top bar** — Overworld top bar viser brugerens faktiske XP
+- [x] **Overworld rigtige data** — nodes = sprint-items, boss = sprint-deadline, team = org-members
