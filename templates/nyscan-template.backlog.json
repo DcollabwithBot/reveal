@@ -1,0 +1,757 @@
+{
+  "templateVersion": "1.2.0",
+  "templateKey": "nyscan-default",
+  "projectRef": "Nyscan - IT Asset Inventory & Scanning Implementation",
+  "backlog": {
+    "items": [
+      {
+        "id": "NS-001",
+        "projectId": "nyscan-default",
+        "sprintId": "sp0",
+        "epicId": "EP-Discovery",
+        "title": "Kickoff + stakeholder alignment",
+        "description": "Align scope, asset categories, integration targets, and decision cadence with IT, operations, and management.",
+        "assigneeId": "u-pm-001",
+        "assignee": "Project Manager",
+        "reporterId": "u-sponsor-001",
+        "team": "PMO",
+        "priority": "High",
+        "status": "Ready",
+        "estimatePoints": 3,
+        "remainingPoints": 3,
+        "deadline": "2026-04-03",
+        "startDate": "2026-04-01",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "alignment",
+          "scope-drift"
+        ],
+        "dependencies": [],
+        "slaHours": null,
+        "labels": [
+          "discovery",
+          "governance"
+        ],
+        "component": "Project",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "RACI approved",
+          "Asset categories agreed and documented",
+          "Weekly steering cadence confirmed"
+        ],
+        "xpValue": 35,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Momentum"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -10,
+        "difficultyTier": "B",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "B"
+        }
+      },
+      {
+        "id": "NS-002",
+        "projectId": "nyscan-default",
+        "sprintId": "sp0",
+        "epicId": "EP-Discovery",
+        "title": "Current asset inventory baseline assessment",
+        "description": "Survey existing asset registers, spreadsheets, and CMDB state. Document data quality gaps and coverage.",
+        "assigneeId": "u-ops-001",
+        "assignee": "IT Operations Engineer",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "Critical",
+        "status": "Ready",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-04-10",
+        "startDate": "2026-04-02",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "data-quality",
+          "coverage-gaps",
+          "legacy-records"
+        ],
+        "dependencies": [
+          "NS-001"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "assessment",
+          "baseline",
+          "cmdb"
+        ],
+        "component": "Data",
+        "type": "Research",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Existing data sources catalogued",
+          "Data quality gaps documented",
+          "Baseline report reviewed by PM + IT lead"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Asset Hunter"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -25,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "NS-003",
+        "projectId": "nyscan-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Setup",
+        "title": "Scanning platform selection and setup",
+        "description": "Evaluate and deploy scanning platform (Snipe-IT, Lansweeper, or ITSM-native). Configure asset categories and custom fields.",
+        "assigneeId": "u-ops-001",
+        "assignee": "IT Operations Engineer",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-04-22",
+        "startDate": "2026-04-14",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "platform-risk",
+          "configuration-complexity"
+        ],
+        "dependencies": [
+          "NS-002"
+        ],
+        "slaHours": 96,
+        "labels": [
+          "platform",
+          "setup",
+          "configuration"
+        ],
+        "component": "Platform",
+        "type": "Feature",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Platform deployed and accessible",
+          "Asset categories and fields configured",
+          "Test import validated"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Asset Hunter"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -20,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "NS-004",
+        "projectId": "nyscan-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Setup",
+        "title": "Asset label scheme design and print validation",
+        "description": "Design barcode/QR label format. Define naming convention, numbering series, and physical label spec. Print and validate on pilot assets.",
+        "assigneeId": "u-ops-002",
+        "assignee": "IT Technician",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-04-24",
+        "startDate": "2026-04-15",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "label-durability",
+          "scanner-compatibility",
+          "naming-inconsistency"
+        ],
+        "dependencies": [
+          "NS-002"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "labels",
+          "barcode",
+          "naming"
+        ],
+        "component": "Physical",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Label template approved",
+          "Scanner reads label at 95%+ first-scan rate",
+          "Naming convention documented and signed off"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Label Master"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -25,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "NS-005",
+        "projectId": "nyscan-default",
+        "sprintId": "sp2",
+        "epicId": "EP-Pilot",
+        "title": "Pilot area scan — high-density zone",
+        "description": "Execute full scan in representative high-density area. Validate workflow, data entry, label readability, and CMDB sync.",
+        "assigneeId": "u-ops-001",
+        "assignee": "IT Operations Engineer",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-05-05",
+        "startDate": "2026-04-29",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "data-entry-errors",
+          "scan-coverage",
+          "workflow-friction"
+        ],
+        "dependencies": [
+          "NS-003",
+          "NS-004"
+        ],
+        "slaHours": 48,
+        "labels": [
+          "pilot",
+          "scan",
+          "validation"
+        ],
+        "component": "Operations",
+        "type": "Feature",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Pilot area scanned with <2% error rate",
+          "CMDB sync verified for pilot assets",
+          "Go/no-go recommendation published"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Data Integrity Shield"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -30,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "NS-006",
+        "projectId": "nyscan-default",
+        "sprintId": "sp2",
+        "epicId": "EP-Integration",
+        "title": "CMDB integration mapping and field validation",
+        "description": "Define field mappings between scanning platform and CMDB. Validate API/import method, ownership model, and sync frequency.",
+        "assigneeId": "u-arch-001",
+        "assignee": "IT Architect",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-05-08",
+        "startDate": "2026-04-29",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "integration-complexity",
+          "field-mismatch",
+          "ownership-gap"
+        ],
+        "dependencies": [
+          "NS-001"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "cmdb",
+          "integration",
+          "field-mapping"
+        ],
+        "component": "Integration",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Field mapping document approved",
+          "Test sync validated in staging",
+          "Ownership model signed off"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "CMDB Reconciler"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -20,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "NS-007",
+        "projectId": "nyscan-default",
+        "sprintId": "sp3",
+        "epicId": "EP-Rollout",
+        "title": "Full site inventory scan — phase 1",
+        "description": "Execute systematic scan across all departments/floors — phase 1. Label and register all in-scope assets.",
+        "assigneeId": "u-ops-002",
+        "assignee": "IT Technician",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 13,
+        "remainingPoints": 13,
+        "deadline": "2026-05-28",
+        "startDate": "2026-05-13",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "access-restrictions",
+          "scheduling-conflicts",
+          "coverage-gaps"
+        ],
+        "dependencies": [
+          "NS-005",
+          "NS-006"
+        ],
+        "slaHours": 24,
+        "labels": [
+          "scan",
+          "rollout",
+          "phase-1"
+        ],
+        "component": "Operations",
+        "type": "Feature",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Phase 1 areas fully scanned",
+          "All assets labelled and registered",
+          "Progress report accepted by PM"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Asset Hunter"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -35,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "NS-008",
+        "projectId": "nyscan-default",
+        "sprintId": "sp4",
+        "epicId": "EP-Rollout",
+        "title": "Full site inventory scan — phase 2 + reconciliation",
+        "description": "Complete remaining areas. Reconcile scan data against CMDB. Resolve discrepancies and ghost records.",
+        "assigneeId": "u-ops-001",
+        "assignee": "IT Operations Engineer",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "Critical",
+        "status": "Backlog",
+        "estimatePoints": 13,
+        "remainingPoints": 13,
+        "deadline": "2026-06-14",
+        "startDate": "2026-06-01",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "discrepancy-volume",
+          "ghost-records",
+          "ownership-unknown"
+        ],
+        "dependencies": [
+          "NS-007"
+        ],
+        "slaHours": 24,
+        "labels": [
+          "scan",
+          "rollout",
+          "reconciliation",
+          "phase-2"
+        ],
+        "component": "Operations",
+        "type": "Feature",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "All areas scanned",
+          "Discrepancy rate ≤2% unresolved",
+          "Reconciliation report reviewed"
+        ],
+        "xpValue": 90,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "CMDB Reconciler"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -35,
+        "difficultyTier": "S",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "S"
+        }
+      },
+      {
+        "id": "NS-009",
+        "projectId": "nyscan-default",
+        "sprintId": "sp4",
+        "epicId": "EP-Handover",
+        "title": "Scanning workflow documentation + staff training",
+        "description": "Document ongoing scanning procedures, label reorder process, and CMDB update workflow. Train operations staff.",
+        "assigneeId": "u-pm-001",
+        "assignee": "Project Manager",
+        "reporterId": "u-sponsor-001",
+        "team": "PMO",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-06-26",
+        "startDate": "2026-06-15",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "knowledge-gap",
+          "process-adoption"
+        ],
+        "dependencies": [
+          "NS-008"
+        ],
+        "slaHours": null,
+        "labels": [
+          "handover",
+          "documentation",
+          "training"
+        ],
+        "component": "Operations",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Runbook complete and approved by operations",
+          "Training session completed",
+          "Staff sign-off on procedures"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Inventory Complete"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -25,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "NS-010",
+        "projectId": "nyscan-default",
+        "sprintId": "sp4",
+        "epicId": "EP-Close",
+        "title": "Final acceptance and project close",
+        "description": "Run final KPI validation, close open actions, and execute formal project close with sponsor sign-off.",
+        "assigneeId": "u-pm-001",
+        "assignee": "Project Manager",
+        "reporterId": "u-sponsor-001",
+        "team": "PMO",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 3,
+        "remainingPoints": 3,
+        "deadline": "2026-06-30",
+        "startDate": "2026-06-26",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "acceptance-delay",
+          "open-discrepancies"
+        ],
+        "dependencies": [
+          "NS-009"
+        ],
+        "slaHours": null,
+        "labels": [
+          "close",
+          "acceptance",
+          "governance"
+        ],
+        "component": "Project",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "All project-level acceptance criteria validated",
+          "No open P1/P2 data quality issues",
+          "Final sign-off recorded"
+        ],
+        "xpValue": 35,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Boss Defeated"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -40,
+        "difficultyTier": "B",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "B"
+        }
+      },
+      {
+        "id": "NS-011",
+        "projectId": "nyscan-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Setup",
+        "title": "Scanner hardware procurement and configuration",
+        "description": "Procure handheld scanners (barcode/QR/RFID). Configure and test with scanning platform. Validate battery life and ergonomics.",
+        "assigneeId": "u-ops-002",
+        "assignee": "IT Technician",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-04-23",
+        "startDate": "2026-04-16",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "procurement-delay",
+          "compatibility"
+        ],
+        "dependencies": [
+          "NS-003"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "hardware",
+          "scanner",
+          "procurement"
+        ],
+        "component": "Physical",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Scanners received and tested",
+          "Compatibility with platform verified",
+          "Spare units available"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Label Master"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -18,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "NS-012",
+        "projectId": "nyscan-default",
+        "sprintId": "sp1",
+        "epicId": "EP-Integration",
+        "title": "Active Directory / identity integration",
+        "description": "Map asset ownership to AD user/computer objects. Define assignment model for personal vs. shared assets.",
+        "assigneeId": "u-arch-001",
+        "assignee": "IT Architect",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 5,
+        "remainingPoints": 5,
+        "deadline": "2026-04-25",
+        "startDate": "2026-04-16",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "Medium",
+        "riskTags": [
+          "ownership-model-complexity",
+          "shared-asset-edge-cases"
+        ],
+        "dependencies": [
+          "NS-003"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "active-directory",
+          "identity",
+          "ownership"
+        ],
+        "component": "Integration",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Ownership model documented",
+          "AD sync tested in staging",
+          "Edge cases (shared/unassigned) handled"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "CMDB Reconciler"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -18,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      },
+      {
+        "id": "NS-013",
+        "projectId": "nyscan-default",
+        "sprintId": "sp2",
+        "epicId": "EP-Integration",
+        "title": "Legacy data migration and deduplication",
+        "description": "Import and cleanse legacy asset records. Run deduplication, resolve conflicts, and establish clean baseline in new platform.",
+        "assigneeId": "u-ops-001",
+        "assignee": "IT Operations Engineer",
+        "reporterId": "u-pm-001",
+        "team": "IT Operations",
+        "priority": "High",
+        "status": "Backlog",
+        "estimatePoints": 8,
+        "remainingPoints": 8,
+        "deadline": "2026-05-09",
+        "startDate": "2026-04-29",
+        "blocked": false,
+        "blockedReason": null,
+        "blockedSince": null,
+        "blockerOwnerId": null,
+        "riskLevel": "High",
+        "riskTags": [
+          "data-quality",
+          "duplicate-records",
+          "migration-scope-creep"
+        ],
+        "dependencies": [
+          "NS-006"
+        ],
+        "slaHours": 72,
+        "labels": [
+          "migration",
+          "deduplication",
+          "data-quality"
+        ],
+        "component": "Data",
+        "type": "Ops",
+        "customerImpact": "Internal",
+        "acceptanceCriteria": [
+          "Legacy data imported with <1% critical errors",
+          "Duplicates resolved",
+          "Migration report approved"
+        ],
+        "xpValue": 60,
+        "xpAwarded": 0,
+        "achievementTags": [
+          "Data Integrity Shield"
+        ],
+        "streakContribution": true,
+        "pressureContribution": -18,
+        "difficultyTier": "A",
+        "gameBinding": {
+          "profile": "inventory-ops-boss-v1",
+          "bossImpactWeight": "medium",
+          "xpClass": "A"
+        }
+      }
+    ]
+  }
+}

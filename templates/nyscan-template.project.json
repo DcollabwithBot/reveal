@@ -1,0 +1,280 @@
+{
+  "templateVersion": "1.2.0",
+  "templateKey": "nyscan-default",
+  "name": "Nyscan - IT Asset Inventory & Scanning Implementation",
+  "description": "Reveal template for IT asset scanning and inventory management projects. Covers barcode/RFID-based asset registration, scanning workflows, integration with CMDB/ITSM, and operational handover.",
+  "status": "Planning",
+  "priority": "High",
+  "riskLevel": "Medium",
+  "projectType": "IT Operations",
+  "owner": {
+    "id": "u-pm-001",
+    "name": "Project Manager"
+  },
+  "team": "IT Operations",
+  "constraints": {
+    "budgetDkkMax": 150000,
+    "sitesTotal": 1,
+    "assetCount": "500-2000",
+    "scanTechnology": [
+      "barcode",
+      "QR",
+      "RFID-optional"
+    ],
+    "integrationTargets": [
+      "CMDB",
+      "ITSM",
+      "Active Directory"
+    ],
+    "complianceRequired": true,
+    "legacyDataMigration": true
+  },
+  "timeline": {
+    "targetStart": "2026-04-01",
+    "targetEnd": "2026-06-30",
+    "milestones": [
+      {
+        "id": "m1",
+        "name": "Requirements + scope locked",
+        "targetDate": "2026-04-10",
+        "status": "Planned"
+      },
+      {
+        "id": "m2",
+        "name": "System configured + label scheme approved",
+        "targetDate": "2026-04-28",
+        "status": "Planned"
+      },
+      {
+        "id": "m3",
+        "name": "Pilot scan complete",
+        "targetDate": "2026-05-12",
+        "status": "Planned"
+      },
+      {
+        "id": "m4",
+        "name": "Full inventory scan complete",
+        "targetDate": "2026-06-14",
+        "status": "Planned"
+      },
+      {
+        "id": "m5",
+        "name": "CMDB reconciled + handover signed",
+        "targetDate": "2026-06-30",
+        "status": "Planned"
+      }
+    ]
+  },
+  "sprints": [
+    {
+      "id": "sp0",
+      "name": "Sprint 0 - Discovery & Requirements",
+      "status": "Planned",
+      "startDate": "2026-04-01",
+      "endDate": "2026-04-12",
+      "goal": "Scope locked, asset categories defined, integration targets identified"
+    },
+    {
+      "id": "sp1",
+      "name": "Sprint 1 - Setup & Configuration",
+      "status": "Planned",
+      "startDate": "2026-04-13",
+      "endDate": "2026-04-28",
+      "goal": "Scanning platform configured, label scheme validated, CMDB integration connected"
+    },
+    {
+      "id": "sp2",
+      "name": "Sprint 2 - Pilot Scan",
+      "status": "Planned",
+      "startDate": "2026-04-29",
+      "endDate": "2026-05-12",
+      "goal": "Pilot area scanned and data quality verified"
+    },
+    {
+      "id": "sp3",
+      "name": "Sprint 3 - Full Rollout",
+      "status": "Planned",
+      "startDate": "2026-05-13",
+      "endDate": "2026-06-14",
+      "goal": "Full site inventory scan completed and reconciled"
+    },
+    {
+      "id": "sp4",
+      "name": "Sprint 4 - Reconciliation & Handover",
+      "status": "Planned",
+      "startDate": "2026-06-15",
+      "endDate": "2026-06-30",
+      "goal": "CMDB updated, discrepancies resolved, operational handover complete"
+    }
+  ],
+  "acceptanceCriteria": [
+    "All in-scope asset categories registered in scanning system",
+    "Label scheme applied consistently across all assets",
+    "CMDB data reconciled with scan results (≤2% unresolved discrepancies)",
+    "Scanning workflow documented and accepted by operations",
+    "Staff trained on scanning procedures",
+    "No open P1/P2 data quality issues at close"
+  ],
+  "definitionOfDone": [
+    "Task-level AC tested and passed",
+    "Assignee and reviewer sign-off completed",
+    "Status/labels/risk tags updated",
+    "Relevant documentation updated",
+    "Blockers closed or assigned with owner+deadline"
+  ],
+  "gamification": {
+    "boss": {
+      "name": "The Shadow Inventory",
+      "hpMax": 800,
+      "hpStart": 800
+    },
+    "xpRules": {
+      "low": 20,
+      "medium": 35,
+      "high": 60,
+      "critical": 90,
+      "riskRetiredHigh": 40,
+      "commitment90PlusTeamBonus": 100
+    },
+    "achievements": [
+      "Asset Hunter",
+      "Label Master",
+      "Data Integrity Shield",
+      "CMDB Reconciler",
+      "Inventory Complete"
+    ]
+  },
+  "labels": [
+    "template",
+    "scanning",
+    "inventory",
+    "cmdb",
+    "asset-management",
+    "reveal-default"
+  ],
+  "seedReady": true,
+  "technicalDecisionGates": [
+    {
+      "id": "gate-scan-platform",
+      "name": "Scanning platform selection",
+      "requiredBefore": "configuration",
+      "options": [
+        "snipe-it",
+        "lansweeper",
+        "custom-solution",
+        "itsm-native"
+      ],
+      "ownerRole": "IT Architect"
+    },
+    {
+      "id": "gate-label-scheme",
+      "name": "Asset label scheme decision",
+      "requiredBefore": "pilot-scan",
+      "options": [
+        "barcode-only",
+        "qr-code",
+        "rfid",
+        "hybrid"
+      ],
+      "ownerRole": "IT Operations Lead"
+    },
+    {
+      "id": "gate-cmdb-integration",
+      "name": "CMDB integration method",
+      "requiredBefore": "full-rollout",
+      "checks": [
+        "api-vs-csv-import",
+        "field-mapping-approved",
+        "ownership-model-defined"
+      ]
+    },
+    {
+      "id": "gate-legacy-data",
+      "name": "Legacy data migration scope",
+      "requiredBefore": "pilot",
+      "checks": [
+        "data-quality-baseline",
+        "migration-vs-greenfield",
+        "historical-asset-inclusion"
+      ]
+    }
+  ],
+  "gameProfile": {
+    "profileKey": "inventory-ops-boss-v1",
+    "enabledByDefault": false,
+    "sourceOfTruth": "pm_data_only",
+    "writeBackMode": "advisory_then_approved",
+    "boss": {
+      "name": "The Shadow Inventory",
+      "hpMax": 800
+    },
+    "eventRules": [
+      {
+        "event": "task.completed",
+        "when": "priority in ['High','Critical'] and dod=true",
+        "effects": {
+          "xp": 60,
+          "bossHpDelta": -15
+        }
+      },
+      {
+        "event": "risk.closed",
+        "when": "riskLevel='High'",
+        "effects": {
+          "xp": 40,
+          "bossHpDelta": -20,
+          "achievement": "Data Integrity Shield"
+        }
+      },
+      {
+        "event": "blocker.opened",
+        "when": "owner_missing=true",
+        "effects": {
+          "bossHpDelta": 15,
+          "pressureDelta": 8
+        }
+      },
+      {
+        "event": "deadline.missed",
+        "when": "priority in ['High','Critical']",
+        "effects": {
+          "bossHpDelta": 12,
+          "pressureDelta": 10
+        }
+      },
+      {
+        "event": "task.reopened",
+        "when": "priority='Critical'",
+        "effects": {
+          "bossHpDelta": 20,
+          "xp": -15
+        }
+      }
+    ],
+    "approvalActions": [
+      {
+        "signal": "rebalance_sprint",
+        "creates": "pm_recommendation",
+        "requiresApprovalBy": "Project Manager"
+      },
+      {
+        "signal": "open_risk_mitigation_task",
+        "creates": "task_draft",
+        "requiresApprovalBy": "Project Manager"
+      }
+    ]
+  },
+  "integrationContract": {
+    "pmToGame": "emit domain events from PM updates",
+    "gameToPm": "signals/recommendations only, never direct overwrite",
+    "requiredFields": [
+      "status",
+      "priority",
+      "riskLevel",
+      "assignee",
+      "deadline",
+      "estimatePoints",
+      "blocked"
+    ]
+  }
+}
