@@ -14,6 +14,7 @@
  *   key        {*}        — change key to reset
  */
 import { useState, useEffect, useRef } from 'react';
+import { handleSoftError } from "../../lib/errorHandler";
 
 const PF = "'Press Start 2P', monospace";
 
@@ -62,7 +63,7 @@ function playTick(freq = 880, duration = 0.05, gain = 0.05) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), 300);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-timer'); }
 }
 
 function playBuzz() {
@@ -84,7 +85,7 @@ function playBuzz() {
     gh.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
     hi.start(); hi.stop(ctx.currentTime + 0.3);
     setTimeout(() => ctx.close(), 600);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-timer'); }
 }
 
 const SIZES = {

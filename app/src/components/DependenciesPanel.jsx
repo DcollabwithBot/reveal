@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -29,7 +30,7 @@ export default function DependenciesPanel({ itemId }) {
         const data = await r.json();
         setDeps(data);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "dependencies-api"); }
     setLoading(false);
   }
 
@@ -62,7 +63,7 @@ export default function DependenciesPanel({ itemId }) {
       const headers = await authHeaders();
       await fetch(`/api/dependencies/${depId}`, { method: 'DELETE', headers });
       await loadDeps();
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "dependencies-api"); }
   }
 
   if (loading) {

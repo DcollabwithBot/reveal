@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -400,7 +401,7 @@ export function WebhookSettings() {
           if (wh.type) setWebhookType(wh.type);
           if (wh.events) setSelectedEvents(new Set(wh.events));
         }
-      } catch { /* silent */ }
+      } catch (e) { handleError(e, "integrations-api"); }
     })();
   });
 

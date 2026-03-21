@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import Toast from './Toast';
+import { handleError } from "../../lib/errorHandler";
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -24,7 +25,7 @@ export default function EstimationPanel({ item }) {
       const headers = await authHeaders();
       const r = await fetch(`/api/items/${item.id}/estimation-sessions`, { headers });
       if (r.ok) setHistory(await r.json());
-    } catch { /* ignorér */ }
+    } catch (e) { handleError(e, "estimation-history"); }
     setHistoryLoading(false);
   }, [item.id]);
 

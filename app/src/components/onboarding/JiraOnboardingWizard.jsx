@@ -6,6 +6,7 @@
  */
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { handleError } from "../../lib/errorHandler";
 
 export default function JiraOnboardingWizard({ userId, onComplete, onManual, onExcel, onNavigateToSettings }) {
   const [step, setStep] = useState('question'); // question | connect | manual | done
@@ -15,7 +16,8 @@ export default function JiraOnboardingWizard({ userId, onComplete, onManual, onE
     setSaving(true);
     try {
       await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId);
-    } catch {
+    } catch (e) {
+      handleError(e, "onboarding-complete");
       // best-effort
     }
     setSaving(false);

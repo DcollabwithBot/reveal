@@ -39,6 +39,7 @@ import { UserProfileMini } from '../components/UserProfilePanel';
 import AuditLogView from '../components/AuditLogView';
 import GameHUD from '../components/GameHUD';
 import Leaderboard from '../components/leaderboard/Leaderboard';
+import { handleError } from '../lib/errorHandler';
 
 function daysLeft(dateStr) {
   if (!dateStr) return null;
@@ -646,7 +647,8 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
     try {
       const data = await getTeamAssignees();
       setAssignees(data || []);
-    } catch {
+    } catch (e) {
+      handleError(e, 'load-assignees');
       setAssignees([]);
     }
   }
@@ -656,7 +658,7 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
     try {
       const data = await getRetroActions();
       setRetroActions(data || []);
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, 'load-retro-actions'); }
     setRetroLoading(false);
   }
 
@@ -668,7 +670,7 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
       setRetroActions(prev => prev.map(a => a.id === promoteModal.actionId ? { ...a, _promoted: true } : a));
       setPromoteModal(null);
       setPromoteSprint('');
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, 'promote-retro'); }
     setPromoteBusy(false);
   }
 
@@ -686,7 +688,7 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
         // Navigate to lobby — for now just refresh
         window.location.hash = `#/lobby/${result.session_id}`;
       }
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, 'start-sprint-estimation'); }
     setEstBusy(false);
   }
 
@@ -742,8 +744,8 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
         return { ...item, sprintName: sprint?.name, projectName: project?.name, projectIcon: project?.icon };
       });
       setRecentItems(enriched);
-    } catch {
-      // silent
+    } catch (e) {
+      handleError(e, 'load-recent-items');
     } finally {
       setRecentLoading(false);
     }
@@ -786,7 +788,8 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
     setDashboard(prev => ({ ...prev, projects: (prev.projects || []).map(p => p.id === projectId ? { ...p, status: newStatus } : p) }));
     try {
       await updateProjectStatus(projectId, newStatus);
-    } catch {
+    } catch (e) {
+      handleError(e, 'update-project-status');
       await refreshGovernance();
     }
   }

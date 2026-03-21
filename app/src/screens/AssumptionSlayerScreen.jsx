@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * Assumption Slayer — Anonymous assumption danger voting
  *
@@ -97,7 +99,7 @@ function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), duration * 1000 + 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-tone'); }
 }
 
 function playScrollWrite()  { playTone(440, 'square', 0.08, 0.08); }
@@ -123,7 +125,7 @@ function playDragonRoar() {
     g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
     screech.start(ctx.currentTime + 0.3); screech.stop(ctx.currentTime + 1.2);
     setTimeout(() => ctx.close(), 1800);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-victory'); }
 }
 function playSlayFanfare()  { [523, 784, 1047, 1568].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.25, 0.12), i * 100)); }
 function playTimerEnd()     { [220, 180, 150].forEach((f, i) => setTimeout(() => playTone(f, 'sawtooth', 0.3, 0.15), i * 120)); }

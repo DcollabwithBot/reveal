@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import RetroEventCard from '../RetroEventCard.jsx';
 import RootCauseSelector from '../RootCauseSelector.jsx';
+import { handleError } from "../../lib/errorHandler";
 
 function RetroActionEditor({ C, PF, onSaveActions }) {
   const [actions, setActions] = useState([{ title: '', description: '', assignee: '' }]);
@@ -18,7 +19,7 @@ function RetroActionEditor({ C, PF, onSaveActions }) {
     try {
       await onSaveActions(valid.map(a => ({ title: a.title, description: a.description, suggested_assignee: a.assignee || null })));
       setSaved(true);
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "save-retro-actions"); }
     setSaving(false);
   }
 

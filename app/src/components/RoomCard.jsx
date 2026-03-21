@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getMembership } from '../lib/api';
+import { handleError } from "../lib/errorHandler";
 
 export default function RoomCard({ team, project, sprint, accuracy, onStartSession, onOpenWorkspace, onViewHistory }) {
   const teamName = team?.name || project?.name || 'Team';
@@ -109,7 +110,7 @@ export function RoomsSection({ projects, onStartSession, onOpenWorkspace }) {
         if (s.project_id && !sessMap[s.project_id]) sessMap[s.project_id] = s;
       });
       setSessions(sessMap);
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, "fetch-sessions"); }
   }
 
   const activeProjects = (projects || []).filter(p => p.status === 'active' || p.status === 'review');

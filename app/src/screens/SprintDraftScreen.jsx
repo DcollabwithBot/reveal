@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getDraftState, submitDraftPicks, submitPriorityVotes, finalizeDraft } from '../lib/api';
@@ -44,7 +46,7 @@ function playCoin() {
     g.gain.setValueAtTime(0.06, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.12);
     setTimeout(() => ctx.close(), 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 function playFanfare() {
   if (!isSoundEnabled()) return;
@@ -59,7 +61,7 @@ function playFanfare() {
       osc.start(t); osc.stop(t + 0.2);
     });
     setTimeout(() => ctx.close(), 1200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 const STEPS = ['lobby', 'priority', 'draft', 'summary'];

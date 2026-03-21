@@ -1,3 +1,5 @@
+import { handleError } from "../lib/errorHandler";
+
 import { useEffect, useState } from 'react';
 import { useGameMode } from '../shared/GameModeContext';
 import { Card } from '../components/ui/Card';
@@ -48,7 +50,7 @@ function TeamRoles({ myPermissions }) {
         const headers = await authHeaders();
         const r = await fetch('/api/org/members', { headers });
         if (r.ok) setMembers(await r.json());
-      } catch { /* ignore */ }
+      } catch (e) { handleError(e, "api-request"); }
       setLoading(false);
     })();
   }, []);
@@ -71,7 +73,7 @@ function TeamRoles({ myPermissions }) {
         setToast(`Fejl: ${data.error}`);
         setTimeout(() => setToast(null), 4000);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "api-request"); }
     setSaving(null);
   }
 
@@ -165,7 +167,7 @@ function GovernanceSettings({ myPermissions }) {
           const data = await r.json();
           setAutoApprove(data.auto_approve_estimates || false);
         }
-      } catch { /* ignore */ }
+      } catch (e) { handleError(e, "api-request"); }
       setLoading(false);
     })();
   }, []);
@@ -182,7 +184,7 @@ function GovernanceSettings({ myPermissions }) {
         body: JSON.stringify({ auto_approve_estimates: newVal }),
       });
       if (r.ok) setAutoApprove(newVal);
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "api-request"); }
     setSaving(false);
   }
 
@@ -270,7 +272,7 @@ export default function WorkspaceSettings({ onBack }) {
           setMyRole(data.role || 'member');
           setOrganizationId(data.organization_id || null);
         }
-      } catch { /* ignore */ }
+      } catch (e) { handleError(e, "api-request"); }
     })();
   }, []);
 

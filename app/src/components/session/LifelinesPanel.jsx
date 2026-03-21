@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { handleError } from "../../lib/errorHandler";
 
 const LIFELINES = [
   {
@@ -202,7 +203,7 @@ export default function LifelinesPanel({ sessionId, userId, isGm, currentItemTit
       const result = await resp.json();
       setAiResult(result);
       await markLifelineUsed('ai_lifeline', result);
-    } catch {
+    } catch (e) { handleError(e, 'ai-lifeline');
       // Fallback: show that AI lifeline was used but result unavailable
       const fallback = { avg_estimate: null, error: 'Ingen historiske data fundet for dette item' };
       setAiResult(fallback);

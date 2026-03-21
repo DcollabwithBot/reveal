@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -58,7 +59,7 @@ function CommentItem({ comment, onReply, onEdit, onDelete }) {
         onEdit(updated);
         setEditing(false);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "comments-api"); }
     setSaving(false);
   }
 
@@ -68,7 +69,7 @@ function CommentItem({ comment, onReply, onEdit, onDelete }) {
       const headers = await authHeaders();
       await fetch(`/api/comments/${comment.id}`, { method: 'DELETE', headers });
       onDelete(comment.id);
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "comments-api"); }
   }
 
   return (
@@ -167,7 +168,7 @@ export default function CommentsPanel({ itemId }) {
       const headers = await authHeaders();
       const r = await fetch(`/api/items/${itemId}/comments`, { headers });
       if (r.ok) setComments(await r.json());
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "comments-api"); }
     setLoading(false);
   }
 
@@ -188,7 +189,7 @@ export default function CommentsPanel({ itemId }) {
         setBody('');
         setReplyTo(null);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "comments-api"); }
     setSubmitting(false);
   }
 

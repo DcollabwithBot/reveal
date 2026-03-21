@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * Flow Poker — Kanban cycle time estimation
  *
@@ -85,7 +87,7 @@ function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), duration * 1000 + 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playCardPick() { playTone(660, 'square', 0.12, 0.1); }

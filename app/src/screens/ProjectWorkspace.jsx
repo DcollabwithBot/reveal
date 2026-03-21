@@ -9,6 +9,7 @@ import Toast from '../components/workspace/Toast';
 import KanbanColumn from '../components/workspace/KanbanColumn';
 import VisibilitySelector from '../components/VisibilitySelector';
 import GameHUD from '../components/GameHUD';
+import { handleError } from "../lib/errorHandler";
 
 
 export default function ProjectWorkspace({ projectId, organizationId, onBack, onTimelog }) {
@@ -179,7 +180,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
     try {
       const stats = await getSprintUnplannedStats(activeSprint.id);
       setUnplannedStats(stats);
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "fetch-data"); }
   }
 
   async function loadBatches() {
@@ -190,7 +191,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
         const age = Date.now() - new Date(b.created_at).getTime();
         return age < 60 * 60 * 1000;
       }));
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "fetch-data"); }
   }
 
   function toggleSelect(id) {
@@ -951,7 +952,7 @@ function BudgetOverview({ items, project }) {
       }).eq('id', project.id);
       setHourlyRate(Number(rateInput));
       setEditing(false);
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, "update-hourly-rate"); }
     setSaving(false);
   }
 

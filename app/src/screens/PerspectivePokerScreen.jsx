@@ -1,3 +1,5 @@
+import { handleSoftError } from '../lib/errorHandler';
+
 /**
  * B5: Perspektiv-Poker Game Mode
  * session_type: 'perspective_poker'
@@ -112,7 +114,7 @@ function playCardDeal() {
     src.connect(ctx.destination);
     src.start();
     setTimeout(() => ctx.close(), 500);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playReveal() {
@@ -130,7 +132,7 @@ function playReveal() {
       osc.start(t); osc.stop(t + 0.3);
     });
     setTimeout(() => ctx.close(), 1500);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-reveal'); }
 }
 
 function playTick() {
@@ -145,7 +147,7 @@ function playTick() {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06);
     setTimeout(() => ctx.close(), 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-tick'); }
 }
 
 // ── Timer ─────────────────────────────────────────────────────────────────────

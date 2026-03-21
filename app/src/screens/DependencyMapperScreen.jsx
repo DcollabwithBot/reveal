@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * Dependency Mapper — Visual sprint dependency mapping for Scrum
  * session_type: dependency_mapper
@@ -94,7 +96,7 @@ function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), duration * 1000 + 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playDepSelect()   { playTone(440, 'square', 0.1, 0.08); }
@@ -113,7 +115,7 @@ function playCircularBuzz() {
       osc.start(t); osc.stop(t + 0.25);
     }
     setTimeout(() => ctx.close(), 900);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 function playVoteClick()   { playTone(550, 'square', 0.1, 0.07); }
 function playApprove()     { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.2, 0.1), i * 80)); }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -67,7 +68,7 @@ export default function NotificationBell({ onNavigate }) {
         const data = await r.json();
         setUnreadCount(data.count || 0);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "notifications-api"); }
   }
 
   async function loadNotifications() {
@@ -79,7 +80,7 @@ export default function NotificationBell({ onNavigate }) {
         const data = await r.json();
         setNotifications(data || []);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "notifications-api"); }
     setLoading(false);
   }
 
@@ -96,7 +97,7 @@ export default function NotificationBell({ onNavigate }) {
         await fetch(`/api/notifications/${notif.id}/read`, { method: 'PATCH', headers });
         setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read_at: new Date().toISOString() } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
-      } catch { /* ignore */ }
+      } catch (e) { handleError(e, "notifications-api"); }
     }
     if (notif.link && onNavigate) {
       onNavigate(notif.link);
@@ -110,7 +111,7 @@ export default function NotificationBell({ onNavigate }) {
       await fetch('/api/notifications/read-all', { method: 'PATCH', headers });
       setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
       setUnreadCount(0);
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "notifications-api"); }
   }
 
   return (

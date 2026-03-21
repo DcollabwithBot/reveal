@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 const LIFELINES = [
   { type: 'call_expert', icon: '📞', label: 'Call Expert', desc: 'Ring til en ekspert', gmOnly: true },
@@ -58,7 +59,7 @@ export default function LifelinesPanel({ sessionId, userId, isGm, C, PF }) {
       setActiveLifeline(null);
       setInputText('');
       setAssumptions(['', '']);
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, "mark-lifeline-used"); }
     setBusy(false);
   }
 

@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * Refinement Roulette — Backlog grooming session for Scrum
  * session_type: refinement_roulette
@@ -107,7 +109,7 @@ function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), duration * 1000 + 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playSpinSound() {
@@ -126,7 +128,7 @@ function playSpinSound() {
       osc.start(t); osc.stop(t + 0.07);
     }
     setTimeout(() => ctx.close(), 1200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playDingReveal() {
@@ -148,7 +150,7 @@ function playBossGrowl() {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
     osc.start(); osc.stop(ctx.currentTime + 1.5);
     setTimeout(() => ctx.close(), 1800);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playVotePick() { playTone(550, 'square', 0.1, 0.08); }

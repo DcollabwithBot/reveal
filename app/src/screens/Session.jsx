@@ -27,6 +27,7 @@ import { projectApprovalOverlay } from "../domain/session/governance/approvalPro
 import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState, saveRetroActions, awardXP, unlockAchievement, getMembership } from "../lib/api.js";
 import { supabase } from "../lib/supabase.js";
 import LifelinesPanel from "../components/session/LifelinesPanel.jsx";
+import { handleError, handleSoftError } from "../lib/errorHandler.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 // NPC fallback: simulate votes from NPC_TEAM (solo/demo mode only)
@@ -258,8 +259,8 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             finalEstimate: persisted.finalEstimate ?? null,
           }
         });
-      } catch {
-        // best-effort hydrate
+      } catch (e) {
+        handleSoftError(e, 'session-state-hydrate');
       } finally {
         if (active) setHydrated(true);
       }
@@ -626,7 +627,7 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
                 if (sessionId) {
                   await saveRetroActions(sessionId, actions);
                 }
-              } catch { /* best-effort */ }
+              } catch (e) { handleSoftError(e, 'save-retro-actions'); }
             }}
           />
         </div>

@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * C3: Speed Scope Game Mode
  * session_type: 'speed_scope'
@@ -116,7 +118,7 @@ function playTick() {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
     osc.start(); osc.stop(ctx.currentTime + 0.05);
     setTimeout(() => ctx.close(), 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-tick'); }
 }
 
 function playFastTick() {
@@ -131,7 +133,7 @@ function playFastTick() {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
     osc.start(); osc.stop(ctx.currentTime + 0.04);
     setTimeout(() => ctx.close(), 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-fast-tick'); }
 }
 
 function playBuzzer() {
@@ -155,7 +157,7 @@ function playBuzzer() {
     gh.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
     hi.start(); hi.stop(ctx.currentTime + 0.3);
     setTimeout(() => ctx.close(), 800);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-buzzer'); }
 }
 
 function playReveal() {
@@ -173,7 +175,7 @@ function playReveal() {
       osc.start(t); osc.stop(t + 0.2);
     });
     setTimeout(() => ctx.close(), 1000);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-reveal'); }
 }
 
 function playSpeedWinner() {
@@ -191,7 +193,7 @@ function playSpeedWinner() {
       osc.start(t); osc.stop(t + 0.3);
     });
     setTimeout(() => ctx.close(), 1500);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-winner'); }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

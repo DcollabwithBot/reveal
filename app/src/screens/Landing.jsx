@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { joinSessionByCode } from '../lib/api'
+import { handleError } from '../lib/errorHandler'
 
 export default function Landing({ onStartPlaying, onJoinSession }) {
 
@@ -28,7 +29,8 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
         return
       }
       if (onJoinSession) onJoinSession(session)
-    } catch {
+    } catch (e) {
+      handleError(e, 'join-session');
       setJoinError('Could not connect to server')
     } finally {
       setJoining(false)

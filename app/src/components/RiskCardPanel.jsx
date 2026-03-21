@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 const RISK_CARDS = [
   { type: 'dependency_risk', icon: '🔗', label: 'Dependency Risk', desc: 'Afhænger af noget vi ikke kontrollerer' },
@@ -63,7 +64,7 @@ export default function RiskCardPanel({ sessionId, sessionItemId, userId, displa
       });
       setNoteModal(null);
       setNote('');
-    } catch { /* silent */ }
+    } catch (e) { handleError(e, "save-risk-note"); }
     setBusy(false);
   }
 

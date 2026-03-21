@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleSoftError } from "../lib/errorHandler";
 
 const PF = "'Press Start 2P', monospace";
 const VT = "'VT323', monospace";
@@ -75,7 +76,7 @@ function playAchievementSound() {
       osc.stop(t + 0.3);
     });
     setTimeout(() => ctx.close(), 2000);
-  } catch { /* audio blocked */ }
+  } catch (e) { handleSoftError(e, 'audio-xp-fanfare'); }
 }
 
 function playXPSound() {
@@ -93,7 +94,7 @@ function playXPSound() {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.3);
     setTimeout(() => ctx.close(), 500);
-  } catch { /* blocked */ }
+  } catch (e) { handleSoftError(e, 'audio-badge'); }
 }
 
 // ── Toast component ────────────────────────────────────────────────────────────

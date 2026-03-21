@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * B4: Spec Wars Game Mode
  * session_type: 'spec_wars'
@@ -88,7 +90,7 @@ function playTick() {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.05);
     setTimeout(() => ctx.close(), 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playWinner() {
@@ -106,7 +108,7 @@ function playWinner() {
       osc.start(t); osc.stop(t + 0.25);
     });
     setTimeout(() => ctx.close(), 1500);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

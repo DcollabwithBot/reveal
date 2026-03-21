@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -104,7 +105,7 @@ export default function SearchModal({ onClose, onNavigate }) {
         setResults(await r.json());
         setActiveIdx(0);
       }
-    } catch { /* ignore */ }
+    } catch (e) { handleError(e, "search-api"); }
     setLoading(false);
   }, []);
 

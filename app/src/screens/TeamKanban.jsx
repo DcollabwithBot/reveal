@@ -1,3 +1,5 @@
+import { handleError } from "../lib/errorHandler";
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMembership, updateItem } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -284,7 +286,7 @@ export default function TeamKanban() {
               loadedItems.forEach(item => {
                 item._blocker_count = blockerCounts[item.id] || 0;
               });
-            } catch { /* ignore blocker count errors */ }
+            } catch (e) { handleError(e, 'load-blocker-counts'); }
           }
           setItems(loadedItems);
         }
@@ -295,7 +297,7 @@ export default function TeamKanban() {
             headers: await buildAuthHeaders(),
           });
           if (resp.ok) setAssignees(await resp.json());
-        } catch { /* ignorér */ }
+        } catch (e) { handleError(e, 'load-assignees'); }
       } catch (e) {
         setError(e.message);
       } finally {
@@ -365,7 +367,8 @@ export default function TeamKanban() {
     setItems(prev => prev.map(i => i.id === draggingId ? { ...i, item_status: targetStatus } : i));
     try {
       await updateItem(draggingId, { item_status: targetStatus });
-    } catch {
+    } catch (e) {
+      handleError(e, 'update-item-status');
       // Rollback
       setItems(prev => prev.map(i => i.id === draggingId ? { ...i, item_status: item.item_status } : i));
     }

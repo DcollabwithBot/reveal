@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { handleError } from "../lib/errorHandler";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -31,7 +32,8 @@ export default function DailyMissionsCard({ organizationId, onNavigate }) {
       try {
         const data = await edgeFn('generate-missions', { org_id: organizationId });
         if (!cancelled) setMissions(data.missions || []);
-      } catch {
+      } catch (e) {
+        handleError(e, 'generate-missions');
         // silent fail
       }
       if (!cancelled) setLoading(false);

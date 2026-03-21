@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getMembership } from '../lib/api';
+import { handleSoftError } from "../lib/errorHandler";
 
 export default function SprintCloseModal({ sprintId, sprintName, onClose, onClosed }) {
   const [items, setItems] = useState([]);
@@ -105,7 +106,7 @@ export default function SprintCloseModal({ sprintId, sprintName, onClose, onClos
             body: JSON.stringify({ event: 'sprint_close', sprint_id: sprintId }),
           }).catch(() => {});
         }
-      } catch { /* best-effort */ }
+      } catch (e) { handleSoftError(e, "sprint-close-webhook"); }
 
       onClosed?.();
     } catch (err) {

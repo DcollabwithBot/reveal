@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { handleSoftError } from '../lib/errorHandler';
 import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
@@ -118,7 +119,7 @@ function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), duration * 1000 + 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-tone'); }
 }
 
 function playTick() { playTone(880, 'square', 0.05, 0.08); }
@@ -149,7 +150,7 @@ function playBossRoar() {
     g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
     osc2.start(ctx.currentTime + 0.3); osc2.stop(ctx.currentTime + 1.5);
     setTimeout(() => ctx.close(), 2000);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-expose'); }
 }
 
 function playWin() {
@@ -1097,7 +1098,7 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
           if (winner) setRationalityWinner(winner.name);
         }
       }
-    } catch (_) { /* graceful degradation */ }
+    } catch (e) { handleSoftError(e, 'rationality-scoring'); }
 
     channelRef.current?.send({
       type: 'broadcast',

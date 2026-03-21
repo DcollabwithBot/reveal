@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * OnboardingWalkthrough — DEL 7
  * 7 kapitler, modulær progress i localStorage.
@@ -791,21 +793,21 @@ export default function OnboardingWalkthrough({ user, organizationId, onDone }) 
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) return JSON.parse(saved).chapter || 0;
-    } catch {}
+    } catch (e) { handleSoftError(e, 'localstorage-read'); }
     return 0;
   });
   const [completed, setCompleted] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) return JSON.parse(saved).completed || [];
-    } catch {}
+    } catch (e) { handleSoftError(e, 'localstorage-read'); }
     return [];
   });
 
   function saveProgress(chapter, completedArr) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ chapter, completed: completedArr }));
-    } catch {}
+    } catch (e) { handleSoftError(e, 'localstorage-read'); }
   }
 
   function goTo(idx) {

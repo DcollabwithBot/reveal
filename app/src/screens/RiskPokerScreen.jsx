@@ -1,3 +1,5 @@
+import { handleSoftError } from "../lib/errorHandler";
+
 /**
  * Risk Poker — Two-dimensional risk assessment
  *
@@ -83,7 +85,7 @@ function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
     setTimeout(() => ctx.close(), duration * 1000 + 200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 
 function playProbCard()   { playTone(440, 'square', 0.12, 0.09); }
@@ -103,7 +105,7 @@ function playHydraRoar() {
       osc.stop(ctx.currentTime + 0.9 + i * 0.1);
     });
     setTimeout(() => ctx.close(), 1200);
-  } catch {}
+  } catch (e) { handleSoftError(e, 'audio-init'); }
 }
 function playReveal()    { [440, 554, 659].forEach((f, i) => setTimeout(() => playTone(f, 'triangle', 0.3, 0.12), i * 100)); }
 function playApprove()   { [523, 659, 784].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.15, 0.1), i * 80)); }

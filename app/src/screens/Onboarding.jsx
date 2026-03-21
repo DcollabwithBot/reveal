@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { C, PF, BF } from '../shared/constants';
 import JiraOnboardingWizard from '../components/onboarding/JiraOnboardingWizard';
+import { handleError } from '../lib/errorHandler';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -398,7 +399,8 @@ export default function Onboarding({ user, onComplete }) {
       }
 
       onComplete();
-    } catch {
+    } catch (e) {
+      handleError(e, 'onboarding-complete');
       onComplete(); // Even if update fails, proceed
     }
   };
