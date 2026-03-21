@@ -121,7 +121,7 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, overflow: "hidden" }}>
+    <div style={{ minHeight: "100dvh", background: C.bg, overflow: "hidden" }}>
       {flash && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: flash, opacity: 0.35, pointerEvents: "none", zIndex: 200, animation: "flashOut 0.4s ease-out forwards" }} />}
 
       {/* Dice roll overlay */}
@@ -150,7 +150,7 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
 
       {/* MAP */}
       <div style={{ padding: "3px", animation: shake ? "mapShake 0.4s" : "none" }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", maxHeight: "calc(100vh - 70px)" }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", maxHeight: "calc(100dvh - 70px)" }}>
           <defs>
             <radialGradient id="bg"><stop offset="0%" stopColor={C.pur} stopOpacity="0.15" /><stop offset="100%" stopColor={C.pur} stopOpacity="0" /></radialGradient>
             <radialGradient id="sun"><stop offset="0%" stopColor="#ffe477" stopOpacity="0.3" /><stop offset="100%" stopColor="#ffe477" stopOpacity="0" /></radialGradient>

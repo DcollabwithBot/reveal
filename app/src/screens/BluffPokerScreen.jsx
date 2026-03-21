@@ -224,7 +224,7 @@ function AchievementPopup({ name, icon, desc, xp, onClose }) {
       <div style={{ fontFamily: PF, fontSize: '9px', color: 'var(--epic)', marginBottom: '6px' }}>
         ACHIEVEMENT UNLOCKED
       </div>
-      <div style={{ fontSize: '28px', marginBottom: '4px' }}>{icon} <span style={{ fontSize: '20px' }}>{name}</span></div>
+      <div style={{ fontSize: '28px', marginBottom: '4px' }}>{icon || '🏆'} <span style={{ fontSize: '20px' }}>{name || 'UNLOCKED'}</span></div>
       <div style={{ fontSize: '18px', color: 'var(--text2)', marginBottom: '8px' }}>{desc}</div>
       <div style={{ fontFamily: PF, fontSize: '9px', color: 'var(--gold)' }}>+{xp} XP</div>
       <button onClick={onClose} style={{

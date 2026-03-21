@@ -72,7 +72,9 @@ export function DmgNum({ value, color = C.acc, x = 50, critical }) {
 
 export function AchievePopup({ achieve, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 2500); return () => clearTimeout(t); }, [onDone]);
-  return <div style={{ position: 'fixed', top: '12%', left: '50%', transform: 'translateX(-50%)', zIndex: 120, animation: 'achieveIn 0.5s ease-out' }}><div style={{ background: `linear-gradient(135deg,${C.bgC},${C.bgL})`, border: `3px solid ${C.gld}`, boxShadow: `0 0 25px ${C.gld}44, 0 0 50px ${C.gld}22`, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '28px', animation: 'pop 0.4s' }}>{achieve.icon}</span><div><div style={{ fontFamily: PF, fontSize: '7px', color: C.gld, letterSpacing: '2px' }}>ACHIEVEMENT!</div><div style={{ fontFamily: PF, fontSize: '9px', color: C.wht, marginTop: '2px' }}>{achieve.name}</div><div style={{ fontFamily: 'Bitcount Grid Single, monospace', fontSize: '14px', color: C.dim }}>{achieve.desc}</div></div></div></div>;
+  if (!achieve) return null;
+  const icon = achieve.icon || '🏆';
+  return <div style={{ position: 'fixed', top: '12%', left: '50%', transform: 'translateX(-50%)', zIndex: 120, animation: 'achieveIn 0.5s ease-out' }}><div style={{ background: `linear-gradient(135deg,${C.bgC},${C.bgL})`, border: `3px solid ${C.gld}`, boxShadow: `0 0 25px ${C.gld}44, 0 0 50px ${C.gld}22`, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '28px', animation: 'pop 0.4s' }}>{icon}</span><div><div style={{ fontFamily: PF, fontSize: '7px', color: C.gld, letterSpacing: '2px' }}>ACHIEVEMENT!</div><div style={{ fontFamily: PF, fontSize: '9px', color: C.wht, marginTop: '2px' }}>{achieve.name || 'UNLOCKED'}</div><div style={{ fontFamily: 'Bitcount Grid Single, monospace', fontSize: '14px', color: C.dim }}>{achieve.desc || ''}</div></div></div></div>;
 }
 
 export function ComboDisplay({ count }) {

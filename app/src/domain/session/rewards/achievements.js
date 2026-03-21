@@ -35,13 +35,13 @@ export function createAchievementResolver(configAchievements = [], fallbackAchie
   }
 
   return function resolve(keyOrAchievement) {
-    if (!keyOrAchievement) return null;
+    if (!keyOrAchievement) return { id: 'unknown', name: 'UNLOCKED', icon: '🏆', desc: '' };
     if (typeof keyOrAchievement === 'string') {
-      return configMap[keyOrAchievement] || fallbackMap[keyOrAchievement] || null;
+      return configMap[keyOrAchievement] || fallbackMap[keyOrAchievement] || { id: keyOrAchievement, name: keyOrAchievement.toUpperCase(), icon: '🏆', desc: '' };
     }
     if (keyOrAchievement.id) {
-      return configMap[keyOrAchievement.id] || keyOrAchievement;
+      return configMap[keyOrAchievement.id] || { ...keyOrAchievement, icon: keyOrAchievement.icon || '🏆' };
     }
-    return null;
+    return { id: 'unknown', name: 'UNLOCKED', icon: '🏆', desc: '' };
   };
 }
