@@ -33,6 +33,7 @@ import { KpiCard, Pill } from '../components/ui/Card';
 import { RoomsSection } from '../components/RoomCard';
 import SprintCloseModal from '../components/SprintCloseModal';
 import { UserProfileMini } from '../components/UserProfilePanel';
+import AuditLogView from '../components/AuditLogView';
 
 function daysLeft(dateStr) {
   if (!dateStr) return null;
@@ -551,6 +552,8 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
   const [estMode, setEstMode] = useState('fibonacci');
   const [estBusy, setEstBusy] = useState(false);
   const [sprintCloseModal, setSprintCloseModal] = useState(null); // { sprintId, sprintName }
+  const [activeTab, setActiveTab] = useState('overview'); // E7: tab navigation
+  const [isAdmin, setIsAdmin] = useState(false); // E7: admin check
 
   useEffect(() => {
     refreshGovernance();
@@ -564,6 +567,10 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
     try {
       const membership = await getMembership();
       setOrgId(membership?.organization_id || null);
+      // E7: check if user is admin/GM
+      if (membership?.role === 'admin' || membership?.role === 'owner' || membership?.role === 'gm') {
+        setIsAdmin(true);
+      }
 
       const [{ dashboard: dash, approvalRequests: approvals, health: healthData, conflicts: conflictData }, risks, metrics] = await Promise.all([
         getDashboardGovernance(),
@@ -802,6 +809,37 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
       )}
 
       <div style={{ padding: '32px', maxWidth: 1140, margin: '0 auto' }}>
+
+      {/* E7: Tab navigation */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {[
+          { id: 'overview', label: '📊 Oversigt' },
+          ...(isAdmin ? [{ id: 'audit', label: '📋 Aktivitetslog' }] : []),
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              fontSize: 12, fontWeight: 600, padding: '7px 16px',
+              border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer',
+              background: activeTab === tab.id ? 'var(--bg2)' : 'none',
+              color: activeTab === tab.id ? 'var(--text)' : 'var(--text3)',
+              borderBottom: activeTab === tab.id ? '2px solid var(--jade)' : '2px solid transparent',
+              transition: 'all 0.15s',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* E7: Audit Log Tab */}
+      {activeTab === 'audit' && (
+        <AuditLogView organizationId={orgId} isAdmin={isAdmin} />
+      )}
+
+      {activeTab === 'overview' && (
+      <div>
       {/* v3.1 Rooms Section */}
       <RoomsSection
         projects={activeProjects}
@@ -909,6 +947,8 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
         </div>
       )}
       </div>
+      )}
+    </div>
     </div>
   );
 }

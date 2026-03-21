@@ -150,3 +150,14 @@ html, body {
   70%  { color: var(--warn); }
   90%  { color: var(--danger); }
 }
+
+/* Sprint E — Game Availability animations */
+@keyframes availPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px currentColor; transform: scale(1); }
+  50%       { opacity: 0.6; box-shadow: 0 0 10px currentColor; transform: scale(1.2); }
+}
+
+@keyframes availRecommendedGlow {
+  0%, 100% { box-shadow: 0 0 6px #feae3466; }
+  50%       { box-shadow: 0 0 16px #feae34aa; }
+}

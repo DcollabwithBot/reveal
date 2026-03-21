@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { getProject, getProjectSprints, getSprintItems, updateItem, startSprintEstimation, startBulkEstimation, createUnplannedItem, getSprintUnplannedStats, bulkImportItems, getImportBatches, undoImportBatch } from '../lib/api';
+import { getProject, getProjectSprints, getSprintItems, updateItem, startSprintEstimation, startBulkEstimation, createUnplannedItem, getSprintUnplannedStats, bulkImportItems, getImportBatches, undoImportBatch, startSpecWarsSession, startPerspectivePokerSession, getGameAvailability, updateProjectVisibility } from '../lib/api';
 import { useGameFeature } from '../shared/useGameFeature';
 import ItemDetailModal from '../components/ItemDetailModal';
 import SprintCharts from '../components/SprintCharts';
 import WorkspaceSidebar from '../components/workspace/WorkspaceSidebar';
 import Toast from '../components/workspace/Toast';
 import KanbanColumn from '../components/workspace/KanbanColumn';
+import VisibilitySelector from '../components/VisibilitySelector';
 
 
 export default function ProjectWorkspace({ projectId, organizationId, onBack, onTimelog }) {
@@ -42,6 +43,16 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
   const [importData, setImportData] = useState(null);
   const [importBusy, setImportBusy] = useState(false);
   const [importBatches, setImportBatches] = useState([]);
+
+  // Game launch
+  const [gameBusy, setGameBusy] = useState(false);
+  const [showGamesDropdown, setShowGamesDropdown] = useState(false);
+  const [gameAvail, setGameAvail] = useState(null);
+  const gamesDropRef = useRef(null);
+
+  // Visibility (Mission Shield)
+  const [showVisibility, setShowVisibility] = useState(false);
+  const [projectVisibility, setProjectVisibility] = useState('public');
 
   // Column name mapping for smart detection
   const COLUMN_ALIASES = {
@@ -261,6 +272,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
     ]);
     setProject(proj);
     setSprints(sprintList);
+    if (proj?.visibility) setProjectVisibility(proj.visibility);
 
     // Første aktive sprint
     const active = sprintList.find(s => s.status === 'active') || sprintList[0];
@@ -270,12 +282,56 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
       setItems(sprintItems);
       // Load unplanned stats
       getSprintUnplannedStats(active.id).then(setUnplannedStats).catch(() => {});
+      // Load game availability
+      getGameAvailability(active.id).then(setGameAvail).catch(() => {});
     }
     // Load import batches
     getImportBatches(projectId).then(batches => {
       setImportBatches(batches.filter(b => Date.now() - new Date(b.created_at).getTime() < 60 * 60 * 1000));
     }).catch(() => {});
     setLoading(false);
+  }
+
+  async function handleLaunchSpecWars() {
+    if (!activeSprint || gameBusy) return;
+    setGameBusy(true);
+    try {
+      const result = await startSpecWarsSession(activeSprint.id, { name: `Spec Wars — ${activeSprint.name}` });
+      if (result?.session_id || result?.id) {
+        const sid = result.session_id || result.id;
+        window.history.pushState({}, '', `/sessions/${sid}/spec-wars`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
+    setGameBusy(false);
+  }
+
+  async function handleLaunchPerspectivePoker() {
+    if (!activeSprint || gameBusy) return;
+    setGameBusy(true);
+    try {
+      const result = await startPerspectivePokerSession(activeSprint.id, { name: `Perspektiv-Poker — ${activeSprint.name}` });
+      if (result?.session_id || result?.id) {
+        const sid = result.session_id || result.id;
+        window.history.pushState({}, '', `/sessions/${sid}/perspective-poker`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
+    setGameBusy(false);
+  }
+
+  async function handleVisibilityChange(vis) {
+    try {
+      await updateProjectVisibility(projectId, vis);
+      setProjectVisibility(vis);
+      setToast(`Synlighed opdateret: ${vis}`);
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
   }
 
   async function handleSprintChange(sprint) {
@@ -409,8 +465,117 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
               ⚔ Estimer sprint
             </button>
           )}
+          {/* E2: Game launch buttons */}
+          {activeSprint && (
+            <>
+              <button
+                onClick={handleLaunchSpecWars}
+                disabled={gameBusy}
+                title={gameAvail?.spec_wars?.reason || 'Spec Wars'}
+                style={{
+                  fontSize: 11, padding: '4px 10px', borderRadius: 16, cursor: gameBusy ? 'wait' : 'pointer',
+                  border: '1px solid rgba(180,80,136,0.35)', background: 'rgba(180,80,136,0.09)',
+                  color: '#c070a0', fontWeight: 600, opacity: gameBusy ? 0.6 : 1,
+                }}
+              >
+                🎭 Spec Wars
+                {gameAvail?.spec_wars?.state === 'recommended' && <span style={{ marginLeft: 3, fontSize: 9 }}>★</span>}
+              </button>
+              <button
+                onClick={handleLaunchPerspectivePoker}
+                disabled={gameBusy}
+                title={gameAvail?.perspective_poker?.reason || 'Perspektiv-Poker'}
+                style={{
+                  fontSize: 11, padding: '4px 10px', borderRadius: 16, cursor: gameBusy ? 'wait' : 'pointer',
+                  border: '1px solid rgba(95,205,228,0.3)', background: 'rgba(95,205,228,0.08)',
+                  color: '#5fcde4', fontWeight: 600, opacity: gameBusy ? 0.6 : 1,
+                }}
+              >
+                📊 Perspektiv-Poker
+                {gameAvail?.perspective_poker?.state === 'recommended' && <span style={{ marginLeft: 3, fontSize: 9 }}>★</span>}
+              </button>
+              {/* ▼ Alle spil dropdown */}
+              <div style={{ position: 'relative' }} ref={gamesDropRef}>
+                <button
+                  onClick={() => setShowGamesDropdown(v => !v)}
+                  style={{
+                    fontSize: 11, padding: '4px 10px', borderRadius: 16, cursor: 'pointer',
+                    border: '1px solid var(--border)', background: 'var(--bg2)',
+                    color: 'var(--text2)', fontWeight: 500,
+                  }}
+                >
+                  ▼ Alle spil
+                </button>
+                {showGamesDropdown && (
+                  <div
+                    onBlur={() => setShowGamesDropdown(false)}
+                    style={{
+                      position: 'absolute', top: '110%', right: 0, zIndex: 200,
+                      background: 'var(--bg2)', border: '1px solid var(--border)',
+                      borderRadius: 10, padding: 8, minWidth: 220,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    {[
+                      { key: 'planning_poker', icon: '⚔', label: 'Planning Poker', action: () => { setEstModal({ type: 'sprint', sprintId: activeSprint.id, sprintName: activeSprint.name }); setEstName(activeSprint.name); setShowGamesDropdown(false); } },
+                      { key: 'spec_wars', icon: '🎭', label: 'Spec Wars', action: () => { handleLaunchSpecWars(); setShowGamesDropdown(false); } },
+                      { key: 'perspective_poker', icon: '📊', label: 'Perspektiv-Poker', action: () => { handleLaunchPerspectivePoker(); setShowGamesDropdown(false); } },
+                      { key: 'retro', icon: '👾', label: 'Boss Battle Retro', action: null },
+                    ].map(g => {
+                      const avail = gameAvail?.[g.key];
+                      const stateColors = { available: 'var(--jade)', recommended: 'var(--gold)', locked: 'var(--text3)', completed: '#5fcde4' };
+                      const stateLabel = { available: '● Klar', recommended: '★ Anbefalet', locked: '🔒 Låst', completed: '✓ Spillet' };
+                      return (
+                        <button
+                          key={g.key}
+                          onClick={g.action || undefined}
+                          disabled={!g.action || avail?.state === 'locked'}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                            padding: '8px 10px', borderRadius: 6, border: 'none',
+                            background: 'none', cursor: g.action && avail?.state !== 'locked' ? 'pointer' : 'default',
+                            color: avail?.state === 'locked' ? 'var(--text3)' : 'var(--text)',
+                            fontSize: 12, textAlign: 'left', marginBottom: 2,
+                          }}
+                        >
+                          <span style={{ fontSize: 16 }}>{g.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600 }}>{g.label}</div>
+                            {avail && <div style={{ fontSize: 10, color: stateColors[avail.state] || 'var(--text3)' }}>{stateLabel[avail.state] || ''} {avail.reason ? `· ${avail.reason}` : ''}</div>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* Visibility (Mission Shield) */}
+              <button
+                onClick={() => setShowVisibility(v => !v)}
+                title={`Synlighed: ${projectVisibility}`}
+                style={{
+                  fontSize: 11, padding: '4px 8px', borderRadius: 16, cursor: 'pointer',
+                  border: '1px solid var(--border)', background: showVisibility ? 'var(--bg3)' : 'none',
+                  color: projectVisibility === 'private' ? 'var(--danger)' : projectVisibility === 'restricted' ? 'var(--gold)' : 'var(--text3)',
+                }}
+              >
+                {projectVisibility === 'private' ? '🔒' : projectVisibility === 'restricted' ? '👥' : '🌐'}
+              </button>
+            </>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text2)' }}>
+
+        {/* Visibility panel (Mission Shield E6) */}
+        {showVisibility && (
+          <div style={{
+            marginTop: 10, padding: 14, background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: 10, maxWidth: 320,
+          }}>
+            <VisibilitySelector value={projectVisibility} onChange={handleVisibilityChange} />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>
           <span>{total} items · {doneCount} done · {progress}% complete</span>
           {unplannedStats && unplannedStats.unplannedCount > 0 && (
             <span style={{
@@ -422,6 +587,21 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
             }}>
               ⚡ Unplanned: {unplannedStats.unplannedCount} ({Math.round(unplannedStats.rate * 100)}%)
             </span>
+          )}
+          {/* E2: Items without estimate hint */}
+          {gameAvail?.meta?.withoutEstimate > 0 && (
+            <button
+              onClick={() => { setEstModal({ type: 'sprint', sprintId: activeSprint?.id, sprintName: activeSprint?.name }); setEstName(activeSprint?.name || ''); }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                background: 'rgba(200,168,75,0.1)',
+                border: '1px solid rgba(200,168,75,0.3)',
+                color: 'var(--gold)', cursor: 'pointer',
+              }}
+            >
+              ⚔ {gameAvail.meta.withoutEstimate} items uden estimate → Estimer nu →
+            </button>
           )}
         </div>
       </div>

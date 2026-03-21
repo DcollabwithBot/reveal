@@ -34,6 +34,28 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Mission Shield: Check project visibility BEFORE counting progress ──
+    if (sprint_id) {
+      const { data: sprintRow } = await db
+        .from('sprints')
+        .select('visibility, projects(visibility)')
+        .eq('id', sprint_id)
+        .maybeSingle();
+
+      if (sprintRow) {
+        // Sprint visibility takes precedence; falls back to project visibility
+        const effectiveVisibility = sprintRow.visibility
+          ?? (sprintRow as any).projects?.visibility
+          ?? 'public';
+
+        if (effectiveVisibility === 'private') {
+          return new Response(JSON.stringify({ ok: true, skipped: 'private_project' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+
     // ── Determine which trigger events apply ──────────────────────────────
     const triggerEvents: string[] = [];
 

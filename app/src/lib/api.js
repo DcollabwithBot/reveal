@@ -2062,3 +2062,214 @@ export async function getUserMissions() {
     .order('assigned_at', { ascending: false });
   return data || [];
 }
+
+// ── Sprint E: Game Availability ───────────────────────────────────────────────
+export async function getGameAvailability(sprintId) {
+  if (!sprintId) return null;
+  try {
+    // Items without estimate
+    const { data: items } = await supabase
+      .from('session_items')
+      .select('id, final_estimate, estimated_hours, acceptance_criteria, item_status')
+      .eq('sprint_id', sprintId);
+
+    const allItems = items || [];
+    const withoutEstimate = allItems.filter(i => !i.final_estimate && !i.estimated_hours);
+    const withoutAC = allItems.filter(i => !i.acceptance_criteria);
+
+    // Recent sessions for this sprint
+    const { data: recentSessions } = await supabase
+      .from('sessions')
+      .select('id, session_type, status, ended_at, created_at')
+      .eq('sprint_id', sprintId)
+      .eq('status', 'completed')
+      .order('ended_at', { ascending: false })
+      .limit(20);
+
+    const sessions = recentSessions || [];
+
+    // Get sprint info
+    const { data: sprint } = await supabase
+      .from('sprints')
+      .select('id, status, end_date, name')
+      .eq('id', sprintId)
+      .maybeSingle();
+
+    const isActive = sprint?.status === 'active';
+    const isClosed = sprint?.status === 'completed' || sprint?.status === 'closed';
+    const daysLeft = sprint?.end_date
+      ? Math.ceil((new Date(sprint.end_date) - new Date()) / (1000 * 60 * 60 * 24))
+      : null;
+    const sprintEndingSoon = daysLeft !== null && daysLeft <= 3 && daysLeft >= 0;
+
+    function lastPlayed(type) {
+      const s = sessions.find(s => s.session_type === type || s.session_type?.includes(type));
+      return s?.ended_at || null;
+    }
+
+    function dayLabel(dt) {
+      if (!dt) return null;
+      const d = new Date(dt);
+      const now = new Date();
+      const diff = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+      if (diff === 0) return 'i dag';
+      if (diff === 1) return 'i går';
+      return `${diff} dage siden`;
+    }
+
+    // planning_poker
+    const ppLast = lastPlayed('estimation');
+    let ppState = 'locked';
+    let ppReason = 'Ingen aktiv sprint';
+    if (isActive || isClosed) {
+      if (withoutEstimate.length > 0) {
+        ppState = sprintEndingSoon ? 'recommended' : 'available';
+        ppReason = `${withoutEstimate.length} items uden estimate`;
+      } else if (ppLast) {
+        ppState = 'completed';
+        ppReason = `Alle items estimeret`;
+      } else {
+        ppState = 'available';
+        ppReason = 'Klar til estimering';
+      }
+    }
+
+    // spec_wars
+    const swLast = lastPlayed('spec_wars');
+    let swState = 'locked';
+    let swReason = 'Ingen aktiv sprint';
+    if (isActive) {
+      if (withoutAC.length > 0) {
+        swState = sprintEndingSoon ? 'recommended' : 'available';
+        swReason = `${withoutAC.length} items mangler acceptance criteria`;
+      } else if (swLast) {
+        swState = 'completed';
+        swReason = 'Spec Wars gennemført';
+      } else {
+        swState = 'available';
+        swReason = 'Klar';
+      }
+    }
+
+    // perspective_poker
+    const pLast = lastPlayed('perspective_poker');
+    let pState = 'locked';
+    let pReason = 'Ingen aktiv sprint';
+    if (isActive) {
+      pState = 'available';
+      pReason = 'Klar til perspektiv-estimering';
+      if (pLast) { pState = 'completed'; pReason = 'Perspektiv-Poker gennemført'; }
+      if (withoutEstimate.length > 3) { pState = 'recommended'; pReason = `${withoutEstimate.length} items med store estimat-gaps`; }
+    }
+
+    // retro / boss battle
+    const rLast = lastPlayed('retro');
+    let rState = 'locked';
+    let rReason = 'Sprint skal lukkes for retro';
+    if (isClosed) {
+      rState = rLast ? 'completed' : 'recommended';
+      rReason = rLast ? 'Retro gennemført' : 'Sprint er lukket — tid til retro!';
+    } else if (sprintEndingSoon) {
+      rState = 'recommended';
+      rReason = `Sprint slutter om ${daysLeft} dag${daysLeft !== 1 ? 'e' : ''}`;
+    }
+
+    return {
+      planning_poker: { state: ppState, reason: ppReason, lastPlayedAt: ppLast, lastPlayedLabel: dayLabel(ppLast) },
+      spec_wars: { state: swState, reason: swReason, lastPlayedAt: swLast, lastPlayedLabel: dayLabel(swLast) },
+      perspective_poker: { state: pState, reason: pReason, lastPlayedAt: pLast, lastPlayedLabel: dayLabel(pLast) },
+      retro: { state: rState, reason: rReason, lastPlayedAt: rLast, lastPlayedLabel: dayLabel(rLast) },
+      meta: { withoutEstimate: withoutEstimate.length, withoutAC: withoutAC.length, daysLeft, sprintEndingSoon },
+    };
+  } catch (e) {
+    console.warn('[getGameAvailability]', e.message);
+    return null;
+  }
+}
+
+// ── Sprint E: Game Session Starters ──────────────────────────────────────────
+export async function startSpecWarsSession(sprintId, options = {}) {
+  const membership = await resolveMembership();
+  return createSession({
+    session_type: 'spec_wars',
+    sprint_id: sprintId,
+    organization_id: membership?.organization_id,
+    name: options.name || 'Spec Wars',
+    ...options,
+  });
+}
+
+export async function startPerspectivePokerSession(sprintId, options = {}) {
+  const membership = await resolveMembership();
+  return createSession({
+    session_type: 'perspective_poker',
+    sprint_id: sprintId,
+    organization_id: membership?.organization_id,
+    name: options.name || 'Perspektiv-Poker',
+    ...options,
+  });
+}
+
+// ── Sprint E: Project Visibility ─────────────────────────────────────────────
+export async function updateProjectVisibility(projectId, visibility) {
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ visibility })
+    .eq('id', projectId)
+    .select('id, visibility')
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updateSprintVisibility(sprintId, visibility) {
+  const { data, error } = await supabase
+    .from('sprints')
+    .update({ visibility: visibility || null }) // null = inherit from project
+    .eq('id', sprintId)
+    .select('id, visibility')
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── Sprint E: Audit Log ────────────────────────────────────────────────────────
+export async function writeAuditLog({ actor_id, organization_id, session_id, entity_type, entity_id, action, metadata } = {}) {
+  try {
+    const { error } = await supabase.from('audit_log').insert({
+      actor_id: actor_id || null,
+      actor: actor_id || 'system',
+      event_type: action || 'unknown',
+      action: action || 'unknown',
+      organization_id: organization_id || null,
+      session_id: session_id || null,
+      target_type: entity_type || null,
+      target_id: entity_id || null,
+      metadata: metadata || {},
+      payload: metadata || {},
+    });
+    if (error) console.warn('[audit_log write]', error.message);
+  } catch (e) {
+    console.warn('[audit_log]', e.message);
+  }
+}
+
+export async function getAuditLog({ organization_id, actor_id, session_id, limit = 100, offset = 0 } = {}) {
+  try {
+    let q = supabase
+      .from('audit_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (organization_id) q = q.eq('organization_id', organization_id);
+    if (actor_id) q = q.eq('actor_id', actor_id);
+    if (session_id) q = q.eq('session_id', session_id);
+
+    const { data } = await q;
+    return data || [];
+  } catch (e) {
+    console.warn('[getAuditLog]', e.message);
+    return [];
+  }
+}

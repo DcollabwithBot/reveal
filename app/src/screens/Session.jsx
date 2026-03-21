@@ -24,6 +24,7 @@ import { useGameFeature } from "../shared/useGameFeature.js";
 import { dk } from "../shared/utils.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
 import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState, saveRetroActions } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -87,6 +88,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const { bossStep, retroEvents, currentEvtIdx, eventVotes, oracleEvents, oracleUsed, rootCauses, bossBattleHp, problemEvents, rootCauseIdx } = retro;
   const [hydrated, setHydrated] = useState(false);
   const [sessionStateHealth, setSessionStateHealth] = useState(null);
+  // E12: Bidirectional sync status
+  const [syncStatus, setSyncStatus] = useState('synced'); // 'synced' | 'pending_approval' | 'conflict'
+  const [syncMessage, setSyncMessage] = useState('');
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -235,6 +239,47 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     }, 1200);
     return () => clearTimeout(timer);
   }, [pv, rdy]);
+
+  // E12: Supabase Realtime subscriptions for bidirectional sync
+  useEffect(() => {
+    if (!project?.id) return;
+    let channel;
+    try {
+      channel = supabase
+        .channel(`session-sync-${project.id}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'session_items',
+          filter: `sprint_id=eq.${project.sprint_id || ''}`,
+        }, (payload) => {
+          // PM updated an item — note potential conflict
+          if (step === 'vote' || step === 'reveal') {
+            setSyncStatus('conflict');
+            setSyncMessage('PM opdaterede et item under aktiv session');
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'approval_requests',
+        }, (payload) => {
+          if (payload.new?.state === 'pending_approval') {
+            setSyncStatus('pending_approval');
+            setSyncMessage(`${payload.new?.state === 'pending_approval' ? 'Venter på godkendelse' : ''}`);
+          } else if (payload.new?.state === 'approved' || payload.new?.state === 'applied') {
+            setSyncStatus('synced');
+            setSyncMessage('');
+          }
+        })
+        .subscribe();
+    } catch (e) {
+      // Realtime not available in all environments
+    }
+    return () => {
+      if (channel) supabase.removeChannel(channel).catch(() => {});
+    };
+  }, [project?.id, step]);
 
   function handleChallengeComplete(challenge) {
     const result = createChallengeCompletionResult({ maxHp, challenge });
@@ -481,8 +526,22 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             onSendToApprovalQueue={sendToApprovalQueue}
           />
 
+          {/* E12: Sync status indicator */}
+          <div style={{ margin: '4px auto 0', maxWidth: 660, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '3px 9px', borderRadius: 10,
+              background: syncStatus === 'synced' ? 'rgba(56,183,100,0.1)' : syncStatus === 'pending_approval' ? 'rgba(200,168,75,0.1)' : 'rgba(232,84,84,0.1)',
+              border: `1px solid ${syncStatus === 'synced' ? 'rgba(56,183,100,0.3)' : syncStatus === 'pending_approval' ? 'rgba(200,168,75,0.3)' : 'rgba(232,84,84,0.3)'}`,
+              color: syncStatus === 'synced' ? '#38b764' : syncStatus === 'pending_approval' ? 'var(--gold)' : 'var(--danger)',
+            }}>
+              <span>{syncStatus === 'synced' ? '🟢' : syncStatus === 'pending_approval' ? '🟡' : '🔴'}</span>
+              <span>{syncStatus === 'synced' ? 'Synkroniseret med PM' : syncStatus === 'pending_approval' ? `Venter på godkendelse${syncMessage ? ` · ${syncMessage}` : ''}` : `Sync-konflikt${syncMessage ? ` · ${syncMessage}` : ''}`}</span>
+            </span>
+          </div>
+
           {sessionStateHealth && (
-            <div style={{ margin: '8px auto 12px', maxWidth: 660, fontSize: 11, color: 'var(--text3)' }}>
+            <div style={{ margin: '4px auto 12px', maxWidth: 660, fontSize: 11, color: 'var(--text3)' }}>
               {sessionStateHealth?.session_state?.present
                 ? `Session state synced · status ${sessionStateHealth.session_state.status || 'unknown'}${sessionStateHealth.session_state.stale ? ' (stale)' : ''}`
                 : 'Session state not persisted yet — first save happens automatically when you start voting.'}

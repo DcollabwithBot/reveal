@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { C, PF, BF, WORLDS } from "../shared/constants.js";
 import { dk } from "../shared/utils.js";
+import { getGameAvailability } from "../lib/api.js";
 
 const WL = "#2a1f3d", WD = "#1a1230", FL = "#3a2820", FD = "#281a14", WO = "#5a3a20", ST = "#4a4460", SD = "#3a3450";
 
@@ -58,14 +59,84 @@ function Torch({ x, y, size = 1 }) {
   );
 }
 
-function Portal({ w, hovered: isH, t, onClick }) {
+// Availability state colors/icons
+const AVAIL_CONFIG = {
+  available:    { color: "#38b764", dot: "#38b764",  icon: null,  label: null },
+  recommended:  { color: "#feae34", dot: "#feae34",  icon: "⭐",  label: "Anbefalet" },
+  locked:       { color: "#555",    dot: "#555",      icon: "🔒",  label: "Låst" },
+  completed:    { color: "#5fcde4", dot: "#5fcde4",  icon: "✓",   label: null },
+};
+
+function AvailabilityDot({ state, reason, lastPlayedLabel }) {
+  const cfg = AVAIL_CONFIG[state] || AVAIL_CONFIG.available;
+  const [show, setShow] = useState(false);
   return (
-    <div onClick={onClick} style={{ cursor: "pointer", transition: "all 0.25s", transform: isH ? "scale(1.06) translateY(-4px)" : "scale(1)", width: "170px" }}>
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <div style={{
+        width: 8, height: 8, borderRadius: "50%", background: cfg.dot,
+        boxShadow: state === "recommended" ? `0 0 6px ${cfg.dot}` : "none",
+        animation: state === "recommended" ? "availPulse 1.4s ease-in-out infinite" : "none",
+        cursor: "help",
+      }} />
+      {show && (
+        <div style={{
+          position: "absolute", bottom: "120%", left: "50%", transform: "translateX(-50%)",
+          background: "#1a1230", border: `1px solid ${cfg.dot}44`, borderRadius: 6,
+          padding: "5px 9px", whiteSpace: "nowrap", zIndex: 50, pointerEvents: "none",
+          fontFamily: "sans-serif", fontSize: 10, color: "#ccc",
+        }}>
+          {cfg.icon && <span style={{ marginRight: 4 }}>{cfg.icon}</span>}
+          {reason}
+          {lastPlayedLabel && <span style={{ opacity: 0.6 }}> · Sidst spillet: {lastPlayedLabel}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Game availability mini-bar shown on portal
+function GameAvailBar({ avail }) {
+  if (!avail) return null;
+  const games = [
+    { key: "planning_poker", icon: "🃏", label: "Poker" },
+    { key: "spec_wars",      icon: "🎭", label: "Spec" },
+    { key: "perspective_poker", icon: "📊", label: "Perspektiv" },
+    { key: "retro",          icon: "👾", label: "Retro" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 4 }}>
+      {games.map(g => {
+        const ga = avail[g.key];
+        if (!ga) return null;
+        const cfg = AVAIL_CONFIG[ga.state] || AVAIL_CONFIG.available;
+        return (
+          <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 8, color: cfg.dot, opacity: ga.state === "locked" ? 0.35 : 1 }}
+            title={`${g.label}: ${ga.reason}${ga.lastPlayedLabel ? ` (${ga.lastPlayedLabel})` : ''}`}>
+            <span>{g.icon}</span>
+            {ga.state === "completed" && <span style={{ fontSize: 6 }}>✓</span>}
+            {ga.state === "recommended" && <span style={{ fontSize: 6, animation: "availPulse 1.4s ease-in-out infinite" }}>★</span>}
+            {ga.state === "locked" && <span style={{ fontSize: 6 }}>🔒</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Portal({ w, hovered: isH, t, onClick, availability }) {
+  const hasReco = availability && Object.values(availability).some(a => a?.state === 'recommended');
+  const isLocked = false; // World-level locking not implemented yet
+  return (
+    <div onClick={isLocked ? undefined : onClick} style={{ cursor: isLocked ? "default" : "pointer", transition: "all 0.25s", transform: isH ? "scale(1.06) translateY(-4px)" : "scale(1)", width: "170px", opacity: isLocked ? 0.5 : 1 }}>
       <div style={{ width: "170px", position: "relative" }}>
         <div style={{ width: "170px", height: "22px", background: ST, borderRadius: "6px 6px 0 0", border: `3px solid ${SD}`, borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <span style={{ fontFamily: PF, fontSize: "5px", color: w.color, letterSpacing: "1px" }}>{w.lv}</span>
+          {hasReco && (
+            <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: "50%", background: "#feae34", animation: "availPulse 1.4s ease-in-out infinite", boxShadow: "0 0 5px #feae34" }} />
+          )}
         </div>
-        <div style={{ width: "164px", height: "95px", margin: "0 3px", overflow: "hidden", position: "relative", border: `3px solid ${isH ? w.color : SD}`, borderTop: "none", boxShadow: isH ? `0 0 20px ${w.color}44, inset 0 0 15px ${w.color}22` : "none", transition: "all 0.3s" }}>
+        <div style={{ width: "164px", height: "95px", margin: "0 3px", overflow: "hidden", position: "relative", border: `3px solid ${isH ? w.color : SD}`, borderTop: "none", boxShadow: isH ? `0 0 20px ${w.color}44, inset 0 0 15px ${w.color}22` : hasReco ? `0 0 10px #feae3422` : "none", transition: "all 0.3s" }}>
           <div style={{ width: "100%", height: "40%", background: w.sky || "#6a98e0" }} />
           <div style={{ width: "100%", height: "60%", background: w.grs || "#38b764" }} />
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "15%", background: w.drt || "#d77643" }} />
@@ -97,18 +168,35 @@ function Portal({ w, hovered: isH, t, onClick }) {
           </div>
           <span style={{ fontFamily: PF, fontSize: "4px", color: w.color }}>{w.prog}/{w.tot}</span>
         </div>
+        <GameAvailBar avail={availability} />
         {isH && <div style={{ fontFamily: PF, fontSize: "4px", color: w.color, marginTop: "3px", animation: "pulse 0.6s infinite" }}>▶ ENTER</div>}
       </div>
     </div>
   );
 }
 
-export default function WorldSelect({ avatar, onSelect, sound }) {
+export default function WorldSelect({ avatar, onSelect, sound, activeSprint }) {
   const [t, setT] = useState(0);
   const [hov, setHov] = useState(null);
   const [flash, setFlash] = useState(null);
+  const [availability, setAvailability] = useState({}); // keyed by world id
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
+
+  // Load game availability for each world's sprint
+  useEffect(() => {
+    // Use activeSprint prop if available, otherwise try to load from WORLDS
+    const sprintId = activeSprint?.id;
+    if (!sprintId) return;
+    getGameAvailability(sprintId).then(avail => {
+      if (avail) {
+        // Apply same availability to all worlds for now (will be per-world when worlds map to real sprints)
+        const map = {};
+        WORLDS.forEach(w => { map[w.id] = avail; });
+        setAvailability(map);
+      }
+    }).catch(() => {});
+  }, [activeSprint]);
 
   // Derive player sprite colors from avatar (including equipment)
   const playerHat = avatar?.helmet?.pv || avatar?.cls?.color || "#f04f78";
@@ -186,7 +274,7 @@ export default function WorldSelect({ avatar, onSelect, sound }) {
             <div key={w.id} style={{ animation: `slideUp 0.3s ${i * 0.1}s both` }}
               onMouseEnter={() => { setHov(w.id); sound("click"); }}
               onMouseLeave={() => setHov(null)}>
-              <Portal w={w} hovered={hov === w.id} t={t} onClick={() => handleSelect(w)} />
+              <Portal w={w} hovered={hov === w.id} t={t} onClick={() => handleSelect(w)} availability={availability[w.id]} />
             </div>
           ))}
         </div>
