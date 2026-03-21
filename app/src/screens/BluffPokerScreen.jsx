@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
@@ -608,7 +609,7 @@ function StepScoring({ participants, scores, blufferId, achievements, onAchievem
 }
 
 // ─── Step 7: RE-VOTE ──────────────────────────────────────────────────────────
-function StepRevote({ item, myRevote, onRevote, isGM, onFinalize, finalEstimate, votedCount, participants }) {
+function StepRevote({ item, myRevote, onRevote, isGM, onFinalize, finalEstimate, votedCount, participants, onDone }) {
   return (
     <div style={{ textAlign: 'center', padding: '16px' }}>
       <div style={{ fontFamily: PF, fontSize: '10px', color: 'var(--jade)', marginBottom: '8px' }}>
@@ -626,6 +627,13 @@ function StepRevote({ item, myRevote, onRevote, isGM, onFinalize, finalEstimate,
           <div style={{ fontFamily: VT, fontSize: '24px', color: 'var(--text2)', marginTop: '16px' }}>
             🎉 CONSENSUS REACHED!
           </div>
+          <button onClick={onDone} style={{
+            marginTop: 24, fontFamily: PF, fontSize: 8, padding: '10px 16px',
+            background: 'rgba(0,255,136,0.1)', border: '2px solid var(--jade)',
+            color: 'var(--jade)', cursor: 'pointer',
+          }}>
+            SE RESULTAT →
+          </button>
         </div>
       ) : (
         <>
@@ -709,6 +717,8 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
   const [myRevote, setMyRevote] = useState(null);
   const [revoteCount, setRevoteCount] = useState(0);
   const [finalEstimate, setFinalEstimate] = useState(null);
+  const [showPostSummary, setShowPostSummary] = useState(false);
+  const [rationalityWinner, setRationalityWinner] = useState(null);
 
   const [shaking, setShaking] = useState(false);
   const [showRevealBtn, setShowRevealBtn] = useState(false);
@@ -1062,6 +1072,34 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
 
     const estimate = data?.estimate ?? myRevote;
     setFinalEstimate(estimate);
+
+    // Compute rationality winner: player whose estimate best matches their reasoning
+    // (length of discussion_notes / divergence from median = rationality proxy)
+    try {
+      const { data: votes } = await supabase
+        .from('bluff_estimates')
+        .select('user_id, estimate, discussion_notes')
+        .eq('session_id', sessionId)
+        .eq('item_id', item.id);
+
+      if (votes && votes.length > 1) {
+        const estimates = votes.map(v => v.estimate).filter(e => e != null);
+        const median = estimates.sort((a, b) => a - b)[Math.floor(estimates.length / 2)];
+
+        // Score: note length (0-50 pts) + divergence from median not too high (reward independent thinking)
+        const scored = votes.map(v => {
+          const noteLen = Math.min((v.discussion_notes || '').length, 200);
+          const noteScore = noteLen / 4; // max 50 pts
+          return { userId: v.user_id, score: noteScore };
+        }).sort((a, b) => b.score - a.score);
+
+        if (scored[0]) {
+          const winner = participants.find(p => p.userId === scored[0].userId);
+          if (winner) setRationalityWinner(winner.name);
+        }
+      }
+    } catch (_) { /* graceful degradation */ }
+
     channelRef.current?.send({
       type: 'broadcast',
       event: 'FINAL_APPROVED',
@@ -1168,7 +1206,7 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
             onNext={() => setStep(7)}
           />
         )}
-        {step === 7 && (
+        {step === 7 && !showPostSummary && (
           <StepRevote
             item={item}
             myRevote={myRevote}
@@ -1178,6 +1216,22 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
             finalEstimate={finalEstimate}
             votedCount={revoteCount}
             participants={participants}
+            onDone={() => setShowPostSummary(true)}
+          />
+        )}
+        {step === 7 && showPostSummary && (
+          <PostSessionSummary
+            sessionType="bluff_poker"
+            results={{
+              estimate: finalEstimate,
+              item_title: item?.title,
+              discussion_notes: true,
+              rationality_winner: rationalityWinner,
+            }}
+            approvalPending={false}
+            approvalItems={[]}
+            onBack={onBack}
+            sessionId={sessionId}
           />
         )}
       </div>

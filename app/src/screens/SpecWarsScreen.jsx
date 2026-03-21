@@ -10,6 +10,7 @@
  *  5. GM godkender → næste item
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
@@ -603,12 +604,20 @@ export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
           <div style={{ fontFamily: PF, fontSize: 12, color: 'var(--jade)', marginTop: 16 }}>
             SPEC WARS COMPLETE
           </div>
-          <div style={{ fontFamily: VT, fontSize: 22, color: 'var(--text2)', marginTop: 8 }}>
-            All items specified. PM awaits approval.
-          </div>
-          <button onClick={onBack} style={{ ...styles.primaryBtn, marginTop: 20 }}>
-            BACK TO SESSION
-          </button>
+          <PostSessionSummary
+            sessionType="spec_wars"
+            results={{
+              winning_spec: winner?.text,
+              acceptance_criteria: winner?.text,
+            }}
+            approvalPending={true}
+            approvalItems={['Spec godkendelse afventer GM']}
+            projectName={session?.title}
+            onViewApproval={onBack}
+            onBack={onBack}
+            sessionId={sessionId}
+            teamId={session?.world_id}
+          />
         </div>
       </div>
     );

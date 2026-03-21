@@ -7,6 +7,7 @@ import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -816,6 +817,8 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
   const [revealTotal, setRevealTotal] = useState(0);
   const [achievements, setAchievements] = useState([]);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [showPostSummary, setShowPostSummary] = useState(false);
+  const [postSummaryData, setPostSummaryData] = useState({});
   const [dmgNums, setDmgNums] = useState([]);
   const [lootActive, setLootActive] = useState(false);
   const [shaking, setShaking] = useState(false);
@@ -917,6 +920,11 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
     addDmg('⛏️ +XP', C.org);
     triggerShake();
     triggerLoot();
+    // Store result data for PostSessionSummary
+    setPostSummaryData({
+      subtask_count: mergedItems.length,
+      total_estimate: revealTotal,
+    });
   };
 
   const stepLabel = ['', 'LOBBY', 'BREAKDOWN', 'GM MERGE', 'ESTIMATE', 'REVEAL', 'GAP', 'APPROVAL'][step];
@@ -1208,7 +1216,19 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
         {showAchievements && achievements.length > 0 && (
           <AchievementPopup
             achievements={achievements}
-            onDone={() => setShowAchievements(false)}
+            onDone={() => { setShowAchievements(false); setShowPostSummary(true); }}
+          />
+        )}
+
+        {/* Post-session summary */}
+        {showPostSummary && !showAchievements && (
+          <PostSessionSummary
+            sessionType="nesting_scope"
+            results={postSummaryData}
+            approvalPending={false}
+            approvalItems={[]}
+            onBack={onBack}
+            sessionId={sessionId}
           />
         )}
       </div>

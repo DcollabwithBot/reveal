@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Scene, DmgNum } from '../components/session/SessionPrimitives.jsx';
 import { C, PF } from '../shared/constants.js';
+import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 
 const FIBONACCI = [1, 2, 3, 5, 8, 13, 21];
 
 export default function TruthSerumScreen({ sessionId, userId, isGm, organizationId, onBack }) {
-  const [phase, setPhase] = useState('setup'); // setup | voting | reveal | report
+  const [phase, setPhase] = useState('setup'); // setup | voting | reveal | report | done
   const [items, setItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [myVotes, setMyVotes] = useState({}); // itemId → estimate
@@ -250,9 +251,25 @@ export default function TruthSerumScreen({ sessionId, userId, isGm, organization
             biasReport={biasReport}
             userId={userId}
             onBack={() => setPhase('reveal')}
-            onDone={onBack}
+            onDone={() => setPhase('done')}
             C={C}
             PF={PF}
+          />
+        )}
+
+        {/* Phase: Post-session PM summary */}
+        {phase === 'done' && (
+          <PostSessionSummary
+            sessionType="truth_serum"
+            results={{
+              highest_bias_user: biasReport?.userBias?.[0]
+                ? `Deltager med ±${Math.abs(biasReport.userBias[0].avgBias)}p bias`
+                : null,
+            }}
+            approvalPending={false}
+            approvalItems={[]}
+            onBack={onBack}
+            sessionId={sessionId}
           />
         )}
 

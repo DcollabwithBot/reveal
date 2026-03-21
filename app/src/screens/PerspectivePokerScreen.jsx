@@ -19,6 +19,7 @@ import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -587,31 +588,22 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
   if (phase === 'done') {
     return (
       <div style={styles.container}>
-        <div style={{ textAlign: 'center', marginTop: 80, padding: 24 }}>
+        <div style={{ textAlign: 'center', marginTop: 40, padding: 24 }}>
           <div style={{ fontSize: 60 }}>🌐</div>
           <div style={{ fontFamily: PF, fontSize: 11, color: 'var(--jade)', margin: '16px 0 8px' }}>
             PERSPEKTIV-POKER DONE
           </div>
-          <div style={{ fontFamily: VT, fontSize: 20, color: 'var(--text2)', marginBottom: 20 }}>
-            Alle items estimeret fra alle perspektiver.
-          </div>
-          {finalData?.risk_notes && (
-            <div style={{
-              background: 'rgba(232,84,84,0.08)',
-              border: '1px solid rgba(232,84,84,0.2)',
-              borderRadius: 8,
-              padding: '12px 16px',
-              fontFamily: VT,
-              fontSize: 16,
-              color: 'var(--danger)',
-              whiteSpace: 'pre-line',
-              marginBottom: 20,
-              textAlign: 'left',
-            }}>
-              {finalData.risk_notes}
-            </div>
-          )}
-          <button onClick={onBack} style={styles.primaryBtn}>← BACK TO SESSION</button>
+          <PostSessionSummary
+            sessionType="perspective_poker"
+            results={{
+              estimate: finalData?.final_estimate,
+              risk_notes: finalData?.risk_notes,
+            }}
+            approvalPending={!!finalData?.approval_pending}
+            approvalItems={finalData?.approval_pending ? ['Final estimate afventer GM-godkendelse'] : []}
+            onBack={onBack}
+            sessionId={sessionId}
+          />
         </div>
       </div>
     );

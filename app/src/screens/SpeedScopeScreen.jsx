@@ -17,6 +17,7 @@ import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -596,7 +597,7 @@ function StepDelta({ items, round1Estimates, round2Estimates, onContinue, onAppl
 }
 
 // ── Step 4: Velocity Stats ────────────────────────────────────────────────────
-function StepStats({ items, round1Estimates, round2Estimates, participants, responseTimes, onBack }) {
+function StepStats({ items, round1Estimates, round2Estimates, participants, responseTimes, onBack, sessionId }) {
   const [animated, setAnimated] = useState(false);
   const [shownAchievement, setShownAchievement] = useState(null);
 
@@ -718,6 +719,19 @@ function StepStats({ items, round1Estimates, round2Estimates, participants, resp
             ← BACK TO SESSION
           </button>
         </div>
+
+        {/* Post-session PM summary */}
+        <PostSessionSummary
+          sessionType="speed_scope"
+          results={{
+            hidden_complexity_count: hiddenItems.length,
+            velocity: itemsPerMin,
+          }}
+          approvalPending={false}
+          approvalItems={[]}
+          onBack={onBack}
+          sessionId={sessionId}
+        />
       </div>
 
       {shownAchievement && <AchievementPopup {...shownAchievement} onClose={() => setShownAchievement(null)} />}
@@ -1062,6 +1076,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
           participants={participants}
           responseTimes={responseTimes}
           onBack={onBack}
+          sessionId={sessionId}
         />
       </Scene>
     );

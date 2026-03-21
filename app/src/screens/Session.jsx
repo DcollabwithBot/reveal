@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useReducer } from "react";
+import PostSessionSummary from "../components/session/PostSessionSummary.jsx";
 import { C, PF, NPC_TEAM, CLASSES } from "../shared/constants.js";
 import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
 import { FALLBACK_ACHIEVEMENTS, createAchievementResolver } from "../domain/session/rewards/achievements.js";
@@ -92,10 +93,15 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   // E12: Bidirectional sync status
   const [syncStatus, setSyncStatus] = useState('synced'); // 'synced' | 'pending_approval' | 'conflict'
   const [syncMessage, setSyncMessage] = useState('');
+  const [showPostSummary, setShowPostSummary] = useState(false);
 
   function safeComplete() {
     if (finCalled.current) return;
     finCalled.current = true;
+    setShowPostSummary(true);
+  }
+
+  function handlePostSummaryBack() {
     if (onComplete) onComplete(node?.id);
   }
 
@@ -628,6 +634,30 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
         </div>
       </div>
     </Scene>
+    )}
+
+    {/* Post-session summary — PM-kobling for Planning Poker */}
+    {showPostSummary && (
+      <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 300, overflowY: 'auto', padding: '24px 16px' }}>
+        <div style={{ fontFamily: PF, fontSize: 10, color: 'var(--jade)', textAlign: 'center', marginBottom: 16 }}>
+          🃏 PLANNING POKER COMPLETE
+        </div>
+        <PostSessionSummary
+          sessionType="planning_poker"
+          results={{
+            estimate: votes && votes.length > 0
+              ? votes[Math.floor(votes.length / 2)]
+              : null,
+            acceptance_criteria: approvalState?.acceptanceCriteria || null,
+          }}
+          approvalPending={syncStatus === 'pending_approval'}
+          approvalItems={syncStatus === 'pending_approval' ? ['Final estimate afventer PM-godkendelse'] : []}
+          projectName={project?.name || project?.title}
+          onBack={handlePostSummaryBack}
+          sessionId={node?.session_id || node?.id}
+          teamId={project?.id}
+        />
+      </div>
     )}
     </>
   );
