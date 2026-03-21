@@ -1,349 +1,101 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-21 (v3.1 complete — KPI Dashboard, Lifelines, Truth Serum, Explosion Predictor, Budget, Mobile, Webhooks, Notifikationer, Room Presets deployed)
+Last updated: 2026-03-21 (Tech Debt Sprint + Features + Guided Tour)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: v3.1 fuldt implementeret (~95% af roadmap) — klar til Fase 3
-- Live: https://reveal.blichert.net ✅ (deployed 2026-03-21 v3.1)
-- Salgs-demo mockup: https://reveal.blichert.net/reveal-v8plus.html (V8+ — bruges mens sidebar refactores)
+- Fase: v3.2 — tech debt ryddet, features tilføjet, guided tour klar
+- Live: https://reveal.blichert.net ✅
 - GitHub: https://github.com/DcollabwithBot/reveal
-- Branch: `main` (v3.1 complete + deployed 2026-03-21)
+- Branch: `main`
 - App: `app/` — Vite + React
-- **Næste:** Fase 3 (AI-lag, Azure DevOps, Stripe)
+- **Næste:** Madro subsite deploy, Reveal deploy, pilottest med rigtige teams
 
-## v3.1 Gap-fix (2026-03-21) ✅
+## Arkitektur
+- `docs/ARCHITECTURE.md` — bindingsmodel, tech stack, API model (source of truth)
+- `docs/TECH-DEBT.md` — tech debt backlog (P1-P5 done)
+- `docs/NEXT-FEATURES.md` — feature backlog
+- `docs/GUIDED-TOUR.md` — interaktiv tour spec
+- `docs/API.md` — REST API dokumentation
 
-### Hvad er bygget
-- **KPI Dashboard** — org-niveau metrics, burn-down, accuracy trends (P1)
-- **Lifelines UI** — 50/50, Phone-a-Friend, Ask-Audience med Supabase sync (P2)
-- **Truth Serum Screen** — anonym team-survey med heatmap visualisering (P3)
-- **Explosion Predictor** — regelbaseret scope risk score per sprint item (P4)
-- **Jira Onboarding Wizard** — step-by-step integration setup flow (P5)
-- **Budget Overview** — sprint cost estimering koblet til time entries (P6)
-- **WorldSelect verifikation** — world unlock logic bekræftet og testet (P7)
-- **Notifications Edge Function** — Supabase Edge Function til push notifikationer (P8)
-- **Webhooks UI** — konfigurer udgående webhooks per org (P9)
-- **Time Tracking auto-actual** — session estimater → automatisk time entry (P10)
-- **Session Type Presets** — pre-konfigurerede room types (Planning, Retro, Scope) (P11)
-- **Mobile quick wins** — touch-optimering, swipe gestures, responsive polish (P12)
-
-### Migrationer deployed (v3.1)
-- `sprint_roles_comments_search.sql` ✅ — roller, comments, FTS/trigram search
-- `sprint_todo_features.sql` ✅ — smtp_configs, onboarding columns, jira_sync_log
-
-## Sprint A–E Status (2026-03-21) ✅
-
-### Sprint A (Data Audit) ✅
-- Schema audit, RLS gennemgang, hardcoded-vs-DB analyse
-- Alle write-paths verificeret
-
-### Sprint B (Mission Engine + New Game Modes) ✅
-- `sprint_b1_mission_engine.sql` deployed 2026-03-21
-- Missions: user_missions, spec_submissions, perspective_votes, session_roles, session_lifelines
-- Supabase pg_net + pg_cron extensions
-- SprintReportCard, XP/badges (sniper_shot, oracle, risk_prophet, spec_machine, perspective_master)
-- SpecWarsScreen.jsx + PerspectivePokerScreen.jsx (2 nye game modes)
-- acceptance_criteria + risk_notes på session_items
-
-### Sprint C (6 Game Modes Live) ✅
-- `sprint_c_game_modes.sql` deployed
-- BluffPokerScreen.jsx, NestingScopeScreen.jsx, SpeedScopeScreen.jsx
-- useGameSound + SoundToggle — Web Audio API til alle 6 game modes
-- 9 nye achievements (Master Bluffer, Detective, Archaeologist, Speed Demon etc.)
-
-### Sprint D (Game Soul Polish) ✅
-- `sprint_d_achievements.sql` deployed 2026-03-21
-- Achievement master list: 16 achievements på tværs af alle modes
-- SprintDraftScreen.jsx + RetroScreen.jsx polish
-- Tilføjet: perfect_fill, retrospective_veteran achievements
-
-### Sprint E (World Map + PM Integration) ✅
-- `sprint_e_visibility.sql` deployed — game_availability tabel, World Map availability states
-- `sprint_e_audit_log_v2.sql` deployed — audit_log v2
-- `sprint_e_sync.sql` deployed — realtime sync forbedringer
-- `sprint_e_leaderboard.sql` deployed — leaderboard_org, Hall of Fame, High Score Board
-- `sprint_e_approval_chain.sql` deployed — approval_chain_members, governance
-- PM Board game-knapper (estimer sprint, spec wars, perspektiv-poker)
-- Mission Shield widget i sidebar
-- Game HUD i PM (GameHUD komponent)
-- Leaderboard.jsx + Hall of Fame
-
-## Hvad er bygget
-
-### Sprint 1-3 ✅
-- Alle 4 skærme koblet: Avatar Creator → World Select → Overworld → Session
-- Shared infrastruktur: constants.js, useSound.js, utils.js, animations.css
-- Scope Roulette: 18 challenge-cards, boss HP modifier, re-vote
-- Planning Poker: confidence vote, achievements, loot
-- Sprint Boss Battle: retrospective game mode
-
-### Sprint 4 ✅ (Supabase + Auth)
-- Supabase projekt: `swyfcathwcdpgkirwihh`
-- Komplet DB schema (organizations, teams, sessions, session_items, votes, profiles)
-- Google OAuth + login screen
-
-### Sprint 4b ✅ (Multiplayer Realtime)
-- SessionLobby + ActiveSession med Supabase Realtime
-- Presence tracking, GM controls, join_code flow
-
-### Sprint 5 ✅ (Admin UI + DB-driven content + Voting Modes)
-
-**Arkitektur-beslutning (Danny, 2026-03-19):**
-DB er single source of truth. Admin UI seeder DB. Spillet loader fra DB.
-
-**Hvad er lavet:**
-
-1. **DB Migrations ✅ kørt 2026-03-19**
-   - `supabase/migrations/sprint5.sql` — ✅ eksekveret via Supabase Management API
-   - `supabase/seed/sprint5-defaults.sql` — ✅ eksekveret (12 retro_events, 18 challenges seeded)
-   - Tilføjet: `sessions.voting_mode`, `retro_events` tabel, `challenges` tabel
-
-2. **SessionSetup.jsx** (ny fil)
-   - Route: `/setup`
-   - GM opretter session med: navn, backlog items (titel + beskrivelse), voting mode
-   - Voting mode: Fibonacci (1,2,3,5,8,13,21) eller T-shirt (XS,S,M,L,XL,XXL)
-   - INSERT til sessions + session_items via API
-   - Viser join link + kode efter oprettelse
-
-3. **ActiveSession.jsx — voting_mode**
-   - Læser `session.voting_mode` fra DB
-   - Fibonacci: viser [1,2,3,5,8,13,21,?] kort
-   - T-shirt: viser [XS,S,M,L,XL,XXL,?] kort
-   - T-shirt reveal viser MODE (hyppigst), ikke gennemsnit
-   - Skriver `final_estimate` + `status='completed'` til `session_items` ved reveal
-
-4. **ActiveSession.jsx — DB-driven content**
-   - Challenges: hentes fra `challenges` tabel (global defaults). Fallback til constants.js
-   - Retro events: hentes fra `retro_events` tabel (global defaults). Fallback til constants.js
-
-5. **Session.jsx — DB writes**
-   - Skriver node completion til `node_completions` (silently skips hvis ingen dbId)
-   - Skriver final estimate til `session_items` (silently skips hvis ingen sessionItemId)
-
-6. **App.jsx — routing**
-   - `/setup` route → SessionSetup
-   - SessionLobby har "Advanced Session Setup →" knap
-
-7. **server/app.js**
-   - POST /api/sessions accepterer nu `voting_mode` parameter
-
-### Sprint 6 ✅ (Dashboard foundation + project hierarchy)
-
-**Bygget i sprint 6:**
-- `/dashboard`: aktive/kommende/afsluttede sessions, quick actions, kanban (active/on_hold/completed), drag-drop status update
-- `/projects` + `/projects/:id`: projekt → sprint → items med CRUD og inline felter (`assigned_to`, `estimated_hours`, `actual_hours`, `progress`, `item_status`)
-- `/sessions/:id/results`: per-item votes, consensus/median/confidence, outlier flag (>2x median), CSV export og share-link
-- Excel onboarding via paste (tab-separeret): paste → kolonnemapping → preview → confirm
-- Session templates: save/load i setup flow
-- Migration `supabase/migrations/sprint6.sql` kørt via Supabase Management API
-- Integration readiness: `external_id` + `external_source` tilføjet på `projects`, `sprints`, `session_items`
-- Oprydning: `reveal-session.jsx` fjernet, duplikat challenge-array ryddet, `avatar_class` render i ActiveSession
-
-## Governance sprint status (2026-03-19) ✅ MERGED
-
-**Landet og merget til `main`:**
-- Approval request lifecycle: create / approve / reject / apply
-- PM mutation guard på runtime endpoints
-- Event ledger + audit log v1
-- Sync health + conflict feed endpoints
-- Advisory overlay i game/session UI
-- Apply pipeline med target-specifik whitelist + normalisering/validering
-- Lobby/dashboard viser nu governance-sektioner for PM actions, conflicts, active projects og recent activity
-
-**Åbne items (næste fase):**
-- Conflict Center er feed/overblik — ikke fuld resolution workflow endnu
-- PM actions lever i lobby/dashboard, ikke dedikeret dashboard-rute
-- Apply pipeline ikke fuldt domænespecifik pr. target/business rule
-
-## Integration-arkitektur beslutninger (2026-03-19)
-
-**Dual-mode arkitektur vedtaget:**
-- Mode A = Standalone Reveal (default, kør nu)
-- Mode B = Connected sync (Jira/Azure DevOps/TopDesk/Planner, aktiveres via gates)
-- Shared work-fields ejes default af eksternt system i connected mode
-- Write-back blokeret indtil INT-G1 + INT-G2 + INT-G3 er PASS
-- Første pilot = Jira read-only shadow sync
-
-**Integration docs:**
-- `docs/integration/integration-strategy-v1.md`
-- `docs/integration/field-mapping-matrix-v1.md`
-- `docs/integration/sync-policy-v1.md`
-- `docs/integration/standalone-bootstrap-v1.md`
-
-## UX retning (2026-03-19)
-
-**V7: "Serious execution platform with a game soul"**
-- Professionel PM-flade er default; game-layer er advisory/overlay
-- 3 hero screens: `dashboard-v7`, `workspace-v7`, `session-v7`
-- V7 approval-preview live: `https://reveal.blichert.net/approval/v7/`
-
-## Projection hardening (2026-03-19)
-
-- Migration `sprint9_projection_config.sql`: `game_profiles`, `boss_profiles`, `reward_rules`, `achievement_definitions` med default seed
-- Ny read-path `/api/projection/config` + helper `app/src/shared/projection.js`
-- `Session.jsx` delvist decouplet fra inline reward/boss-logik
-- Sprint A (audit) / Sprint B (ownership/writeback) / Sprint C (projection decoupling) defineret
-
-## Hvad er bygget (Sprints 7-10)
-
-### Sprint 7 (Fase 1) ✅ — Foundation
-- Roller & Permissions: role på organization_members + team_members, requirePermission() middleware
-- Comments: comments tabel, threading, GET/POST/PATCH/DELETE /api/items/:id/comments
-- Global Søgning: Cmd+K spotlight modal, pg_trgm + GIN indexes, /api/search endpoint
-
-### Sprint 8 (Fase 2) ✅ — Insight
-- Burndown/Velocity: sprint_daily_snapshots, SprintCharts.jsx (Recharts), /api/sprints/:id/burndown
-- Dependencies: item_dependencies tabel, BFS circular detection, blocker-badge på kanban
-- In-app Notifikationer: notifications tabel, NotificationBell.jsx med unread badge i topbar
-
-### Sprint 9 (Fase 3) ✅ — Game-PM Bridge
-- Planning Poker fra Dashboard: "⚔ Estimer sprint" knap, bulk-select items, float action bar
-- Retro → PM Tasks: retro_actions tabel, BossRetroStage action items step, promote via approval
-- GameStatsBar: 5 micro-signals i Dashboard (streak, accuracy, velocity, sessions, coverage)
-
-### Sprint 10 (Fase 4) ✅ — Sprint Draft "The Draft"
-- Ny session_type='sprint_draft'
-- SprintDraftScreen.jsx: 4-step flow (Lobby → Priority Vote → The Draft → Confidence Vote)
-- Priority tokens (5 per person), Capacity Gauge (grøn→gul→rød), Consensus Flash animation
-- sprint_draft_picks + sprint_draft_priority_votes tabeller
-- PM approval write-back via finalize-draft endpoint
-
-## TODO: Bidirektionel sync (Fase 5)
-Blokeret bag INT-G1/G2/G3 gates. Se docs/architecture/next-phase-architecture-v1.md.
-Bygges EFTER vi har pilotkunder og validated use case.
-
-## Roadmap
-| Sprint | Indhold | Status |
-|--------|---------|--------|
-| 1-3 | MVP modes (Poker, Roulette, Boss Battle) | ✅ |
-| 4 | Supabase schema + Auth (Google OAuth) | ✅ |
-| 4b | Realtime multiplayer + Lobby + Session UI | ✅ |
-| 5 | Admin UI, DB-driven content, voting modes | ✅ |
-| 6 | Dashboard foundation + projects/sprints/items + results + templates + velocity | ✅ |
-| 7 (Fase 1) | Roller & Permissions, Comments, Global Søgning | ✅ |
-| 8 (Fase 2) | Burndown/Velocity, Dependencies, In-app Notifikationer | ✅ |
-| 9 (Fase 3) | Game-PM Bridge, Planning Poker fra Dashboard, GameStatsBar | ✅ |
-| 10 (Fase 4) | Sprint Draft "The Draft" — 4-step flow, priority tokens, capacity gauge | ✅ |
-| 10 (Fase 4) | Sprint Draft "The Draft" — 4-step flow, priority tokens, capacity gauge | ✅ |
-| 10b | Time tracking + Excel import (FAK/INT/UB/Kørsel) · game_mode feature (focus/engaged/full) | ✅ |
-| 11 | Sidebar refactor (persistent app-shell) + V8+ React port | 🎯 næste |
-| 12 | Slack/Teams webhooks + Jira Shadow Sync | |
-| 12 | AI Lifelines + mønstergenkendelse | |
-
-## Supabase
-- Projekt ID: `swyfcathwcdpgkirwihh`
-- Eksisterende tabeller: organizations, organization_members, profiles, teams, team_members, sessions, session_participants, session_items, votes
-- Sprint 5 tilføjede: `sessions.voting_mode`, `retro_events` (12 rows), `challenges` (18 rows)
-- Sprint 6 tilføjede: `projects`, `sprints`, `session_templates`, `node_completions`, nye felter på `sessions` og `session_items`
-- Migration kørt: 2026-03-19 via Supabase Management API (`sprint5.sql` + `sprint6.sql`)
-
-### Migrationer deployed 2026-03-21 ✅
-- `sprint9_projection_config.sql` — game_profiles, boss_profiles, reward_rules, achievement_definitions
-- `sprint_b1_mission_engine.sql` — missions, spec_submissions, perspective_votes, session_roles, session_lifelines
-- `sprint_d_achievements.sql` — Sprint D achievements (perfect_fill, retrospective_veteran)
-- `sprint_e_visibility.sql` — game_availability
-- `sprint_e_audit_log_v2.sql` — audit_log v2
-- `sprint_e_sync.sql` — realtime sync
-- `sprint_e_leaderboard.sql` — leaderboard_org
-- `sprint_e_approval_chain.sql` — approval_chain_members
-
-## Tech stack
-- React (hooks only) + Vite
-- Supabase (Auth + DB + Realtime + Edge Functions)
-- Web Audio API (lyd — ingen filer)
-- CSS animations inline
-- Press Start 2P + VT323 (Google Fonts)
-- Hosting: Nordicway (static frontend)
-- Backend: **Supabase Edge Functions** (Deno) — INGEN Express server
-- Old Express server arkiveret i `server_deprecated/`
-
-## Supabase Edge Functions (deployed)
-- `supabase/functions/provision/` — Auto-provision org/team ved login
-- `supabase/functions/approve-mutation/` — PM approval lifecycle (approve/reject/apply)
-- `supabase/functions/start-estimation/` — Start estimation session (sprint/project/bulk/item)
-- `supabase/functions/finalize-draft/` — Sprint Draft finalization
-- `supabase/functions/promote-retro-action/` — Retro action → PM task promotion
-- `supabase/functions/create-session/` — Session creation med auto-provision
-
-## Edge Functions (supabase/functions/)
-- `approve-mutation/` — PM approval lifecycle (approve/reject/apply) + PM mutation guard
-- `start-estimation/` — Start estimation session fra sprint/projekt/bulk/items
-- `finalize-draft/` — Sprint Draft finalization → approval request
-- `promote-retro-action/` — Retro action item → PM task via approval
-- `create-session/` — Session oprettelse med auto-provisioning
-- `send-webhook/` — Slack/Teams webhook notifikationer ved events
-- `send-email/` — Email notifikationer via Resend API (templates + custom)
-- `jira-sync/` — Jira shadow sync (polling, opdaterer Jira-owned fields)
-
-## Vigtige filer (frontend)
-- `app/src/lib/api.js` — AL API-kommunikation. Supabase direkte + edgeFn() helper til Edge Functions
-- `app/src/lib/supabase.js` — Supabase client (auth + DB + realtime)
-- `app/src/screens/` — Alle skærme (Session, Dashboard, ProjectWorkspace, SprintDraftScreen, etc.)
-- `app/src/components/` — Delte komponenter (CommentsPanel, NotificationBell, SprintCharts, SearchModal, GameStatsBar, etc.)
-- `supabase/migrations/` — Alle DB-migrationer i kronologisk rækkefølge
-- `supabase/functions/` — Edge Functions (Deno, hosted på Supabase)
-- `server_deprecated/` — Gammel Express-server (arkiveret, BRUGES IKKE)
-
-## ⚠️ Arkitektur-beslutning: Supabase-native (INGEN Express)
-
-**Besluttet: 2026-03-20 af Danny**
-
-Reveal bruger **Supabase direkte** — ingen Express-backend.
-
-- Al data-adgang: Supabase JS client fra frontend
+## Tech Stack
+- Frontend: Vite + React (SPA)
+- Backend: Supabase (PostgreSQL + RLS + Edge Functions) — INGEN custom backend
+- Deploy: Nordicway cPanel (reveal.blichert.net)
 - Auth: Supabase Auth (Google OAuth)
-- Realtid: Supabase Realtime
-- Business logic / server-side: **Supabase Edge Functions** (Deno)
-- Row-level security: **RLS policies** på alle tabeller
-- Ingen PM2, ingen Node-server, ingen cPanel-friktion
 
-**Deploy-model:**
-- Frontend: Nordicway static hosting (rsync dist/ → ~/reveal.blichert.net/)
-- Backend: Supabase Edge Functions (auto-hosted, ingen server at starte)
-- DB: Supabase Postgres + RLS
+## Tech Debt Sprint (2026-03-21) — ALL DONE ✅
 
-**⛔ Fejl der ikke må gentages:**
-Agents må ALDRIG oprette en Express-server til Reveal.
-Hvis noget kræver server-side logik → brug Supabase Edge Function.
-Ny function → opret i `supabase/functions/<navn>/index.ts` (Deno).
+### P1: Shared Helpers
+- `lib/participantHelpers.js` — fetchSessionParticipants, mapParticipantToSprite, getDisplaySprites
+- `lib/sessionHelpers.js` — fetchSessionWithItems, fetchRawParticipants, subscribeToGameSession, broadcastVote
+- `lib/helpers/projectHelpers.js` — fetchProjectsForOrg, fetchSprintsForOrg, fetchItemsForSprint, buildAuthHeaders
+- `lib/hooks/useAuth.jsx` — centraliseret auth context
+- 14 screens refaktoreret til shared helpers
 
-## Design-principper (rør ikke)
-- Pixel art æstetik i game-modes
-- Alt lever — ingen statiske elementer i spillet
-- Lyd på alt (game-lag)
-- Boss battle = opgaven der skal estimeres
-- Tavern hub = world select
-- PM-fladen er professionel og rolig — game er overlay/advisory
+### P2: api.js Split
+- 2456-linjers monolith → 6 domæne-moduler (session, project, game, org, integration, shared)
+- api.js er nu 7-linjers facade med re-exports
 
-## Lokation
-`/root/.openclaw/workspace/projects/reveal/`
+### P3: Error Handling
+- `lib/errorHandler.js` — handleError + handleSoftError
+- 70 tomme catch blocks fikset med beskrivende context-strings
 
-## ⚠️ Game Mode Design-Regel: Pixel Art Game Feel (ALLE modes)
+### P4: Component Extraction
+- 41 nye filer fra 4 store screens
+- BluffPoker (12 filer), NestingScope (12), SpeedScope (11), SprintDraft (5)
 
-**Besluttet: 2026-03-20 af Danny**
+### P5: Shared Styles
+- `shared/styles.js` — spectatorBar, cornerControls, fixedScanlines
+- 25+ inline blocks konsolideret
 
-ALLE game modes skal have samme æstetik og feel som Planning Poker. Det er ikke forhandleligt.
+## Features (2026-03-21) ✅
 
-### Krav per game mode:
-- **Avatarer** — alle deltagere repræsenteres med deres pixel art avatar (klasse, level badge)
-- **Animationer** — alle actions har animation: kortflip, vote reveal, boss appear, XP burst, confetti
-- **Lyd** — Web Audio API på alle key moments (ding, dramatic reveal, boss roar, success chime)
-- **Game-feel micro-moments** — hvert mode har mindst 3 "yes!"-øjeblikke med visuelt feedback
+### Real Data (ikke hardcoded)
+- XP persistence — profiles.xp + user_achievements skriver til DB
+- Real team members — Overworld + WorldSelect henter fra organization_members
+- Real participants — Session.jsx + 5 game screens bruger session_participants med NPC fallback
+- leaderboard_org VIEW fix — kode skriver ikke direkte til VIEW
 
-### Eksempler per mode:
-- **Spec Wars** — avatarer sidder om et bord, skriver på "scrolls", kaster dem ind, voting = battle
-- **Perspektiv-Poker** — role cards flippes dramatisk, crown-animation på vinderens spec
-- **Bluff Poker** — avatarer med "poker face", afsløring = spotlight + camera shake
-- **Russian Nesting Scope** — doll der åbner sig med animation, del-estimater popper ud
-- **Speed Scope** — timer nedtælling med pixel art, "BUZZER" animation ved reveal
+### SessionLaunchModal Item-selektion
+- Henter backlog items fra aktiv sprint
+- Multi-select med vælg alle / fravælg alle
+- Valgte items sendes med til session creation
 
-### Tech:
-- CSS keyframe animations (ingen Framer Motion / biblioteker)
-- Web Audio API (ingen .mp3 filer — genererede toner)
-- Press Start 2P + VT323 fonte
-- Eksisterende CSS-variabler (--jade, --gold, --danger, --epic, --bg2 etc.)
+### GM Approval-flow UI
+- "Godkendelser" tab i ProjectWorkspace med badge count
+- Pending estimates med godkend/afvis knapper
+- Kalder approve-mutation Edge Function
 
-**⛔ Aldrig:** Bland corporate/flat design ind i game modes. Spillet ser ud som spil.
+### Session-log
+- "Sessions" tab i ProjectWorkspace
+- Historik over alle sessions med mode, dato, deltagere, summary
+- Expanderbar detaljevisning
+
+### REST API + API Keys
+- `supabase/functions/reveal-api/index.ts` — 9 read-endpoints
+- `api_keys` tabel med SHA-256 hash, scopes, expiry
+- Settings UI til generering/revoke af nøgler
+- `docs/API.md` med PowerBI setup guide
+
+### In-app Dokumentation
+- `/docs` route med 7 sektioner (dansk)
+- Alle 14 game modes dokumenteret
+- PM Dashboard, World Map, API, roller, FAQ
+
+### Interaktiv Guided Tour
+- react-joyride med 9-step tour
+- Demo mode (/demo med Acme Development seed data)
+- Onboarding (auto-start for nye brugere, kan skippes)
+- Explore (fra /docs + Settings → genstart)
+
+## Scripts
+- `scripts/ship.sh "message"` — build + verify + commit + push
+- `scripts/audit.sh` — tech debt scan
+
+## Constraints
+- Ingen arkitekturændringer uden Dannys godkendelse
+- Alle Supabase-kald på tværs af screens SKAL bruge shared helpers
+- Ingen custom backend/Express — alt via Supabase + Edge Functions
