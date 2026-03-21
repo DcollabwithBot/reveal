@@ -30,6 +30,9 @@ const SprintDraftScreen = lazy(() => import("./screens/SprintDraftScreen.jsx"));
 const Onboarding = lazy(() => import("./screens/Onboarding.jsx"));
 const KpiDashboard = lazy(() => import("./screens/KpiDashboard.jsx"));
 const TruthSerumScreen = lazy(() => import("./screens/TruthSerumScreen.jsx"));
+const FlowPokerScreen = lazy(() => import("./screens/FlowPokerScreen.jsx"));
+const RiskPokerScreen = lazy(() => import("./screens/RiskPokerScreen.jsx"));
+const AssumptionSlayerScreen = lazy(() => import("./screens/AssumptionSlayerScreen.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -47,6 +50,9 @@ export default function App() {
   const [speedScopeSessionId, setSpeedScopeSessionId] = useState(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [truthSerumSessionId, setTruthSerumSessionId] = useState(null);
+  const [flowPokerSessionId, setFlowPokerSessionId] = useState(null);
+  const [riskPokerSessionId, setRiskPokerSessionId] = useState(null);
+  const [assumptionSlayerSessionId, setAssumptionSlayerSessionId] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -100,6 +106,24 @@ export default function App() {
     if (truthSerumMatch) {
       setTruthSerumSessionId(truthSerumMatch[1]);
       setAuthScreen('truth_serum');
+      return;
+    }
+    const flowPokerMatch = pathname.match(/^\/sessions\/([^/]+)\/flow-poker$/);
+    if (flowPokerMatch) {
+      setFlowPokerSessionId(flowPokerMatch[1]);
+      setAuthScreen('flow_poker');
+      return;
+    }
+    const riskPokerMatch = pathname.match(/^\/sessions\/([^/]+)\/risk-poker$/);
+    if (riskPokerMatch) {
+      setRiskPokerSessionId(riskPokerMatch[1]);
+      setAuthScreen('risk_poker');
+      return;
+    }
+    const assumptionSlayerMatch = pathname.match(/^\/sessions\/([^/]+)\/assumption-slayer$/);
+    if (assumptionSlayerMatch) {
+      setAssumptionSlayerSessionId(assumptionSlayerMatch[1]);
+      setAuthScreen('assumption_slayer');
       return;
     }
     const draftMatch = pathname.match(/^\/sessions\/([^/]+)\/draft$/);
@@ -522,6 +546,60 @@ export default function App() {
             userId={user?.id}
             isGm={true}
             organizationId={organizationId}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "flow_poker" && flowPokerSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Flow Poker...</div>}>
+          <FlowPokerScreen
+            sessionId={flowPokerSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "risk_poker" && riskPokerSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Risk Poker...</div>}>
+          <RiskPokerScreen
+            sessionId={riskPokerSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "assumption_slayer" && assumptionSlayerSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Assumption Slayer...</div>}>
+          <AssumptionSlayerScreen
+            sessionId={assumptionSlayerSessionId}
+            user={user}
             onBack={() => {
               window.history.pushState({}, '', '/dashboard');
               setAuthScreen('dashboard');
