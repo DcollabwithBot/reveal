@@ -395,6 +395,11 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
               <option value="completed">Completed</option>
             </select>
             <input value={form.sprintGoal} onChange={e => setForm(prev => ({ ...prev, sprintGoal: e.target.value }))} placeholder="Sprintmål" style={gridInput('span 12')} />
+            {/* E4: Sprint game hints */}
+            <div style={{ gridColumn: 'span 12', fontSize: 10, color: 'var(--text3)', padding: '4px 8px', background: 'rgba(200,168,75,0.06)', border: '1px solid rgba(200,168,75,0.18)', borderRadius: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <span>⚔ Planning Poker anbefales inden sprint start</span>
+              <span>🎭 Spec Wars kan hjælpe med kravspecifikation</span>
+            </div>
           </>
         )}
 
@@ -418,6 +423,24 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
               <option value="">Ingen ansvarlig</option>
               {assignees.map(person => <option key={person.id} value={person.id}>{person.display_name}</option>)}
             </select>
+            {/* E4: Game readiness hints — ikke-blokerende checklist */}
+            <div style={{ gridColumn: 'span 12', display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: -4 }}>
+              {[
+                { key: 'ac', icon: '🎭', label: 'Acceptance criteria', hint: 'Kræves af Spec Wars', ok: Boolean(form.itemDescription?.trim()) },
+                { key: 'est', icon: '⚔', label: 'Estimate', hint: 'Sæt via Planning Poker', ok: Boolean(form.itemEstimate) },
+                { key: 'asg', icon: '📊', label: 'Assigned to', hint: 'Kræves til Perspektiv-Poker', ok: Boolean(form.itemAssignee) },
+              ].map(h => (
+                <span key={h.key} style={{
+                  fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                  background: h.ok ? 'rgba(0,200,150,0.08)' : 'rgba(200,168,75,0.07)',
+                  border: `1px solid ${h.ok ? 'rgba(0,200,150,0.25)' : 'rgba(200,168,75,0.2)'}`,
+                  color: h.ok ? 'var(--jade)' : 'var(--text3)',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                }}>
+                  {h.ok ? '✓' : '○'} {h.icon} {h.label} {!h.ok && <span style={{ opacity: 0.6 }}>— {h.hint}</span>}
+                </span>
+              ))}
+            </div>
           </>
         )}
 
