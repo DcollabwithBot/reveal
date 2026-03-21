@@ -60,6 +60,8 @@ export default function App() {
   const [assumptionSlayerSessionId, setAssumptionSlayerSessionId] = useState(null);
   const [refinementRouletteSessionId, setRefinementRouletteSessionId] = useState(null);
   const [dependencyMapperSessionId, setDependencyMapperSessionId] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [currentSessionMode, setCurrentSessionMode] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -114,6 +116,20 @@ export default function App() {
     }
     if (pathname === '/analytics') {
       setAuthScreen('analytics');
+      return;
+    }
+    const planningPokerMatch = pathname.match(/^\/sessions\/([^/]+)\/planning-poker$/);
+    if (planningPokerMatch) {
+      setCurrentSessionId(planningPokerMatch[1]);
+      setCurrentSessionMode('planning_poker');
+      setAuthScreen('session_direct');
+      return;
+    }
+    const bossRetroMatch = pathname.match(/^\/sessions\/([^/]+)\/boss-battle-retro$/);
+    if (bossRetroMatch) {
+      setCurrentSessionId(bossRetroMatch[1]);
+      setCurrentSessionMode('boss_battle_retro');
+      setAuthScreen('session_direct');
       return;
     }
     const truthSerumMatch = pathname.match(/^\/sessions\/([^/]+)\/truth-serum$/);
@@ -839,6 +855,31 @@ export default function App() {
     );
   }
 
+  if (user && authScreen === "session_direct" && currentSessionId) {
+    const nodeType = currentSessionMode === 'boss_battle_retro' ? 'b' : currentSessionMode === 'planning_poker' ? 'p' : 'p';
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<LoadingScreen label="LOADING SESSION..." />}>
+          <Session
+            avatar={avatar}
+            node={{ id: currentSessionId, tp: nodeType, name: currentSessionMode === 'boss_battle_retro' ? 'Boss Battle Retro' : 'Planning Poker', sessionId: currentSessionId }}
+            project={{ id: 'direct', name: currentSessionMode === 'boss_battle_retro' ? 'Boss Battle Retro' : 'Planning Poker', nodes: [], paths: [] }}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+            onComplete={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+            sound={sound}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
   return (
     <GameModeProvider organizationId={organizationId}>
       <Suspense fallback={<LoadingScreen label="LOADING GAME..." />}>
@@ -855,8 +896,8 @@ export default function App() {
             onSelectMode={(mode) => {
               // Route to the correct game screen based on mode id
               const modeRoutes = {
-                planning_poker: null, // uses default session flow via world select
-                boss_battle_retro: null, // uses default session flow via world select
+                planning_poker: (id) => { setCurrentSessionId(id); setCurrentSessionMode('planning_poker'); setAuthScreen('session_direct'); },
+                boss_battle_retro: (id) => { setCurrentSessionId(id); setCurrentSessionMode('boss_battle_retro'); setAuthScreen('session_direct'); },
                 sprint_draft: (id) => { setDraftSessionId(id); setAuthScreen('sprint_draft'); },
                 spec_wars: (id) => { setSpecWarsSessionId(id); setAuthScreen('spec_wars'); },
                 perspective_poker: (id) => { setPerspectiveSessionId(id); setAuthScreen('perspective_poker'); },
@@ -895,7 +936,7 @@ export default function App() {
                     });
                 });
               } else {
-                // planning_poker or unknown: use legacy world flow
+                // Unknown mode: use legacy world flow via overworld
                 setWorld(mode);
                 setScreen("map");
               }
