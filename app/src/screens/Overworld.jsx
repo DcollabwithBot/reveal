@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { C, PF, NPC_TEAM } from "../shared/constants.js";
+import { C, PF, NPC_TEAM, CLASSES } from "../shared/constants.js";
 import { dk, pick } from "../shared/utils.js";
 
 const BLU = "#4488dd", RED = "#dd4444", GRN = "#44bb66", EVT = "#ff8844", PUR = "#aa44cc";
 const BUBS = ["Klar!", "Lad os gå!", "💪", "🔥", "Focus!", "Nice!", "Hmm...", "👀", "Go go!", "⭐", "Ez!", "🎯"];
 
-// Build team from avatar + NPCs for display
-function buildTeam(avatar) {
+const AVATAR_CLASS_MAP = Object.fromEntries(CLASSES.map(c => [c.id, c]));
+const NPC_SKIN_TONES = ["#fdd", "#fed", "#edc", "#ffe", "#fec", "#dbc", "#c9a"];
+
+// Build team from avatar + real members (or NPC_TEAM fallback)
+function buildTeam(avatar, realMembers) {
   const player = {
     id: 0, name: "Du", isP: true,
     hat: avatar?.helmet?.pv || avatar?.cls?.color || "#f04f78",
@@ -16,7 +19,21 @@ function buildTeam(avatar) {
     skin: avatar?.skin || "#fdd",
     cls: avatar?.cls || { icon: "⚔️", color: "#f04f78" },
   };
-  return [player, ...NPC_TEAM.map(m => ({ ...m, hat: m.hat, body: m.body, skin: m.skin, cls: m.cls }))];
+  const npcs = realMembers && realMembers.length > 0
+    ? realMembers.map((m, i) => {
+        const cls = AVATAR_CLASS_MAP[m.profiles?.avatar_class] || CLASSES[i % CLASSES.length];
+        return {
+          id: m.user_id,
+          name: m.profiles?.display_name || `Member ${i + 1}`,
+          lv: m.profiles?.level || 1,
+          cls,
+          hat: cls.color,
+          body: cls.color,
+          skin: NPC_SKIN_TONES[i % NPC_SKIN_TONES.length],
+        };
+      })
+    : NPC_TEAM.map(m => ({ ...m, hat: m.hat, body: m.body, skin: m.skin, cls: m.cls }));
+  return [player, ...npcs];
 }
 
 // Map item to node color based on type/risk
@@ -35,7 +52,7 @@ function nodeIcon(item) {
   return "🃏";
 }
 
-export default function Overworld({ project, avatar, onBack, onNode, sound }) {
+export default function Overworld({ project, avatar, userId, organizationId: orgIdProp, onBack, onNode, sound }) {
   const [t, setT] = useState(0);
   const [hov, setHov] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -51,8 +68,13 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
   const [fetchedPaths, setFetchedPaths] = useState(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [bossInfo, setBossInfo] = useState(null);
+  const [realMembers, setRealMembers] = useState(null);
+  const [userXP, setUserXP] = useState(null);
+  const [userProg, setUserProg] = useState(null); // { prog, tot }
 
   const projectId = project?.projectId || project?.id;
+  // organization_id can come from prop OR from the project object itself
+  const orgId = orgIdProp || project?.organization_id;
 
   // Fetch real data from Supabase
   useEffect(() => {
@@ -151,9 +173,46 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
     fetchData();
   }, [projectId]);
 
+  // Fetch real org members for team display
+  useEffect(() => {
+    if (!orgId) { setRealMembers(null); return; }
+    supabase
+      .from('organization_members')
+      .select('user_id, profiles(display_name, avatar_class, xp, level)')
+      .eq('organization_id', orgId)
+      .limit(6)
+      .then(({ data }) => {
+        if (data && data.length > 0) setRealMembers(data);
+        else setRealMembers(null);
+      })
+      .catch(() => setRealMembers(null));
+  }, [orgId]);
+
+  // Fetch real user XP
+  useEffect(() => {
+    if (!userId) { setUserXP(null); return; }
+    supabase
+      .from('profiles')
+      .select('xp, level')
+      .eq('id', userId)
+      .single()
+      .then(({ data }) => {
+        if (data) setUserXP(data.xp ?? 0);
+      })
+      .catch(() => setUserXP(null));
+  }, [userId]);
+
+  // Compute real prog/tot from fetched nodes
+  useEffect(() => {
+    if (!fetchedNodes || fetchedNodes.length === 0) { setUserProg(null); return; }
+    const tot = fetchedNodes.filter(n => n.id !== 'empty').length;
+    const done = fetchedNodes.filter(n => n.dn).length;
+    setUserProg({ prog: done, tot: tot || 1 });
+  }, [fetchedNodes]);
+
   const NODES = fetchedNodes ?? (project?.nodes || []);
   const PATHS = fetchedPaths ?? (project?.paths || []);
-  const TEAM = buildTeam(avatar);
+  const TEAM = buildTeam(avatar, realMembers);
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
 
@@ -272,11 +331,11 @@ export default function Overworld({ project, avatar, onBack, onNode, sound }) {
         <span style={{ fontFamily: PF, fontSize: "3.5px", color: C.dim, marginLeft: "3px" }}>{project?.sprint}</span>
         <div style={{ flex: 1 }} />
         {TEAM.map(m => <div key={m.id || m.name} style={{ width: "14px", height: "14px", background: (m.hat || "#444") + "33", border: `2px solid ${m.hat || "#444"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "6px" }}>{m.cls?.icon || "⚔️"}</div>)}
-        <span style={{ fontFamily: PF, fontSize: "4px", color: C.xp, marginLeft: "3px" }}>⭐1240</span>
+        <span style={{ fontFamily: PF, fontSize: "4px", color: C.xp, marginLeft: "3px" }}>⭐{userXP !== null ? userXP : (project?.xp ?? 0)}</span>
         <div style={{ width: "60px", height: "5px", background: C.bg, border: `2px solid ${dk(project?.color || C.grn)}`, overflow: "hidden", marginLeft: "3px" }}>
-          <div style={{ height: "100%", width: `${((project?.prog || 0) / (project?.tot || 1)) * 100}%`, background: project?.color || C.grn }} />
+          <div style={{ height: "100%", width: `${((userProg?.prog ?? project?.prog ?? 0) / (userProg?.tot ?? project?.tot ?? 1)) * 100}%`, background: project?.color || C.grn }} />
         </div>
-        <span style={{ fontFamily: PF, fontSize: "3.5px", color: project?.color || C.grn }}>{project?.prog}/{project?.tot}</span>
+        <span style={{ fontFamily: PF, fontSize: "3.5px", color: project?.color || C.grn }}>{userProg?.prog ?? project?.prog ?? 0}/{userProg?.tot ?? project?.tot ?? 0}</span>
         {bossInfo && <>
           <span style={{ fontFamily: PF, fontSize: "3.5px", color: C.red, marginLeft: "6px" }}>👾 {bossInfo.daysLeft}d</span>
           <div style={{ width: "40px", height: "5px", background: C.bg, border: `2px solid ${C.red}`, overflow: "hidden", marginLeft: "2px" }}>

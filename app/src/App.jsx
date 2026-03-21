@@ -678,6 +678,8 @@ export default function App() {
           <Overworld
             project={world}
             avatar={avatar}
+            userId={user?.id}
+            organizationId={organizationId}
             onBack={() => setScreen("worlds")}
             onNode={(n) => { setNode(n); setScreen("session"); }}
             sound={sound}

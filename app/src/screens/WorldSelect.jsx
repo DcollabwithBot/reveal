@@ -278,8 +278,48 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
   const [activeSideQuest, setActiveSideQuest] = useState(null);
   const [dynamicWorlds, setDynamicWorlds] = useState(null); // null = loading
   const [worldsError, setWorldsError] = useState(null);
+  const [realNpcDefs, setRealNpcDefs] = useState(null); // null = use NPC_DEFS fallback
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
+
+  // Fetch real org members for NPC display
+  useEffect(() => {
+    if (!organizationId) { setRealNpcDefs(null); return; }
+    supabase
+      .from('organization_members')
+      .select('user_id, profiles(display_name, avatar_class, xp, level)')
+      .eq('organization_id', organizationId)
+      .limit(8)
+      .then(({ data }) => {
+        if (!data || data.length === 0) { setRealNpcDefs(null); return; }
+        // Map to NPC_DEFS format — assign positions from NPC_DEFS array
+        const positions = [
+          { px: 18, py: 62 }, { px: 75, py: 65 }, { px: 55, py: 70 }, { px: 88, py: 63 },
+          { px: 30, py: 68 }, { px: 65, py: 60 }, { px: 10, py: 67 }, { px: 45, py: 72 },
+        ];
+        const AVATAR_CLASSES = {
+          warrior: { icon: "⚔️", color: "#f04f78" }, mage: { icon: "🧙", color: "#b55088" },
+          archer: { icon: "🏹", color: "#feae34" }, healer: { icon: "🛡️", color: "#5fcde4" },
+          rogue: { icon: "🗡️", color: "#38b764" }, berserker: { icon: "🪓", color: "#d77643" },
+          necro: { icon: "💀", color: "#8855aa" },
+        };
+        const SKIN_TONES = ["#fdd", "#fed", "#edc", "#ffe", "#fec", "#dbc", "#c9a"];
+        const defs = data.map((m, i) => {
+          const cls = AVATAR_CLASSES[m.profiles?.avatar_class] || AVATAR_CLASSES.warrior;
+          const pos = positions[i % positions.length];
+          return {
+            name: m.profiles?.display_name || `Member ${i + 1}`,
+            cls,
+            hat: cls.color,
+            body: cls.color,
+            skin: SKIN_TONES[i % SKIN_TONES.length],
+            px: pos.px,
+            py: pos.py,
+          };
+        });
+        setRealNpcDefs(defs);
+      }).catch(() => setRealNpcDefs(null));
+  }, [organizationId]);
 
   // Fetch real projects from Supabase
   useEffect(() => {
@@ -319,6 +359,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
             grs: theme.grs,
             drt: theme.drt,
             projectId: p.id,
+            organization_id: organizationId,
             unlocked: true,
             nodes: [],
             paths: [],
@@ -440,8 +481,8 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
 
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "40%", background: "radial-gradient(ellipse at 50% 80%,#ff603008,transparent 60%)", pointerEvents: "none" }} />
 
-      {/* NPCs — only in worlds tab */}
-      {tab === "worlds" && NPC_DEFS.map((m, i) => (
+      {/* NPCs — only in worlds tab; use real members when available, fallback to NPC_DEFS */}
+      {tab === "worlds" && (realNpcDefs || NPC_DEFS).map((m, i) => (
         <div key={m.name} style={{ position: "absolute", left: `${m.px + Math.sin(t * 0.008 + i * 2) * 4}%`, top: `${m.py}%`, animation: `charWalk ${3 + i}s ease-in-out infinite`, zIndex: 3 }}>
           <Spr hat={m.hat} body={m.body} skin={m.skin} cls={m.cls} size={1.5} dir={Math.sin(t * 0.008 + i * 2) > 0 ? 1 : -1} label={m.name} />
         </div>

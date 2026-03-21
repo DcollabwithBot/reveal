@@ -2190,32 +2190,7 @@ export async function awardXP(userId, amount, reason, organizationId) {
       .update({ xp: newXP, level: newLevel, total_sessions: newTotalSessions })
       .eq('id', userId);
 
-    // Update leaderboard_org
-    if (organizationId) {
-      const { data: existing } = await supabase
-        .from('leaderboard_org')
-        .select('id')
-        .eq('id', userId)
-        .eq('organization_id', organizationId)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase.from('leaderboard_org')
-          .update({ xp: newXP, level: newLevel })
-          .eq('id', userId)
-          .eq('organization_id', organizationId);
-      } else {
-        await supabase.from('leaderboard_org')
-          .insert({
-            id: userId,
-            display_name: profile?.display_name || userId.slice(0, 8),
-            avatar_class: profile?.avatar_class || null,
-            xp: newXP,
-            level: newLevel,
-            organization_id: organizationId
-          });
-      }
-    }
+    // Note: leaderboard_org is a VIEW — it auto-reflects profiles.xp, no direct write needed.
 
     return { newXP, newLevel, totalSessions: newTotalSessions };
   } catch (err) {
