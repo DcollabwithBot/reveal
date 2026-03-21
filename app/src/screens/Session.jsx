@@ -547,11 +547,9 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             </span>
           </div>
 
-          {sessionStateHealth && (
+          {sessionStateHealth?.session_state?.present && (
             <div style={{ margin: '4px auto 12px', maxWidth: 660, fontSize: 11, color: 'var(--text3)' }}>
-              {sessionStateHealth?.session_state?.present
-                ? `Session state synced · status ${sessionStateHealth.session_state.status || 'unknown'}${sessionStateHealth.session_state.stale ? ' (stale)' : ''}`
-                : 'Session state not persisted yet — first save happens automatically when you start voting.'}
+              {`Session state synced · status ${sessionStateHealth.session_state.status || 'unknown'}${sessionStateHealth.session_state.stale ? ' (stale)' : ''}`}
             </div>
           )}
 

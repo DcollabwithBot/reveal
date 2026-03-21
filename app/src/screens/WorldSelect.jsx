@@ -318,7 +318,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
           activeMissions={activeMissions}
           activeRandomEvent={activeRandomEvent}
           organizationId={organizationId}
-          onLaunch={(cfg) => { setLaunchMode(null); handleModeSelect(cfg.mode || launchMode); }}
+          onStart={(cfg) => { setLaunchMode(null); handleModeSelect(cfg.mode || launchMode); }}
           onClose={() => setLaunchMode(null)}
         />
       )}

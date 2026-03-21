@@ -852,6 +852,53 @@ export default function App() {
           <WorldSelect
             avatar={avatar}
             onSelect={(w) => { setWorld(w); setScreen("map"); }}
+            onSelectMode={(mode) => {
+              // Route to the correct game screen based on mode id
+              const modeRoutes = {
+                planning_poker: null, // uses default session flow via world select
+                sprint_draft: (id) => { setDraftSessionId(id); setAuthScreen('sprint_draft'); },
+                spec_wars: (id) => { setSpecWarsSessionId(id); setAuthScreen('spec_wars'); },
+                perspective_poker: (id) => { setPerspectiveSessionId(id); setAuthScreen('perspective_poker'); },
+                bluff_poker: (id) => { setBluffPokerSessionId(id); setAuthScreen('bluff_poker'); },
+                nesting_scope: (id) => { setNestingScopeSessionId(id); setAuthScreen('nesting_scope'); },
+                speed_scope: (id) => { setSpeedScopeSessionId(id); setAuthScreen('speed_scope'); },
+                truth_serum: (id) => { setTruthSerumSessionId(id); setAuthScreen('truth_serum'); },
+                flow_poker: (id) => { setFlowPokerSessionId(id); setAuthScreen('flow_poker'); },
+                risk_poker: (id) => { setRiskPokerSessionId(id); setAuthScreen('risk_poker'); },
+                assumption_slayer: (id) => { setAssumptionSlayerSessionId(id); setAuthScreen('assumption_slayer'); },
+                refinement_roulette: (id) => { setRefinementRouletteSessionId(id); setAuthScreen('refinement_roulette'); },
+                dependency_mapper: (id) => { setDependencyMapperSessionId(id); setAuthScreen('dependency_mapper'); },
+              };
+              const modeId = mode.id;
+              const routeFn = modeRoutes[modeId];
+              if (routeFn) {
+                // Create a session and navigate to the game screen
+                import("./lib/supabase.js").then(({ supabase: sb }) => {
+                  sb.from("sessions")
+                    .insert({
+                      game_mode: modeId,
+                      organization_id: organizationId,
+                      status: "active",
+                      created_by: user?.id,
+                    })
+                    .select("id")
+                    .single()
+                    .then(({ data, error }) => {
+                      if (error || !data?.id) {
+                        console.error("Failed to create session for mode", modeId, error);
+                        return;
+                      }
+                      const slug = modeId.replace(/_/g, '-');
+                      window.history.pushState({}, '', `/sessions/${data.id}/${slug}`);
+                      routeFn(data.id);
+                    });
+                });
+              } else {
+                // planning_poker or unknown: use legacy world flow
+                setWorld(mode);
+                setScreen("map");
+              }
+            }}
             sound={sound}
             organizationId={organizationId}
           />
