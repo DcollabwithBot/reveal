@@ -8,6 +8,7 @@ import WorkspaceSidebar from '../components/workspace/WorkspaceSidebar';
 import Toast from '../components/workspace/Toast';
 import KanbanColumn from '../components/workspace/KanbanColumn';
 import VisibilitySelector from '../components/VisibilitySelector';
+import GameHUD from '../components/GameHUD';
 
 
 export default function ProjectWorkspace({ projectId, organizationId, onBack, onTimelog }) {
@@ -605,6 +606,21 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
           )}
         </div>
       </div>
+
+      {/* E13: Game HUD bar */}
+      {activeSprint && (
+        <div style={{ marginBottom: 14 }}>
+          <GameHUD
+            mode="bar"
+            sprintId={activeSprint.id}
+            orgId={organizationId}
+            onNavigate={() => {
+              window.history.pushState({}, '', '/');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+          />
+        </div>
+      )}
 
       {/* Sprint selector hvis mere end 1 */}
       {sprints.length > 1 && (

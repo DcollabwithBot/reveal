@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { C, PF, BF, WORLDS } from "../shared/constants.js";
 import { dk } from "../shared/utils.js";
 import { getGameAvailability } from "../lib/api.js";
+import Leaderboard from "../components/leaderboard/Leaderboard.jsx";
 
 const WL = "#2a1f3d", WD = "#1a1230", FL = "#3a2820", FD = "#281a14", WO = "#5a3a20", ST = "#4a4460", SD = "#3a3450";
 
@@ -175,7 +176,7 @@ function Portal({ w, hovered: isH, t, onClick, availability }) {
   );
 }
 
-export default function WorldSelect({ avatar, onSelect, sound, activeSprint }) {
+export default function WorldSelect({ avatar, onSelect, sound, activeSprint, organizationId }) {
   const [t, setT] = useState(0);
   const [hov, setHov] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -278,6 +279,21 @@ export default function WorldSelect({ avatar, onSelect, sound, activeSprint }) {
             </div>
           ))}
         </div>
+
+        {/* E14: Hall of Fame — mini leaderboard strip */}
+        {organizationId && (
+          <div style={{
+            marginTop: 20, padding: "10px 16px",
+            background: "rgba(0,0,0,0.35)",
+            border: "1px solid rgba(200,168,75,0.2)",
+            borderRadius: 10, maxWidth: 700, margin: "20px auto 0",
+          }}>
+            <div style={{ fontFamily: PF, fontSize: "6px", color: C.gld, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
+              🏆 HALL OF FAME
+            </div>
+            <Leaderboard orgId={organizationId} mode="mini" category="xp" showCategoryTabs={false} maxRows={3} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2052,6 +2052,112 @@ export async function sendEmailViaEdge(to, subject, html) {
   return edgeFn('send-email', { to, subject, html, org_id: membership?.organization_id });
 }
 
+// ── Sprint E: Leaderboard (E14) ───────────────────────────────────────────────
+export async function getLeaderboard({ organizationId, category = 'xp', limit = 10 } = {}) {
+  try {
+    let orgId = organizationId;
+    if (!orgId) {
+      const m = await resolveMembership();
+      orgId = m?.organization_id;
+    }
+    if (!orgId) return [];
+
+    // Base: profiles in org
+    const { data: members } = await supabase
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', orgId);
+
+    const userIds = (members || []).map(m => m.user_id).filter(Boolean);
+    if (!userIds.length) return [];
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, display_name, avatar_class, xp, level')
+      .in('id', userIds)
+      .order('xp', { ascending: false })
+      .limit(limit);
+
+    if (category === 'xp' || !profiles?.length) {
+      return (profiles || []).map((p, i) => ({
+        rank: i + 1,
+        user_id: p.id,
+        display_name: p.display_name || p.id?.slice(0, 8) || 'Anonym',
+        avatar_class: p.avatar_class || null,
+        xp: p.xp || 0,
+        level: p.level || 1,
+        score: p.xp || 0,
+        scoreLabel: `${p.xp || 0} XP`,
+      }));
+    }
+
+    // For other categories, compute from session data
+    const baseEntries = (profiles || []).map(p => ({
+      user_id: p.id,
+      display_name: p.display_name || p.id?.slice(0, 8) || 'Anonym',
+      avatar_class: p.avatar_class || null,
+      xp: p.xp || 0,
+      level: p.level || 1,
+      score: 0,
+      scoreLabel: '0',
+    }));
+
+    if (category === 'accuracy') {
+      // Estimation accuracy: compare final_estimate vs actual_hours
+      const { data: votes } = await supabase
+        .from('votes')
+        .select('user_id, value, session_items(final_estimate, actual_hours)')
+        .in('user_id', userIds)
+        .not('session_items.actual_hours', 'is', null)
+        .limit(500);
+
+      const accuracyByUser = {};
+      for (const v of votes || []) {
+        const actual = v.session_items?.actual_hours;
+        const estimate = Number(v.value);
+        if (!actual || !estimate || isNaN(estimate)) continue;
+        const ratio = actual / estimate;
+        const acc = ratio > 1 ? 1 / ratio : ratio;
+        if (!accuracyByUser[v.user_id]) accuracyByUser[v.user_id] = { total: 0, count: 0 };
+        accuracyByUser[v.user_id].total += acc;
+        accuracyByUser[v.user_id].count += 1;
+      }
+
+      return baseEntries
+        .map(e => {
+          const a = accuracyByUser[e.user_id];
+          const pct = a ? Math.round((a.total / a.count) * 100) : 0;
+          return { ...e, score: pct, scoreLabel: `${pct}% acc` };
+        })
+        .sort((a, b) => b.score - a.score)
+        .map((e, i) => ({ ...e, rank: i + 1 }));
+    }
+
+    // Default fallback: XP
+    return baseEntries
+      .sort((a, b) => b.xp - a.xp)
+      .map((e, i) => ({ ...e, rank: i + 1, score: e.xp, scoreLabel: `${e.xp} XP` }));
+  } catch (err) {
+    console.warn('[getLeaderboard]', err.message);
+    return [];
+  }
+}
+
+export async function getCurrentUserProfile() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, display_name, avatar_class, xp, level')
+      .eq('id', user.id)
+      .maybeSingle();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export async function getUserMissions() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data } = await supabase

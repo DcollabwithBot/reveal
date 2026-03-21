@@ -34,6 +34,8 @@ import { RoomsSection } from '../components/RoomCard';
 import SprintCloseModal from '../components/SprintCloseModal';
 import { UserProfileMini } from '../components/UserProfilePanel';
 import AuditLogView from '../components/AuditLogView';
+import GameHUD from '../components/GameHUD';
+import Leaderboard from '../components/leaderboard/Leaderboard';
 
 function daysLeft(dateStr) {
   if (!dateStr) return null;
@@ -860,10 +862,28 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
         <EditableKpiCard label="Portfolio Confidence" value={confidenceVal !== null ? `${confidenceVal}%` : '—'} sub={confidencePrev !== null ? `${confidenceVal >= confidencePrev ? '+' : ''}${confidenceVal - confidencePrev}% vs last sprint` : 'klik for at sætte'} color={confidenceVal >= 70 ? 'var(--jade)' : confidenceVal >= 50 ? 'var(--warn)' : 'var(--text)'} editing={editingMetric === 'confidence'} onEdit={() => setEditingMetric('confidence')} onSave={(val, prev) => handleSaveMetric('portfolio_confidence', val, prev)} onCancel={() => setEditingMetric(null)} isPercent />
         <KpiCard label="Pending Approvals" value={pendingCount} sub={pendingCount > 0 ? 'afventer review' : 'all clear'} color={pendingCount > 0 ? 'var(--warn)' : 'var(--text)'} />
         </div>
-        <DailyMissionsCard organizationId={orgId} onNavigate={(mission) => { if (onWorkspace && mission.context?.includes('projects:')) onWorkspace(null); }} />
+        {/* E13: Game HUD widget + Daily Missions stacked */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <GameHUD
+            mode="widget"
+            orgId={orgId}
+            onNavigate={() => {
+              window.history.pushState({}, '', '/');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+          />
+          <DailyMissionsCard organizationId={orgId} onNavigate={(mission) => { if (onWorkspace && mission.context?.includes('projects:')) onWorkspace(null); }} />
+        </div>
       </div>
 
       <RiskBand riskItems={riskItems} onAdd={handleAddRisk} onResolve={handleResolveRisk} onEdit={handleEditRisk} />
+
+      {/* E14: Sprint Hall of Fame leaderboard */}
+      {orgId && (
+        <div style={{ marginBottom: 28, padding: '16px 20px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <Leaderboard orgId={orgId} mode="full" showCategoryTabs />
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
         <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>Active Projects</h2>

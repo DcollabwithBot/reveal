@@ -587,6 +587,7 @@ export default function App() {
             avatar={avatar}
             onSelect={(w) => { setWorld(w); setScreen("map"); }}
             sound={sound}
+            organizationId={organizationId}
           />
         )}
         {screen === "map" && (
