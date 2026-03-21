@@ -147,9 +147,77 @@ if (user && authScreen === "session_active" && currentSessionId && currentSessio
 
 ---
 
+## Game → PM Write-back model
+
+Dette er den centrale binding. **Alt arbejde i et spil skal være synligt i PM.**
+
+### Princip
+Spillet producerer outputs. Disse outputs skrives til PM via en **session-log** der altid er synlig i ProjectWorkspace og Dashboard. GM approver kun de dele der ændrer konkrete PM-felter (estimater, status).
+
+### Hvad hvert spil producerer → hvad PM ser
+
+| Game Mode | Output | PM-synlighed |
+|---|---|---|
+| **Planning Poker** | Votes per item → konsensus-estimat | `session_items.estimate` (pending → approved af GM) |
+| **Speed Scope** | Quick round 1+2 estimater + delta | Samme som Planning Poker, men markeret "speed" |
+| **Perspective Poker** | Team alignment-score per item | Note på item: "Lav alignment — diskuter" |
+| **Bluff Poker** | Afslørede skjulte antagelser | Note på item: "Fundet antagelser: X, Y, Z" |
+| **Risk Poker** | Risiko-score per item (lav/mellem/høj) | `session_items.risk_score` + synlig badge i workspace |
+| **Assumption Slayer** | Dokumenterede antagelser + danger-scores | Note på item + `assumptions`-liste |
+| **Flow Poker** | Cycle time analyse + flaskehalse | Sprint-metrics: "Gennemsnitlig cycle time: X dage" |
+| **Nesting Scope** | Sub-items identificeret under estimering | Nye child-items oprettet i backlog (pending approval) |
+| **Dependency Mapper** | Dependencies kortlagt mellem items | `item_dependencies`-relationer synlige i workspace |
+| **Refinement Roulette** | Refinement-noter per item | Note på item |
+| **Sprint Draft** | Foreslåede items til næste sprint | Sprint-forslag til PM approval |
+| **Boss Battle Retro** | Retro-findings, root causes, action items | Nye action items oprettet i backlog |
+| **Truth Serum** | Anonym survey-resultater | Heatmap synlig i project analytics |
+
+### Session-log (alle modes)
+Hver session efterlader **en session-record i PM** med:
+- Hvornår sessionen kørte
+- Hvem deltog
+- Hvilken mode
+- Hvad der blev produceret (summary)
+- Link til fuldt session-output
+
+Dette er synligt i ProjectWorkspace under "Sessions" og i Dashboard KPI.
+
+---
+
+## Item-selektion ved session-start
+
+Korrekt flow (mangler delvist i UI):
+```
+1. Bruger vælger projekt (World)
+2. Vælger mode
+3. SessionLaunchModal åbner:
+   - Mode-info
+   - Aktive missions
+   - [MANGLER] Backlog-items fra projektet — bruger vælger 1-N items til sessionen
+4. START → opretter session med valgte items som `session_items`
+5. I spillet: items køres igennem én ad gangen
+```
+
+Uden item-selektion ved start: spillet kører uden PM-kontekst og output kan ikke kobles til konkrete items.
+
+---
+
+## Sprints og projekter → synlige i spillet
+
+Korrekt binding (delvist implementeret):
+- World Map viser projekter fra DB ✅
+- SessionLaunchModal skal vise **aktiv sprint + items fra den sprint** til selektion ❌ (mangler)
+- Under session: item-titel + beskrivelse vises for hvert item der estimeres ✅ (i Session.jsx via node.name)
+- Efter session: sprint-velocity opdateres i KPI Dashboard ❌ (mangler)
+
+---
+
 ## Hvad der mangler (næste sprint)
 
-- [ ] SessionLaunchModal: vis backlog-items fra det valgte projekt
-- [ ] GM approval-flow: votes → session_items.estimate (UI mangler)
-- [ ] Projekt-fetch i WorldSelect: viser "Ingen projekter" hvis organization_id ikke matcher — skal debugges
-- [ ] Overworld: depreceres som mellemstation, erstattes af direkte projekt-workspace
+- [ ] **SessionLaunchModal: item-selektion** — vis aktiv sprint + backlog-items fra valgt projekt, bruger vælger hvilke items der skal med i sessionen
+- [ ] **Session-log i PM** — ProjectWorkspace "Sessions"-tab der viser alle sessions kørt på projektet med summary
+- [ ] **GM approval-flow UI** — votes → pending → GM approver → `session_items.estimate` opdateres (DB-logik eksisterer, UI mangler)
+- [ ] **Risk score + antagelser** — Risk Poker og Assumption Slayer skriver til `session_items`
+- [ ] **Sprint velocity** — efter session: opdatér sprint-metrics i KPI Dashboard
+- [ ] **Projekt-fetch fix** — WorldSelect viser "Ingen projekter" hvis organization_id ikke matcher
+- [ ] **Overworld deprecated** — erstattes af direkte projekt-workspace som entry til sessions
