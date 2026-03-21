@@ -147,6 +147,134 @@ if (user && authScreen === "session_active" && currentSessionId && currentSessio
 
 ---
 
+## ❤️ Hjertet: PM ↔ Game dataflow (KONTRAKTEN)
+
+Dette afsnit er ikke til diskussion. Det er den præcise kontrakt for hvordan PM og game kommunikerer.
+
+### Del 1 — PM → Game (hente data ind i Overworld)
+
+Når bruger klikker ind i en projekt-verden (portal på World Map), henter Overworld.jsx disse data fra Supabase:
+
+```js
+// 1. Aktiv sprint for projektet
+const { data: sprint } = await supabase
+  .from('sprints')
+  .select('id, name, end_date, goal')
+  .eq('project_id', projectId)
+  .eq('status', 'active')
+  .single()
+
+// 2. Items i den aktive sprint → bliver til nodes på kortet
+const { data: items } = await supabase
+  .from('session_items')
+  .select('id, title, description, estimate, status, risk_score')
+  .eq('sprint_id', sprint.id)
+  .neq('status', 'done')
+  .order('priority', { ascending: true })
+
+// 3. Teammedlemmer → karakterer på kortet
+const { data: members } = await supabase
+  .from('organization_members')
+  .select('user_id, profiles(display_name, avatar_class, avatar_color, level)')
+  .eq('organization_id', orgId)
+```
+
+**Mapping til Overworld:**
+- `sprint.end_date` → boss HP-bar (dage tilbage / total sprint-dage)
+- `items` → nodes på kortet (én node per item)
+- `node.id = item.id` — altid koblet
+- `members` → sprites der vandrer på kortet
+- `item.status` → node-farve (uestimeret = grå, estimeret = grøn, risiko = rød)
+
+---
+
+### Del 2 — Game → PM (skubbe data tilbage)
+
+Når et spil afsluttes, gemmes output i to trin:
+
+#### Trin 1: Gem rå game-output (sker automatisk ved session-afslutning)
+```js
+// Votes/estimater gemmes under sessionen løbende
+// Ved afslutning: aggreger til session_summary
+await supabase.from('session_summary').upsert({
+  session_id: sessionId,
+  item_id: itemId,
+  mode: gameMode,           // 'planning_poker', 'risk_poker' etc.
+  consensus_value: value,   // det estimat/score der er opnået konsensus om
+  raw_votes: votesArray,    // alle individuelle votes
+  completed_at: new Date()
+})
+```
+
+#### Trin 2: GM approval → skriv til PM (kræver aktiv handling)
+```js
+// GM ser pending updates i ProjectWorkspace → godkender
+// Kun herefter opdateres session_items
+
+// Planning Poker / Speed Scope
+await supabase.from('session_items')
+  .update({ estimate: consensus_value, estimated_at: new Date() })
+  .eq('id', itemId)
+
+// Risk Poker
+await supabase.from('session_items')
+  .update({ risk_score: consensus_value })
+  .eq('id', itemId)
+
+// Nesting Scope — nye child-items
+await supabase.from('session_items')
+  .insert(newChildItems.map(item => ({
+    ...item,
+    sprint_id: sprintId,
+    parent_item_id: parentItemId,
+    status: 'pending'
+  })))
+
+// Boss Battle Retro — action items
+await supabase.from('session_items')
+  .insert(actionItems.map(item => ({
+    title: item.title,
+    sprint_id: nextSprintId,  // action items går i næste sprint
+    item_type: 'action_item',
+    created_from_session: sessionId
+  })))
+```
+
+#### Hvad der ALDRIG sker uden GM approval
+- `session_items.estimate` opdateres ikke
+- `session_items.status` ændres ikke
+- Nye items oprettes ikke i backlog
+- Sprint modificeres ikke
+
+---
+
+### Del 3 — Session-log (altid synlig i PM)
+
+Uanset GM approval efterlader enhver session et synligt spor i PM:
+
+```js
+// Oprettes automatisk når session starter
+await supabase.from('sessions').insert({
+  project_id: projectId,
+  game_mode: gameMode,
+  created_by: userId,
+  status: 'active'
+})
+
+// Opdateres når session afsluttes
+await supabase.from('sessions').update({
+  status: 'completed',
+  completed_at: new Date(),
+  items_covered: itemIds,        // hvilke items der var med
+  participants: participantIds,  // hvem deltog
+  summary: summaryText           // kort summary
+}).eq('id', sessionId)
+```
+
+Dette vises i ProjectWorkspace under "Sessions" — **altid, uanset om GM har approved noget**.
+
+---
+
 ## Game → PM Write-back model
 
 Dette er den centrale binding. **Alt arbejde i et spil skal være synligt i PM.**
