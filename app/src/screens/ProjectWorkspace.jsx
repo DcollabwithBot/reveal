@@ -1016,7 +1016,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
 
       {/* ── Godkendelser tab ─────────────────────────────────── */}
       {workspaceTab === 'approvals' && (
-        <div style={{ maxWidth: 800 }}>
+        <div data-tour="workspace-approvals" style={{ maxWidth: 800 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
               Ventende godkendelser

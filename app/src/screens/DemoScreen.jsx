@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { C, PF, BF, NPC_TEAM, CLASSES, WORLDS } from "../shared/constants.js";
 import { dk } from "../shared/utils.js";
+import { useTour } from "../tour/useTour.js";
 
 // ─── Fake data ───────────────────────────────────────────────────────────────
 const DEMO_WORLDS = WORLDS.slice(0, 3);
@@ -192,7 +193,7 @@ function WorldMapPhase({ onNext }) {
         </div>
 
         {/* World portals */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
+        <div data-tour="world-portals" style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
           {DEMO_WORLDS.map((w, i) => {
             const isSelected = selectedWorld === w.id;
             return (
@@ -312,7 +313,7 @@ function PokerPhase({ onNext }) {
         </div>
 
         {/* Boss HP bar */}
-        <div style={{ maxWidth: 500, margin: "0 auto 16px", padding: "8px 14px", background: C.bg + "cc", border: `1px solid ${C.brd}`, borderRadius: 8 }}>
+        <div data-tour="session-boss-hp" style={{ maxWidth: 500, margin: "0 auto 16px", padding: "8px 14px", background: C.bg + "cc", border: `1px solid ${C.brd}`, borderRadius: 8 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontFamily: PF, fontSize: "5px", color: C.red }}>👾 DELIVERY PRESSURE</span>
             <span style={{ fontFamily: PF, fontSize: "4px", color: C.dim }}>{bossHp}/100 HP</span>
@@ -408,7 +409,7 @@ function PokerPhase({ onNext }) {
             <div style={{ fontFamily: BF, fontSize: 13, color: C.dim, textAlign: "center", marginBottom: 8 }}>
               {userVote === null ? "Vælg dit estimat:" : `Du valgte ${userVote} — venter på teamet…`}
             </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+            <div data-tour="session-poker-cards" style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
               {FIBONACCI.map((n, i) => (
                 <button
                   key={n}
@@ -608,6 +609,18 @@ function LeaderboardPhase() {
 export default function DemoScreen() {
   const [phase, setPhase] = useState("worldMap"); // worldMap | poker | leaderboard
   const [flash, setFlash] = useState(null);
+  const { startTour } = useTour();
+
+  // Auto-start tour when demo page loads
+  useEffect(() => {
+    const t = setTimeout(() => {
+      startTour('demo', {
+        onComplete: () => { /* Demo completed — show CTA */ },
+        onSkip: () => { /* User skipped tour */ },
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function transition(next) {
     const colors = { poker: C.grn, leaderboard: C.gld };

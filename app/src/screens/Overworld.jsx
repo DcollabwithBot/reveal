@@ -337,7 +337,7 @@ export default function Overworld({ project, avatar, userId, organizationId: org
         </div>
         <span style={{ fontFamily: PF, fontSize: "3.5px", color: project?.color || C.grn }}>{userProg?.prog ?? project?.prog ?? 0}/{userProg?.tot ?? project?.tot ?? 0}</span>
         {bossInfo && <>
-          <span style={{ fontFamily: PF, fontSize: "3.5px", color: C.red, marginLeft: "6px" }}>👾 {bossInfo.daysLeft}d</span>
+          <span data-tour="overworld-boss" style={{ fontFamily: PF, fontSize: "3.5px", color: C.red, marginLeft: "6px" }}>👾 {bossInfo.daysLeft}d</span>
           <div style={{ width: "40px", height: "5px", background: C.bg, border: `2px solid ${C.red}`, overflow: "hidden", marginLeft: "2px" }}>
             <div style={{ height: "100%", width: `${bossInfo.hp}%`, background: bossInfo.hp > 30 ? C.red : '#ff2222', transition: 'width 0.5s' }} />
           </div>
@@ -417,6 +417,7 @@ export default function Overworld({ project, avatar, userId, organizationId: org
           })}
 
           {/* Nodes */}
+          <g data-tour="overworld-nodes">
           {NODES.map(n => {
             const isH = hov === n.id, cur = n.cur, dn = n.dn, boss = n.tp === "b", side = n.tp === "q" || n.tp === "c";
             const lock = !dn && !cur && !side, can = cur || (side && !dn), r = boss ? 24 : side ? 16 : 20, isE = entering === n.id;
@@ -439,6 +440,8 @@ export default function Overworld({ project, avatar, userId, organizationId: org
               </g>
             );
           })}
+
+          </g>
 
           {/* NPC party around player */}
           {TEAM.filter(m => !m.isP).slice(0, 3).map((m, i) => {

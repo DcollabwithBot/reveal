@@ -358,7 +358,7 @@ export default function SessionLaunchModal({
                 <div style={{ marginTop: 4, opacity: 0.6 }}>Session startes med tomme items.</div>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 200, overflowY: "auto" }}>
+              <div data-tour="session-launch-items" style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 200, overflowY: "auto" }}>
                 {items.map(item => {
                   const sel = selectedItems.includes(item.id);
                   return (
@@ -424,6 +424,7 @@ export default function SessionLaunchModal({
             Annuller
           </button>
           <button
+            data-tour="session-launch-start"
             onClick={handleStart}
             disabled={starting}
             style={{

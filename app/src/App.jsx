@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { provisionUser } from "./lib/api";
 import { useSound } from "./shared/useSound.js";
+import { useTour } from "./tour/useTour.js";
 import Landing from "./screens/Landing.jsx";
 import DemoScreen from "./screens/DemoScreen.jsx";
 import Login from "./screens/Login.jsx";
@@ -41,6 +42,7 @@ const OnboardingWalkthrough = lazy(() => import("./screens/OnboardingWalkthrough
 const DocsScreen = lazy(() => import("./screens/DocsScreen.jsx"));
 
 export default function App() {
+  const { startTour } = useTour();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState("landing"); // landing | login | lobby | dashboard | timelog | settings | teamkanban | game
@@ -192,11 +194,11 @@ export default function App() {
     // Check onboarding status
     supabase
       .from('profiles')
-      .select('onboarding_completed')
+      .select('onboarding_completed, tour_skipped')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (data && data.onboarding_completed === false) {
+        if (data && data.onboarding_completed === false && !data.tour_skipped) {
           setNeedsOnboarding(true);
         }
       })
@@ -282,6 +284,15 @@ export default function App() {
             setNeedsOnboarding(false);
             window.history.pushState({}, document.title, '/dashboard');
             setAuthScreen('dashboard');
+            // Auto-start guided tour after onboarding step completes
+            setTimeout(() => startTour('onboarding', {
+              onComplete: () => {
+                supabase.from('profiles').update({ onboarding_completed: true }).eq('id', user.id).then(() => {}).catch(() => {});
+              },
+              onSkip: () => {
+                supabase.from('profiles').update({ tour_skipped: true }).eq('id', user.id).then(() => {}).catch(() => {});
+              },
+            }), 800);
           }}
         />
       </Suspense>

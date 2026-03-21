@@ -667,7 +667,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
 
         {/* WORLDS TAB */}
         {tab === "worlds" && (
-          <div style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
+          <div data-tour="world-portals" style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
             {dynamicWorlds === null ? (
               /* Loading state */
               <div style={{ textAlign: "center", padding: "40px 0" }}>

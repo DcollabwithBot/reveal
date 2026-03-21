@@ -1,4 +1,5 @@
 import { handleError } from "../lib/errorHandler";
+import { useTour } from "../tour/useTour.js";
 
 import { useEffect, useState } from 'react';
 import { useGameMode } from '../shared/GameModeContext';
@@ -253,6 +254,7 @@ const MODES = [
 ];
 
 export default function WorkspaceSettings({ onBack }) {
+  const { startTour } = useTour();
   const { gameMode, updateGameMode } = useGameMode();
   const [myPermissions, setMyPermissions] = useState([]);
   const [myRole, setMyRole] = useState('member');
@@ -428,6 +430,30 @@ export default function WorkspaceSettings({ onBack }) {
         {/* API Keys section */}
         <div style={{ marginTop: 48 }}>
           <ApiKeysSettings />
+        </div>
+
+        {/* Guided Tour section */}
+        <div style={{ marginTop: 48, paddingTop: 32, borderTop: '1px solid var(--border)' }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>🎮 Introduktions-tour</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>
+              Genstart den interaktive guided tour og få et step-by-step overblik over Reveal.
+            </div>
+            <button
+              onClick={() => startTour('onboarding')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px',
+                background: 'var(--jade-dim)', border: '1px solid rgba(0,200,150,0.35)',
+                borderRadius: 'var(--radius)',
+                fontSize: 13, fontWeight: 600,
+                color: 'var(--jade)', cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              🔄 Genstart introduktion
+            </button>
+          </div>
         </div>
         </>}
 

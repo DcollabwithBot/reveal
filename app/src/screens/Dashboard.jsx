@@ -915,7 +915,7 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
 
       {/* Daily Missions + KPIs side by side */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, marginBottom: 28 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <div data-tour="dashboard-kpi" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <KpiCard label="At Risk" value={atRiskCount + riskItems.length} sub={riskItems.length > 0 ? riskItems.slice(0, 2).map(r => r.title.slice(0, 20)).join(' · ') : 'alt ser godt ud'} color={(atRiskCount + riskItems.length) > 0 ? 'var(--danger)' : 'var(--text)'} />
         <EditableKpiCard label="Total Blocked" value={blockedCount} sub={mttrVal ? `Avg MTTR ${mttrVal}h` : 'blokkerede items'} color={blockedCount > 0 ? 'var(--danger)' : 'var(--text)'} editing={editingMetric === 'blocked'} onEdit={() => setEditingMetric('blocked')} onSave={(val, prev) => handleSaveMetric('total_blocked', val, prev)} onCancel={() => setEditingMetric(null)} extraKey="avg_mttr" extraLabel="Avg MTTR (h)" extraValue={mttrVal} onSaveExtra={(val) => upsertOrgMetric(orgId, 'avg_mttr', val, null, null).then(() => setOrgMetrics(prev => ({ ...prev, avg_mttr: { value_num: val } })))} />
         <EditableKpiCard label="Portfolio Confidence" value={confidenceVal !== null ? `${confidenceVal}%` : '—'} sub={confidencePrev !== null ? `${confidenceVal >= confidencePrev ? '+' : ''}${confidenceVal - confidencePrev}% vs last sprint` : 'klik for at sætte'} color={confidenceVal >= 70 ? 'var(--jade)' : confidenceVal >= 50 ? 'var(--warn)' : 'var(--text)'} editing={editingMetric === 'confidence'} onEdit={() => setEditingMetric('confidence')} onSave={(val, prev) => handleSaveMetric('portfolio_confidence', val, prev)} onCancel={() => setEditingMetric(null)} isPercent />
@@ -985,12 +985,12 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
 
       {/* E14: Sprint Hall of Fame leaderboard */}
       {orgId && (
-        <div style={{ marginBottom: 28, padding: '16px 20px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+        <div data-tour="leaderboard-table" style={{ marginBottom: 28, padding: '16px 20px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12 }}>
           <Leaderboard orgId={orgId} mode="full" showCategoryTabs />
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
+      <div data-tour="dashboard-projects" style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
         <h2 style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', margin: 0 }}>Active Projects</h2>
         <span style={{ fontSize: 12, color: 'var(--text2)' }}>sorteret efter senest opdateret{atRiskLabel || blockerLabel}</span>
       </div>

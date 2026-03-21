@@ -19,7 +19,7 @@ export default function SessionCombatStage({
 }) {
   return (
     <>
-      <div style={{ position: 'relative', marginBottom: '8px' }}>
+      <div data-tour="session-boss-hp" style={{ position: 'relative', marginBottom: '8px' }}>
         <Boss hp={boss.hp} maxHp={boss.maxHp} name={boss.name} hit={boss.hit} defeated={boss.defeated} />
         {dmgNums.map((d) => <DmgNum key={d.id} value={d.val} x={d.x} critical={d.critical} color={d.critical ? C.gld : C.acc} />)}
       </div>

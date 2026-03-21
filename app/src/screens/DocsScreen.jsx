@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTour } from "../tour/useTour.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DocsScreen — In-app dokumentation & hjælpecenter
@@ -260,6 +261,7 @@ const GAME_MODES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function DocsScreen({ onBack }) {
+  const { startTour } = useTour();
   const [activeSection, setActiveSection] = useState("kom-i-gang");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const contentRef = useRef(null);
@@ -354,6 +356,35 @@ export default function DocsScreen({ onBack }) {
 
         {/* Sections */}
         <div style={styles.body}>
+
+          {/* ── 🎮 Interaktiv Guide ──────────────────────────────────────── */}
+          <section style={{ ...styles.section, background: 'var(--jade-dim)', border: '1px solid var(--jade)', borderRadius: 'var(--radius-lg)', padding: '24px 28px', marginBottom: 32 }}>
+            <h2 style={{ ...styles.h2, color: 'var(--jade)', marginTop: 0 }}>🎮 Interaktiv Guide</h2>
+            <p style={{ ...styles.p, marginBottom: 16 }}>
+              Ny til Reveal? Start den interaktive guided tour og oplev platformen live — vi viser dig hvert element og forklarer det undervejs.
+            </p>
+            <button
+              onClick={() => startTour('explore', {
+                onComplete: () => {},
+                onSkip: () => {},
+              })}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 10,
+                padding: '12px 24px',
+                background: 'var(--jade)', border: 'none',
+                borderRadius: 'var(--radius)',
+                fontSize: 13, fontWeight: 700,
+                color: '#0c0c0f', cursor: 'pointer',
+                boxShadow: '0 0 20px rgba(0,200,150,0.35)',
+                transition: 'all 0.2s',
+              }}
+            >
+              🗺️ Start guided tour
+            </button>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 10 }}>
+              9 trin · ~2 minutter · Kan springes over til enhver tid
+            </div>
+          </section>
 
           {/* ── 1. Kom i gang ──────────────────────────────────────────────── */}
           <section id="docs-kom-i-gang" style={styles.section}>

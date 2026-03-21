@@ -231,7 +231,7 @@ export default function Leaderboard({
           ) : entries.length === 0 ? (
             <div style={{ color: 'var(--text3)', fontSize: 12 }}>Ingen data endnu — start en session!</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div data-tour="leaderboard-table" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {entries.map((e, i) => (
                 <LeaderRow key={e.user_id} entry={e} currentUserId={resolvedUserId} animate animDelay={i * 100} />
               ))}

@@ -56,7 +56,7 @@ export default function PokerRouletteSteps({
         <div style={{ fontFamily: PF, fontSize: '6px', color: C.dim, letterSpacing: '2px', marginBottom: '8px' }}>
           {pv === null ? '◈ VÆLG DIT KORT FOR AT ANGRIBE ◈' : rdy ? '◈ ALLE HAR ANGREBET! ◈' : '◈ PARTY ANGRIBER... ◈'}
         </div>
-        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
+        <div data-tour="session-poker-cards" style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
           {[1, 2, 3, 5, 8, 13, 21].map((v, vi) => (
             <div key={v} onClick={() => { if (pv === null) doVote(v); }} style={{ width: '56px', height: '78px', background: `linear-gradient(145deg,${C.bgL},${C.bgC})`, border: `3px solid ${pv === v ? C.acc : C.brd}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: pv === null ? 'pointer' : 'default', opacity: pv !== null && pv !== v ? 0.1 : 1, transform: pv === v ? 'scale(1.15) translateY(-10px)' : 'scale(1)', transition: 'all 0.15s', boxShadow: pv === v ? `0 4px 16px ${C.acc}66` : `3px 3px 0 ${C.bg}`, animation: pv === null ? `cardFloat 2.5s ease-in-out ${vi * 0.12}s infinite` : 'none', position: 'relative' }}>
               <div style={{ position: 'absolute', top: '2px', left: '4px', fontFamily: PF, fontSize: '5px', color: pv === v ? C.acc : C.dim }}>{v}</div>
