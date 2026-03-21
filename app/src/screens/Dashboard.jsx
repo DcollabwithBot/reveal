@@ -553,7 +553,7 @@ function ProjectTable({ projects, onWorkspace, onTimelog, onProjectStatusChange 
   );
 }
 
-export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
+export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuestLog, onWelcome }) {
   const [dashboard, setDashboard] = useState({ active: [], upcoming: [], finished: [], projects: [], activity: [] });
   const [approvalRequests, setApprovalRequests] = useState([]);
   const [health, setHealth] = useState({ queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
@@ -912,9 +912,9 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
 
       <RiskBand riskItems={riskItems} onAdd={handleAddRisk} onResolve={handleResolveRisk} onEdit={handleEditRisk} />
 
-      {/* v3.1 KPI Dashboard link */}
-      {onAnalytics && (
-        <div style={{ marginBottom: 16 }}>
+      {/* v3.1 KPI Dashboard link + Quest Log */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {onAnalytics && (
           <button
             onClick={onAnalytics}
             style={{
@@ -927,8 +927,36 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
           >
             📊 Se teamets fremgang →
           </button>
-        </div>
-      )}
+        )}
+        {onQuestLog && (
+          <button
+            onClick={onQuestLog}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              fontSize: 12, fontWeight: 600, padding: '8px 16px',
+              background: 'rgba(254,174,52,0.08)', border: '1px solid rgba(254,174,52,0.25)',
+              borderRadius: 'var(--radius)', cursor: 'pointer', color: 'rgba(254,174,52,0.9)',
+              transition: 'all 0.15s',
+            }}
+          >
+            📜 Quest Log →
+          </button>
+        )}
+        {onWelcome && (
+          <button
+            onClick={onWelcome}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              fontSize: 12, fontWeight: 600, padding: '8px 16px',
+              background: 'rgba(95,205,228,0.08)', border: '1px solid rgba(95,205,228,0.25)',
+              borderRadius: 'var(--radius)', cursor: 'pointer', color: 'rgba(95,205,228,0.9)',
+              transition: 'all 0.15s',
+            }}
+          >
+            📖 Kom i gang →
+          </button>
+        )}
+      </div>
 
       {/* E14: Sprint Hall of Fame leaderboard */}
       {orgId && (

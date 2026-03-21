@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card';
 import { supabase } from '../lib/supabase';
 import IntegrationsSettings, { WebhookSettings } from '../components/IntegrationsSettings';
 import AdminPanel from '../components/AdminPanel';
+import GameModeSettingsPanel from '../components/discovery/GameModeSettingsPanel.jsx';
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -392,6 +393,18 @@ export default function WorkspaceSettings({ onBack }) {
             </div>
           </div>
           <TeamRoles myPermissions={myPermissions} />
+        </div>
+
+        {/* Game Mode Settings section */}
+        <div style={{ marginTop: 48 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>🎮 Game Mode Indstillinger</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+              Vælg hvilke spilmodes der er aktive for dit aktive projekt.
+              World Map, Mission Generator og Situational Recommender respekterer disse indstillinger.
+            </div>
+          </div>
+          <GameModeSettingsPanel projectId={null} organizationId={organizationId} />
         </div>
 
         {/* Integrations section */}

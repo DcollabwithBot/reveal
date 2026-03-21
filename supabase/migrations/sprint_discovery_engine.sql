@@ -152,3 +152,34 @@ INSERT INTO missions (
   ('SLIP THE BEAST — Assumption Slayer','Det er tid til at slå de farlige antagelser ihjel.',  '🐲', 80, 'team', 'slip_the_beast', 'assumption_slayer','hard', 1, true),
   ('SLIP THE BEAST — Truth Serum',      'Sandheden kan ikke vente. Kør Truth Serum nu.',       '🐲', 80, 'team', 'slip_the_beast', 'truth_serum',      'hard', 1, true)
 ON CONFLICT DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- DEL 5B: game_mode_config on projects
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS game_mode_config jsonb DEFAULT '{}'::jsonb;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- DEL 6: project_templates
+-- ═══════════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS project_templates (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id  uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  name             text NOT NULL,
+  description      text,
+  game_mode_config jsonb DEFAULT '{}'::jsonb,
+  is_system        boolean DEFAULT false,
+  created_by       uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at       timestamptz DEFAULT now()
+);
+
+ALTER TABLE project_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "project_templates_org_member" ON project_templates
+  FOR ALL USING (
+    is_system = true OR
+    organization_id IN (
+      SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_project_templates_org ON project_templates(organization_id);

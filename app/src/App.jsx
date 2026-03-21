@@ -35,6 +35,8 @@ const RiskPokerScreen = lazy(() => import("./screens/RiskPokerScreen.jsx"));
 const AssumptionSlayerScreen = lazy(() => import("./screens/AssumptionSlayerScreen.jsx"));
 const RefinementRouletteScreen = lazy(() => import("./screens/RefinementRouletteScreen.jsx"));
 const DependencyMapperScreen = lazy(() => import("./screens/DependencyMapperScreen.jsx"));
+const QuestLogScreen = lazy(() => import("./screens/QuestLogScreen.jsx"));
+const OnboardingWalkthrough = lazy(() => import("./screens/OnboardingWalkthrough.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -87,6 +89,12 @@ export default function App() {
     } else if (screen === 'analytics') {
       window.history.pushState({}, '', '/analytics');
       setAuthScreen('analytics');
+    } else if (screen === 'quest_log') {
+      window.history.pushState({}, '', '/quest-log');
+      setAuthScreen('quest_log');
+    } else if (screen === 'welcome') {
+      window.history.pushState({}, '', '/welcome');
+      setAuthScreen('welcome');
     } else {
       setAuthScreen(screen);
     }
@@ -188,6 +196,14 @@ export default function App() {
     if (workspaceMatch) {
       setWorkspaceProjectId(workspaceMatch[1]);
       setAuthScreen('workspace');
+      return;
+    }
+    if (pathname === '/quest-log') {
+      setAuthScreen('quest_log');
+      return;
+    }
+    if (pathname === '/welcome') {
+      setAuthScreen('welcome');
       return;
     }
     if (pathname === '/' || pathname === '/login' || pathname === '/auth/callback') {
@@ -378,9 +394,44 @@ export default function App() {
                 window.history.pushState({}, '', '/analytics');
                 setAuthScreen('analytics');
               }}
+              onQuestLog={() => {
+                window.history.pushState({}, '', '/quest-log');
+                setAuthScreen('quest_log');
+              }}
+              onWelcome={() => {
+                window.history.pushState({}, '', '/welcome');
+                setAuthScreen('welcome');
+              }}
             />
           </Suspense>
         </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "quest_log") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <Suspense fallback={<div style={{ padding: 32 }}>Loading...</div>}>
+          <QuestLogScreen
+            organizationId={organizationId}
+            onBack={() => { window.history.pushState({}, '', '/dashboard'); setAuthScreen('dashboard'); }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "welcome") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <Suspense fallback={<div style={{ padding: 32 }}>Loading...</div>}>
+          <OnboardingWalkthrough
+            user={user}
+            organizationId={organizationId}
+            onDone={() => { window.history.pushState({}, '', '/dashboard'); setAuthScreen('dashboard'); }}
+          />
+        </Suspense>
       </GameModeProvider>
     );
   }
