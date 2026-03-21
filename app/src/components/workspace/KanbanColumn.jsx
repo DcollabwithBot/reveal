@@ -1,4 +1,5 @@
 import EstimationPanel from './EstimationPanel';
+import ExplosionPredictor from './ExplosionPredictor';
 
 export default function KanbanColumn({
   colId, title, titleColor, count, items,
@@ -8,7 +9,8 @@ export default function KanbanColumn({
   onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
   onStatusChange, onAssigneeChange, onDueDateChange,
   nextStatus, nextLabel, onCardClick,
-  selectedIds, onToggleSelect
+  selectedIds, onToggleSelect,
+  organizationId,
 }) {
   const isOver = dragOverCol === colId;
 
@@ -95,6 +97,16 @@ export default function KanbanColumn({
               {item.item_code && <span style={{ color: 'var(--text3)', marginRight: 6 }}>{item.item_code}</span>}
               {item.title}
             </div>
+            {/* Explosion Predictor badge */}
+            {organizationId && !dimmed && (
+              <div style={{ marginBottom: 6 }}>
+                <ExplosionPredictor
+                  itemTitle={item.title}
+                  estimatedHours={item.estimated_hours}
+                  organizationId={organizationId}
+                />
+              </div>
+            )}
 
             {/* Meta row: assignee + due date — kun tekst, ingen inputs */}
             <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>

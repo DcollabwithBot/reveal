@@ -25,6 +25,7 @@ import { dk } from "../shared/utils.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
 import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState, saveRetroActions } from "../lib/api.js";
 import { supabase } from "../lib/supabase.js";
+import LifelinesPanel from "../components/session/LifelinesPanel.jsx";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
@@ -567,6 +568,18 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
             FlipCard={FlipCard}
             mc={mc}
           />
+
+          {/* Lifelines Panel */}
+          <div style={{ maxWidth: "660px", margin: "0 auto" }}>
+            <LifelinesPanel
+              sessionId={node?.sessionId || node?.id}
+              userId={TEAM[0]?.id}
+              isGm={TEAM[0]?.isP === true}
+              currentItemTitle={node?.title || project?.name}
+              C={C}
+              PF={PF}
+            />
+          </div>
 
           {/* Game UI */}
           <div style={{ maxWidth: "660px", margin: "0 auto" }}>

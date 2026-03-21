@@ -858,6 +858,7 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
                 onCardClick={(item) => setSelectedItem(item)}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
+                organizationId={organizationId}
               />
             ))}
           </div>

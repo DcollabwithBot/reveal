@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { C, PF, BF } from '../shared/constants';
+import JiraOnboardingWizard from '../components/onboarding/JiraOnboardingWizard';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -275,6 +276,7 @@ export default function Onboarding({ user, onComplete }) {
   const [sending, setSending] = useState(false);
   const [createdOrgId, setCreatedOrgId] = useState(null);
   const [error, setError] = useState('');
+  const [showJiraWizard, setShowJiraWizard] = useState(false);
 
   const handleCreateOrg = async () => {
     if (!orgData.orgName?.trim()) return;
@@ -430,14 +432,28 @@ export default function Onboarding({ user, onComplete }) {
         {step === 0 && <StepWelcome onNext={() => setStep(1)} />}
         {step === 1 && <StepOrganization data={orgData} onChange={d => setOrgData(prev => ({ ...prev, ...d }))} onNext={handleCreateOrg} />}
         {step === 2 && <StepInvite emails={emails} setEmails={setEmails} onNext={handleSendInvites} onSkip={() => setStep(3)} sending={sending} />}
-        {step === 3 && (
+        {step === 3 && !showJiraWizard && (
           <StepProject
             data={projectData}
             onChange={d => setProjectData(prev => ({ ...prev, ...d }))}
             onNext={handleCreateProject}
-            onImportJira={() => { /* TODO: open Jira import modal */ handleCreateProject(); }}
-            onImportExcel={() => { /* TODO: open Excel import modal */ handleCreateProject(); }}
+            onImportJira={() => setShowJiraWizard(true)}
+            onImportExcel={() => { handleCreateProject(); }}
           />
+        )}
+        {step === 3 && showJiraWizard && (
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontFamily: PF, fontSize: 10, color: C.grn, letterSpacing: 2 }}>BACKLOG IMPORT</div>
+            </div>
+            <JiraOnboardingWizard
+              userId={user?.id}
+              onComplete={() => { setShowJiraWizard(false); handleCreateProject(); }}
+              onManual={() => { setShowJiraWizard(false); handleCreateProject(); }}
+              onExcel={() => { setShowJiraWizard(false); handleCreateProject(); }}
+              onNavigateToSettings={() => { setShowJiraWizard(false); handleCreateProject(); }}
+            />
+          </div>
         )}
         {step === 4 && <StepComplete onFinish={handleFinish} />}
       </div>
