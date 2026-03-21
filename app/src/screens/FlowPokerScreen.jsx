@@ -10,6 +10,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchRawParticipants, fetchSessionWithItems } from '../lib/sessionHelpers.js';
 import { Sprite, Scene, DmgNum } from '../components/session/SessionPrimitives.jsx';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
@@ -233,21 +234,11 @@ export default function FlowPokerScreen({ sessionId, user, onBack }) {
   }, [sessionId]); // eslint-disable-line
 
   async function loadSession() {
-    const { data: sess } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
+    const { session: sess, items: its } = await fetchSessionWithItems(sessionId);
     if (!sess) { setPhase('error'); return; }
     setSession(sess);
     setIsGm(sess.created_by === user?.id);
-
-    const { data: its } = await supabase
-      .from('session_items')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('created_at');
-    setItems(its || []);
+    setItems(its);
 
     // Load existing votes
     const { data: votes } = await supabase
@@ -266,11 +257,8 @@ export default function FlowPokerScreen({ sessionId, user, onBack }) {
     setMyVotes(myV);
 
     // Load participants
-    const { data: parts } = await supabase
-      .from('session_participants')
-      .select('user_id')
-      .eq('session_id', sessionId);
-    setParticipants(parts || []);
+    const parts = await fetchRawParticipants(sessionId);
+    setParticipants(parts);
 
     setPhase('lobby');
   }

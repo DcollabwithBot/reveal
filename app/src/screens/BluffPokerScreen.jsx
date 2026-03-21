@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { getDisplaySprites } from '../lib/participantHelpers.js';
+import { fetchRawParticipants } from '../lib/sessionHelpers.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -741,12 +742,9 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
   // ── Fetch participants ──────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      const { data: pRows } = await supabase
-        .from('session_participants')
-        .select('*, profiles(id, username, avatar_config)')
-        .eq('session_id', sessionId);
+      const pRows = await fetchRawParticipants(sessionId);
 
-      if (!pRows) return;
+      if (!pRows.length) return;
 
       const mapped = pRows.map((p, i) => {
         const isMe = p.user_id === user?.id;

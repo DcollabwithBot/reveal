@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { getDisplaySprites } from '../lib/participantHelpers.js';
+import { fetchRawParticipants } from '../lib/sessionHelpers.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -784,13 +785,10 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
         .order('position', { ascending: true });
 
       // Fetch participants
-      const { data: parts } = await supabase
-        .from('session_participants')
-        .select('*, profiles(display_name, avatar_data)')
-        .eq('session_id', sessionId);
+      const parts = await fetchRawParticipants(sessionId);
 
       if (sessionItems) setItems(sessionItems);
-      if (parts) {
+      if (parts.length > 0) {
         setParticipants(parts);
         const me = parts.find(p => p.user_id === user?.id);
         if (me) setIsGM(me.is_host);

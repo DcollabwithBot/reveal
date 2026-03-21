@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import { getDisplaySprites } from '../lib/participantHelpers.js';
+import { fetchRawParticipants } from '../lib/sessionHelpers.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -849,8 +850,7 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
         }
       });
 
-    supabase.from('session_participants').select('*').eq('session_id', sessionId)
-      .then(({ data }) => { if (data) setParticipants(data); });
+    fetchRawParticipants(sessionId).then(data => { if (data.length > 0) setParticipants(data); });
   }, [sessionId, user.id]);
 
   // Realtime channel

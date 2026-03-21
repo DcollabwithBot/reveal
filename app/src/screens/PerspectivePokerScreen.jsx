@@ -14,7 +14,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
-import { getDisplaySprites } from '../lib/participantHelpers.js';
+import { fetchSessionParticipants, getDisplaySprites } from '../lib/participantHelpers.js';
+import { fetchSessionWithItems } from '../lib/sessionHelpers.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -398,30 +399,17 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadSession() {
-    const { data: sess } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .maybeSingle();
+    const { session: sess, items: its } = await fetchSessionWithItems(sessionId);
     if (!sess) return;
     setIsGM(sess.created_by === user.id);
+    setItems(its);
 
-    const { data: its } = await supabase
-      .from('session_items')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: true });
-    setItems(its || []);
-
-    const { data: pRows } = await supabase
-      .from('session_participants')
-      .select('*')
-      .eq('session_id', sessionId);
-    if (pRows) setParticipants(pRows);
+    const pRows = await fetchSessionParticipants(sessionId);
+    setParticipants(pRows);
 
     subscribeRealtime();
     setPhase('deal');
-    dealPerspectives(its || [], sess);
+    dealPerspectives(its, sess);
   }
 
   async function dealPerspectives(its, sess) {

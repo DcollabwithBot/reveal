@@ -13,6 +13,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchRawParticipants, fetchSessionWithItems } from '../lib/sessionHelpers.js';
 import { DmgNum } from '../components/session/SessionPrimitives.jsx';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -315,16 +316,14 @@ export default function DependencyMapperScreen({ sessionId, user, onBack }) {
   }, [sessionId]); // eslint-disable-line
 
   async function loadSession() {
-    const { data: sess } = await supabase.from('sessions').select('*').eq('id', sessionId).single();
+    const { session: sess, items: its } = await fetchSessionWithItems(sessionId);
     if (!sess) { setPhase('error'); return; }
     setSession(sess);
     setIsGm(sess.created_by === user?.id);
+    setItems(its);
 
-    const { data: its } = await supabase.from('session_items').select('*').eq('session_id', sessionId).order('created_at');
-    setItems(its || []);
-
-    const { data: parts } = await supabase.from('session_participants').select('user_id, profiles(name)').eq('session_id', sessionId);
-    setParticipants(parts || []);
+    const parts = await fetchRawParticipants(sessionId);
+    setParticipants(parts);
 
     // Load existing dep submissions
     const { data: existing } = await supabase.from('dependency_submissions').select('*').eq('session_id', sessionId);

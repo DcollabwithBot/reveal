@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getDraftState, submitDraftPicks, submitPriorityVotes, finalizeDraft } from '../lib/api';
+import { fetchRawParticipants } from '../lib/sessionHelpers.js';
 import { Scene, Sprite, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
@@ -541,9 +542,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
   // Load participants
   useEffect(() => {
     if (!sessionId) return;
-    supabase.from('session_participants').select('id, user_id, display_name, joined_at')
-      .eq('session_id', sessionId)
-      .then(({ data }) => setParticipants(data || []));
+    fetchRawParticipants(sessionId).then(data => setParticipants(data));
   }, [sessionId]);
 
   // Realtime subscription
