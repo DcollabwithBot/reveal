@@ -51,3 +51,91 @@
 /* Sprint Draft animations */
 @keyframes consensusFlash { 0% { box-shadow: 0 0 0 rgba(200,168,75,0) } 30% { box-shadow: 0 0 20px rgba(200,168,75,0.6) } 60% { box-shadow: 0 0 10px rgba(200,168,75,0.3) } 100% { box-shadow: 0 0 0 rgba(200,168,75,0) } }
 @keyframes gaugePulse { 0%,100% { opacity: 1 } 50% { opacity: 0.7 } }
+
+/* ── Mobile Quick Wins (P12) ─────────────────────────────────────────────── */
+
+/* Ensure touch targets are 44px minimum */
+button, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Voting cards — large touch targets on mobile */
+@media (max-width: 640px) {
+  /* Session vote cards */
+  .vote-card, [data-vote-card] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* World Map — scrollable on mobile */
+  .world-map-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+  }
+  .world-map-item {
+    scroll-snap-align: center;
+  }
+
+  /* Dashboard kanban — stack on mobile */
+  .kanban-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Reduce pixel art font sizes on small screens */
+  .pf-header {
+    font-size: 8px !important;
+  }
+
+  /* Session chrome — compress on mobile */
+  .session-chrome {
+    padding: 8px !important;
+    font-size: 10px !important;
+  }
+
+  /* Lifeline icons — bigger touch targets */
+  .lifeline-icon {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 18px !important;
+  }
+
+  /* Flip cards — no hover, use tap */
+  .flip-card {
+    cursor: pointer;
+  }
+}
+
+/* Scrollable overworld on mobile */
+@media (max-width: 768px) {
+  /* Main content areas */
+  .overworld-container {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modals — full width on mobile */
+  .modal-inner {
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    min-height: auto !important;
+  }
+
+  /* Hide decorative elements on small screens */
+  .decorative-mobile-hide {
+    display: none;
+  }
+}
+
+/* Safe area support for notched phones */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .app-shell-top {
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+  .app-shell-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}

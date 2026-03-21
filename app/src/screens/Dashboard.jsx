@@ -26,6 +26,7 @@ import {
   upsertOrgMetric,
 } from '../lib/api';
 import GovernanceSummary from '../components/governance/GovernanceSummary';
+import SessionTypePresets from '../components/session/SessionTypePresets';
 import GovernanceWorkspace from '../components/governance/GovernanceWorkspace';
 import GameStatsBar from '../components/GameStatsBar';
 import DailyMissionsCard from '../components/DailyMissionsCard';
@@ -575,6 +576,7 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
   const [estimateModal, setEstimateModal] = useState(null); // { sprintId, sprintName }
   const [estName, setEstName] = useState('');
   const [estMode, setEstMode] = useState('fibonacci');
+  const [estPreset, setEstPreset] = useState(null); // session type preset
   const [estBusy, setEstBusy] = useState(false);
   const [sprintCloseModal, setSprintCloseModal] = useState(null); // { sprintId, sprintName }
   const [activeTab, setActiveTab] = useState('overview'); // E7: tab navigation
@@ -655,6 +657,7 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
       const result = await startSprintEstimation(estimateModal.sprintId, {
         session_name: estName || undefined,
         voting_mode: estMode,
+        session_type_preset: estPreset || undefined,
       });
       setEstimateModal(null);
       if (result?.session_id && onWorkspace) {
@@ -803,6 +806,14 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
                   outline: estMode === m ? '1px solid rgba(0,200,150,0.3)' : '1px solid var(--border)',
                 }}>{m === 'fibonacci' ? 'Fibonacci' : 'T-shirt'}</button>
               ))}
+            </div>
+            {/* Session Type Preset selector */}
+            <div style={{ marginBottom: 14 }}>
+              <SessionTypePresets
+                selectedPreset={estPreset}
+                onSelect={setEstPreset}
+                compact
+              />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleStartSprintEstimation} disabled={estBusy} style={primaryButton('var(--jade)', false, estBusy)}>
