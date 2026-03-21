@@ -16,6 +16,8 @@ import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -88,6 +90,7 @@ function injectStyles() {
 
 // ── Web Audio ─────────────────────────────────────────────────────────────────
 function playCardDeal() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
@@ -102,6 +105,7 @@ function playCardDeal() {
 }
 
 function playReveal() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     [261, 329, 392, 523].forEach((f, i) => {
@@ -119,6 +123,7 @@ function playReveal() {
 }
 
 function playTick() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -347,6 +352,7 @@ function makeMyMember(avatar) {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack }) {
   useEffect(() => { injectStyles(); }, []);
+  const { soundEnabled, toggleSound } = useGameSound();
 
   const [phase, setPhase] = useState('loading');
   // loading | deal | estimate | reveal | gap | discuss | revote | done
@@ -593,7 +599,8 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
       {/* XP Bar */}
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50 }}>
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} />
         </div>
       )}

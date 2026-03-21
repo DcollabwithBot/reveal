@@ -14,6 +14,8 @@ import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -100,6 +102,7 @@ function injectSSStyles() {
 
 // ── Web Audio ─────────────────────────────────────────────────────────────────
 function playTick() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -114,6 +117,7 @@ function playTick() {
 }
 
 function playFastTick() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -128,6 +132,7 @@ function playFastTick() {
 }
 
 function playBuzzer() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     // Low rumble
@@ -151,6 +156,7 @@ function playBuzzer() {
 }
 
 function playReveal() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     [392, 523, 659, 784].forEach((f, i) => {
@@ -168,6 +174,7 @@ function playReveal() {
 }
 
 function playSpeedWinner() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     [523, 659, 784, 1047, 1319].forEach((f, i) => {
@@ -721,6 +728,7 @@ function StepStats({ items, round1Estimates, round2Estimates, participants, resp
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarRef = useRef(null);
+  const { soundEnabled, toggleSound } = useGameSound();
   const [step, setStep] = useState('loading'); // loading | lobby | speed | discuss | delta | stats
   const [items, setItems] = useState([]);
   const [participants, setParticipants] = useState([]);
@@ -884,7 +892,8 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarEl = user?.id ? (
     <>
       <XPBadgeNotifier userId={user.id} />
-      <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50 }}>
+      <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
         <GameXPBar userId={user.id} ref={xpBarRef} />
       </div>
     </>

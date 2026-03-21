@@ -4,6 +4,8 @@ import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -18,6 +20,7 @@ const STEPS = { LOBBY: 1, BREAKDOWN: 2, GM_MERGE: 3, QUICK_ESTIMATE: 4, SUM_REVE
 
 // ─── WEB AUDIO ────────────────────────────────────────────────────────────────
 function playDing(index) {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const frequencies = [523, 587, 659, 698, 784, 880, 988, 1047];
@@ -36,6 +39,7 @@ function playDing(index) {
 }
 
 function playBuzz() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -52,6 +56,7 @@ function playBuzz() {
 }
 
 function playDollOpen() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     [440, 554, 659, 880].forEach((freq, i) => {
@@ -801,6 +806,7 @@ function StepApproval({ sessionId, user, item, mergedItems, allEstimates, isGM, 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarRef = useRef(null);
+  const { soundEnabled, toggleSound } = useGameSound();
   const [step, setStep] = useState(STEPS.LOBBY);
   const [participants, setParticipants] = useState([]);
   const [item, setItem] = useState(null);
@@ -905,7 +911,8 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
       {/* XP Bar + Achievement notifier */}
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50 }}>
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} ref={xpBarRef} />
         </div>
       )}

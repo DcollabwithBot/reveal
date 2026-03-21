@@ -4,6 +4,8 @@ import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const PF = "'Press Start 2P', monospace";
@@ -102,6 +104,7 @@ function injectBPStyles() {
 
 // ─── Audio helpers ─────────────────────────────────────────────────────────────
 function playTone(freq, type = 'square', duration = 0.2, gain = 0.12) {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -122,6 +125,7 @@ function playCardReveal(index) {
 }
 
 function playBossRoar() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     // Low rumble
@@ -668,6 +672,7 @@ function StepRevote({ item, myRevote, onRevote, isGM, onFinalize, finalEstimate,
 export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
   injectBPStyles();
   const xpBarRef = useRef(null);
+  const { soundEnabled, toggleSound } = useGameSound();
 
   const [step, setStep] = useState(1);
   const [participants, setParticipants] = useState([]);
@@ -1059,7 +1064,8 @@ export default function BluffPokerScreen({ sessionId, user, avatar, onBack }) {
       {/* XP Bar + Achievement notifier */}
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50 }}>
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} ref={xpBarRef} />
         </div>
       )}

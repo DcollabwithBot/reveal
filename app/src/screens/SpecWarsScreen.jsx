@@ -15,6 +15,8 @@ import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -65,6 +67,7 @@ function injectStyles() {
 
 // ── Web Audio ─────────────────────────────────────────────────────────────────
 function playTick() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -79,6 +82,7 @@ function playTick() {
 }
 
 function playWinner() {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     [392, 523, 659, 784].forEach((f, i) => {
@@ -411,6 +415,7 @@ function Step3Winner({ winner, submissions, userId, avatar, onNext, isGM }) {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
   useEffect(() => { injectStyles(); }, []);
+  const { soundEnabled, toggleSound } = useGameSound();
 
   const [phase, setPhase] = useState('loading'); // loading | write | vote | winner | done
   const [items, setItems] = useState([]);
@@ -568,7 +573,8 @@ export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
       {/* XP Bar */}
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50 }}>
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} />
         </div>
       )}
