@@ -1,18 +1,38 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-21 (Sprint A–E complete, 8 game modes, full PM integration, leaderboard, audit, deployed)
+Last updated: 2026-03-21 (v3.1 complete — KPI Dashboard, Lifelines, Truth Serum, Explosion Predictor, Budget, Mobile, Webhooks, Notifikationer, Room Presets deployed)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.13+ (Sprint A–E deployed 2026-03-21)
-- Live: https://reveal.blichert.net ✅ (deployed 2026-03-21)
+- Fase: v3.1 fuldt implementeret (~95% af roadmap) — klar til Fase 3
+- Live: https://reveal.blichert.net ✅ (deployed 2026-03-21 v3.1)
 - Salgs-demo mockup: https://reveal.blichert.net/reveal-v8plus.html (V8+ — bruges mens sidebar refactores)
 - GitHub: https://github.com/DcollabwithBot/reveal
-- Branch: `main` (sprint E merged + deployed 2026-03-21)
+- Branch: `main` (v3.1 complete + deployed 2026-03-21)
 - App: `app/` — Vite + React
-- **Næste:** Sidebar refactor — App.jsx → persistent app-shell (sidebar 232px + main)
+- **Næste:** Fase 3 (AI-lag, Azure DevOps, Stripe)
+
+## v3.1 Gap-fix (2026-03-21) ✅
+
+### Hvad er bygget
+- **KPI Dashboard** — org-niveau metrics, burn-down, accuracy trends (P1)
+- **Lifelines UI** — 50/50, Phone-a-Friend, Ask-Audience med Supabase sync (P2)
+- **Truth Serum Screen** — anonym team-survey med heatmap visualisering (P3)
+- **Explosion Predictor** — regelbaseret scope risk score per sprint item (P4)
+- **Jira Onboarding Wizard** — step-by-step integration setup flow (P5)
+- **Budget Overview** — sprint cost estimering koblet til time entries (P6)
+- **WorldSelect verifikation** — world unlock logic bekræftet og testet (P7)
+- **Notifications Edge Function** — Supabase Edge Function til push notifikationer (P8)
+- **Webhooks UI** — konfigurer udgående webhooks per org (P9)
+- **Time Tracking auto-actual** — session estimater → automatisk time entry (P10)
+- **Session Type Presets** — pre-konfigurerede room types (Planning, Retro, Scope) (P11)
+- **Mobile quick wins** — touch-optimering, swipe gestures, responsive polish (P12)
+
+### Migrationer deployed (v3.1)
+- `sprint_roles_comments_search.sql` ✅ — roller, comments, FTS/trigram search
+- `sprint_todo_features.sql` ✅ — smtp_configs, onboarding columns, jira_sync_log
 
 ## Sprint A–E Status (2026-03-21) ✅
 
