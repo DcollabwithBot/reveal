@@ -4,6 +4,7 @@ import { dk } from "../shared/utils.js";
 import { getGameAvailability } from "../lib/api.js";
 import Leaderboard from "../components/leaderboard/Leaderboard.jsx";
 import SituationalRecommender, { ALL_MODES, ZONE_META } from "../components/discovery/SituationalRecommender.jsx";
+import SessionLaunchModal from "../components/discovery/SessionLaunchModal.jsx";
 
 const WL = "#2a1f3d", WD = "#1a1230", FL = "#3a2820", FD = "#281a14", WO = "#5a3a20", ST = "#4a4460", SD = "#3a3450";
 
@@ -248,6 +249,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
   const [tab, setTab] = useState("modes"); // "modes" | "worlds"
   const [recommendedTop, setRecommendedTop] = useState(null);
   const [showRecommender, setShowRecommender] = useState(false);
+  const [launchMode, setLaunchMode] = useState(null); // mode object for SessionLaunchModal
   const [activeSideQuest, setActiveSideQuest] = useState(null);
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
@@ -297,6 +299,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
   function handleRecommenderSelect(mode) {
     setRecommendedTop(mode.id);
     setShowRecommender(false);
+    setLaunchMode(mode); // open launch modal with full context
   }
 
   // Group modes by zone
@@ -308,6 +311,17 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
 
   return (
     <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden" }}>
+      {/* Session Launch Modal — shown after SituationalRecommender picks a mode */}
+      {launchMode && (
+        <SessionLaunchModal
+          mode={launchMode}
+          activeMissions={activeMissions}
+          activeRandomEvent={activeRandomEvent}
+          organizationId={organizationId}
+          onLaunch={(cfg) => { setLaunchMode(null); handleModeSelect(cfg.mode || launchMode); }}
+          onClose={() => setLaunchMode(null)}
+        />
+      )}
       {flash && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: flash, opacity: 0.4, pointerEvents: "none", zIndex: 200, animation: "flashOut 0.5s ease-out forwards" }} />}
 
       {/* Background */}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ProjectTemplateSelector from '../components/templates/ProjectTemplateSelector.jsx';
 import { supabase } from '../lib/supabase';
 import {
   applyApprovedRequest,
@@ -220,10 +221,11 @@ const PROJECT_STATUSES = [
   { value: 'paused', label: 'Paused', color: 'var(--text3)' },
 ];
 
-function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
+function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace, organizationId }) {
   const [mode, setMode] = useState('project');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [form, setForm] = useState({
     projectName: '', projectDescription: '', projectIcon: '📋', projectColor: '#4488dd',
     sprintProjectId: '', sprintName: '', sprintGoal: '', sprintStatus: 'upcoming',
@@ -381,6 +383,25 @@ function QuickCreatePanel({ projects, assignees, onCreated, onOpenWorkspace }) {
             <input value={form.projectDescription} onChange={e => setForm(prev => ({ ...prev, projectDescription: e.target.value }))} placeholder="Kort beskrivelse" style={gridInput('span 5')} />
             <input value={form.projectIcon} onChange={e => setForm(prev => ({ ...prev, projectIcon: e.target.value }))} placeholder="📋" style={gridInput('span 1')} />
             <input type="color" value={form.projectColor} onChange={e => setForm(prev => ({ ...prev, projectColor: e.target.value }))} style={{ ...gridInput('span 1'), padding: 4, minHeight: 40 }} />
+            <div style={{ gridColumn: 'span 12', display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <button type="button" onClick={() => setShowTemplateSelector(true)}
+                style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(68,136,221,0.15)', color: 'var(--text2)', border: '1px solid rgba(68,136,221,0.3)', borderRadius: 6, cursor: 'pointer' }}>
+                📋 Start fra skabelon
+              </button>
+              {form.projectName && <span style={{ fontSize: 11, color: 'var(--text3)' }}>eller udfyld manuelt ovenfor</span>}
+            </div>
+            {showTemplateSelector && (
+              <div style={{ gridColumn: 'span 12' }}>
+                <ProjectTemplateSelector
+                  organizationId={organizationId}
+                  onSelect={(tpl) => {
+                    setForm(prev => ({ ...prev, projectName: tpl.name || prev.projectName, projectDescription: tpl.description || prev.projectDescription, projectIcon: tpl.icon || prev.projectIcon }));
+                    setShowTemplateSelector(false);
+                  }}
+                  onClose={() => setShowTemplateSelector(false)}
+                />
+              </div>
+            )}
           </>
         )}
 

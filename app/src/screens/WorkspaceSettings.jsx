@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import IntegrationsSettings, { WebhookSettings } from '../components/IntegrationsSettings';
 import AdminPanel from '../components/AdminPanel';
 import GameModeSettingsPanel from '../components/discovery/GameModeSettingsPanel.jsx';
+import PMModeSelector from '../components/discovery/PMModeSelector.jsx';
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -254,6 +255,7 @@ export default function WorkspaceSettings({ onBack }) {
   const [myRole, setMyRole] = useState('member');
   const [organizationId, setOrganizationId] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
+  const [showPMModeSelector, setShowPMModeSelector] = useState(false);
 
   const isAdmin = ['owner', 'admin'].includes(myRole);
 
@@ -299,6 +301,7 @@ export default function WorkspaceSettings({ onBack }) {
         <div style={{ display: 'flex', gap: 4, marginBottom: 32, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
           {[
             { key: 'general', label: '⚙ General' },
+            { key: 'modes', label: '🎮 Game Modes' },
             ...(isAdmin ? [{ key: 'admin', label: '🔐 Admin' }] : []),
           ].map(tab => (
             <button
@@ -419,6 +422,31 @@ export default function WorkspaceSettings({ onBack }) {
           <WebhookSettings />
         </div>
         </>}
+
+        {/* Game Modes Tab */}
+        {activeTab === 'modes' && (
+          <div style={{ paddingTop: 8 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>🎮 Browse Game Modes</div>
+              <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>
+                Se alle 14 game modes — filtrer på zone og varighed. Vælg en mode for at starte en session.
+              </div>
+              <button
+                onClick={() => setShowPMModeSelector(true)}
+                style={{ padding: '10px 20px', fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+              >
+                🗂 Åbn Mode Browser →
+              </button>
+            </div>
+            <GameModeSettingsPanel projectId={null} organizationId={organizationId} />
+            {showPMModeSelector && (
+              <PMModeSelector
+                onSelect={(mode) => { setShowPMModeSelector(false); }}
+                onClose={() => setShowPMModeSelector(false)}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
