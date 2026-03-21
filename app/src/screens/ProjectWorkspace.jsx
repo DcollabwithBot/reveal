@@ -890,6 +890,9 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
 
           {/* Charts — Burndown + Velocity */}
           <SprintCharts sprintId={activeSprint?.id} projectId={projectId} />
+
+          {/* Budget Overview */}
+          <BudgetOverview items={items} project={project} />
         </div>
 
         {/* Right sidebar */}
@@ -913,6 +916,115 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
           onUpdated={handleItemUpdated}
         />
       )}
+    </div>
+  );
+}
+
+// ── Budget Overview ──────────────────────────────────────────────────────────
+
+function BudgetOverview({ items, project }) {
+  const [hourlyRate, setHourlyRate] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [rateInput, setRateInput] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    // Load from project metadata
+    if (project?.metadata?.hourly_rate) {
+      setHourlyRate(project.metadata.hourly_rate);
+    }
+  }, [project]);
+
+  const estimatedHours = (items || []).reduce((sum, i) => sum + (Number(i.estimated_hours) || 0), 0);
+  const actualHours = (items || []).reduce((sum, i) => sum + (Number(i.actual_hours) || 0), 0);
+  const estimatedBudget = hourlyRate ? estimatedHours * hourlyRate : null;
+  const actualSpend = hourlyRate ? actualHours * hourlyRate : null;
+  const variance = estimatedBudget && actualSpend ? actualSpend - estimatedBudget : null;
+
+  async function saveHourlyRate() {
+    if (!project?.id || !rateInput) return;
+    setSaving(true);
+    try {
+      const { data: proj } = await supabase.from('projects').select('metadata').eq('id', project.id).single();
+      await supabase.from('projects').update({
+        metadata: { ...(proj?.metadata || {}), hourly_rate: Number(rateInput) },
+      }).eq('id', project.id);
+      setHourlyRate(Number(rateInput));
+      setEditing(false);
+    } catch { /* silent */ }
+    setSaving(false);
+  }
+
+  if (!estimatedHours && !actualHours) return null;
+
+  return (
+    <div style={{
+      background: 'var(--bg2)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-lg)', padding: 18, marginTop: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)' }}>
+          💰 Budget Oversigt
+        </div>
+        <button
+          onClick={() => { setEditing(true); setRateInput(String(hourlyRate || '')); }}
+          style={{ fontSize: 10, color: 'var(--jade)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+        >
+          {hourlyRate ? `${hourlyRate} kr/t ✎` : '+ Sæt timepris'}
+        </button>
+      </div>
+
+      {editing && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+          <input
+            type="number"
+            value={rateInput}
+            onChange={e => setRateInput(e.target.value)}
+            placeholder="Timepris i kr."
+            autoFocus
+            style={{
+              fontSize: 13, padding: '6px 10px', background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)', color: 'var(--text)', width: 130,
+            }}
+          />
+          <button
+            onClick={saveHourlyRate}
+            disabled={saving}
+            style={{ fontSize: 11, padding: '6px 12px', background: 'var(--jade)', border: 'none', borderRadius: 'var(--radius)', color: '#000', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Gem
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            style={{ fontSize: 11, padding: '6px 10px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text2)', cursor: 'pointer' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+        <BudgetStat label="Estimeret (timer)" value={`${estimatedHours.toFixed(1)}t`} />
+        <BudgetStat label="Faktisk (timer)" value={`${actualHours.toFixed(1)}t`} color={actualHours > estimatedHours ? 'var(--warn)' : 'var(--jade)'} />
+        {estimatedBudget != null && <BudgetStat label="Estimeret budget" value={`${Math.round(estimatedBudget).toLocaleString('da-DK')} kr`} />}
+        {actualSpend != null && <BudgetStat label="Faktisk forbrug" value={`${Math.round(actualSpend).toLocaleString('da-DK')} kr`} color={actualSpend > estimatedBudget ? 'var(--warn)' : 'var(--jade)'} />}
+        {variance != null && (
+          <BudgetStat
+            label="Afvigelse"
+            value={`${variance > 0 ? '+' : ''}${Math.round(variance).toLocaleString('da-DK')} kr`}
+            color={variance > 0 ? 'var(--danger)' : 'var(--jade)'}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BudgetStat({ label, value, color }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'var(--text)', fontFamily: 'var(--serif)', letterSpacing: '-0.01em' }}>{value}</div>
     </div>
   );
 }

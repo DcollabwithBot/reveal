@@ -125,6 +125,22 @@ export default function TimelogScreen({ projectId, onBack }) {
       };
       const { error: err } = await supabase.from('time_entries').insert(payload);
       if (err) throw err;
+
+      // Auto-update actual_hours on session_item by summing all time_entries for this item
+      if (regData.entry_type !== 'Kørsel') {
+        const { data: allEntries } = await supabase
+          .from('time_entries')
+          .select('hours')
+          .eq('session_item_id', itemId)
+          .neq('entry_type', 'Kørsel');
+        const totalHours = (allEntries || []).reduce((sum, e) => sum + (Number(e.hours) || 0), 0) + Number(regData.hours || 0);
+        await supabase
+          .from('session_items')
+          .update({ actual_hours: Math.round(totalHours * 10) / 10 })
+          .eq('id', itemId)
+          .catch(() => {});
+      }
+
       setRegForm(null);
       setRegData({ entry_type: 'FAK', hours: '', km: '', registered_at: new Date().toISOString().slice(0, 10), note: '' });
       await load();

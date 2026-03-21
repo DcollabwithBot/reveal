@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameMode } from '../shared/GameModeContext';
 import { Card } from '../components/ui/Card';
 import { supabase } from '../lib/supabase';
-import IntegrationsSettings from '../components/IntegrationsSettings';
+import IntegrationsSettings, { WebhookSettings } from '../components/IntegrationsSettings';
 import AdminPanel from '../components/AdminPanel';
 
 async function authHeaders() {
@@ -403,6 +403,7 @@ export default function WorkspaceSettings({ onBack }) {
             </div>
           </div>
           <IntegrationsSettings />
+          <WebhookSettings />
         </div>
         </>}
       </div>

@@ -283,6 +283,225 @@ export default function IntegrationsSettings({ sprints, projectId }) {
   );
 }
 
+// ── Webhook Settings ─────────────────────────────────────────────────────────
+
+const WEBHOOK_EVENTS = [
+  { key: 'session.completed', label: 'Session afsluttet', icon: '✅' },
+  { key: 'sprint.closed', label: 'Sprint lukket', icon: '🏁' },
+  { key: 'achievement.unlocked', label: 'Achievement unlocked', icon: '🏆' },
+  { key: 'approval.approved', label: 'Ændring godkendt', icon: '✔️' },
+  { key: 'item.status_changed', label: 'Item status ændret', icon: '🔄' },
+];
+
+export function WebhookSettings() {
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookType, setWebhookType] = useState('slack'); // slack | teams | custom
+  const [selectedEvents, setSelectedEvents] = useState(new Set(['session.completed', 'sprint.closed']));
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  function toggleEvent(key) {
+    setSelectedEvents(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleTest() {
+    if (!webhookUrl) return;
+    setTesting(true);
+    try {
+      const res = await edgeFn('send-webhook', {
+        webhook_url: webhookUrl,
+        webhook_type: webhookType,
+        event_type: 'test',
+        data: { message: 'Reveal webhook test — det virker! ⚔️' },
+      });
+      setToast({ message: '✅ Test webhook sendt!', type: 'success' });
+    } catch (err) {
+      setToast({ message: `Fejl: ${err.message}`, type: 'error' });
+    }
+    setTesting(false);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleSave() {
+    if (!webhookUrl) return;
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      // Get user's org
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (!member?.organization_id) throw new Error('No organization found');
+
+      // Save webhook config to org metadata
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('metadata')
+        .eq('id', member.organization_id)
+        .single();
+
+      const newMetadata = {
+        ...(org?.metadata || {}),
+        webhook: {
+          url: webhookUrl,
+          type: webhookType,
+          events: [...selectedEvents],
+          updated_at: new Date().toISOString(),
+        },
+      };
+
+      await supabase
+        .from('organizations')
+        .update({ metadata: newMetadata })
+        .eq('id', member.organization_id);
+
+      setSaved(true);
+      setToast({ message: '✅ Webhook gemt!', type: 'success' });
+      setTimeout(() => { setSaved(false); setToast(null); }, 3000);
+    } catch (err) {
+      setToast({ message: `Fejl: ${err.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 4000);
+    }
+    setSaving(false);
+  }
+
+  // Load existing webhook config on mount
+  useState(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const { data: member } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (!member?.organization_id) return;
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('metadata')
+          .eq('id', member.organization_id)
+          .single();
+        const wh = org?.metadata?.webhook;
+        if (wh) {
+          if (wh.url) setWebhookUrl(wh.url);
+          if (wh.type) setWebhookType(wh.type);
+          if (wh.events) setSelectedEvents(new Set(wh.events));
+        }
+      } catch { /* silent */ }
+    })();
+  });
+
+  return (
+    <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+        🔔 Slack / Teams Webhooks
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.5 }}>
+        Send automatiske notifikationer til Slack eller Teams ved game-events.
+      </div>
+
+      {/* Type selector */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[
+          { value: 'slack', label: '💬 Slack' },
+          { value: 'teams', label: '🟦 Teams' },
+          { value: 'custom', label: '🔗 Custom' },
+        ].map(t => (
+          <button
+            key={t.value}
+            onClick={() => setWebhookType(t.value)}
+            style={{
+              fontSize: 12, padding: '5px 14px', cursor: 'pointer', borderRadius: 'var(--radius)',
+              background: webhookType === t.value ? 'var(--jade-dim)' : 'var(--bg3)',
+              border: `1px solid ${webhookType === t.value ? 'rgba(0,200,150,0.3)' : 'var(--border)'}`,
+              color: webhookType === t.value ? 'var(--jade)' : 'var(--text2)',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* URL input */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Webhook URL
+        </label>
+        <input
+          value={webhookUrl}
+          onChange={e => setWebhookUrl(e.target.value)}
+          placeholder={webhookType === 'slack' ? 'https://hooks.slack.com/services/...' : webhookType === 'teams' ? 'https://outlook.office.com/webhook/...' : 'https://your-webhook-url.com'}
+          style={inputStyle}
+        />
+      </div>
+
+      {/* Events */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Trigger på disse events
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {WEBHOOK_EVENTS.map(ev => (
+            <button
+              key={ev.key}
+              onClick={() => toggleEvent(ev.key)}
+              style={{
+                fontSize: 11, padding: '4px 12px', cursor: 'pointer', borderRadius: 'var(--radius)',
+                background: selectedEvents.has(ev.key) ? 'rgba(0,200,150,0.1)' : 'var(--bg3)',
+                border: `1px solid ${selectedEvents.has(ev.key) ? 'rgba(0,200,150,0.3)' : 'var(--border)'}`,
+                color: selectedEvents.has(ev.key) ? 'var(--jade)' : 'var(--text2)',
+              }}
+            >
+              {ev.icon} {ev.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={handleTest}
+          disabled={testing || !webhookUrl}
+          style={{
+            fontSize: 12, padding: '7px 16px', cursor: webhookUrl ? 'pointer' : 'default',
+            borderRadius: 'var(--radius)', opacity: webhookUrl ? 1 : 0.5,
+            background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text2)',
+          }}
+        >
+          {testing ? 'Sender...' : '🧪 Test webhook'}
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving || !webhookUrl}
+          style={{
+            fontSize: 12, padding: '7px 16px', cursor: webhookUrl ? 'pointer' : 'default',
+            borderRadius: 'var(--radius)', opacity: webhookUrl ? 1 : 0.5,
+            background: saved ? 'var(--jade-dim)' : 'var(--jade)', border: 'none', color: '#0c0c0f', fontWeight: 600,
+          }}
+        >
+          {saving ? 'Gemmer...' : saved ? '✅ Gemt' : 'Gem webhook'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const inputStyle = {
   width: '100%', boxSizing: 'border-box',
   background: 'var(--bg)', border: '1px solid var(--border)',

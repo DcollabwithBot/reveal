@@ -124,8 +124,17 @@ export default function KanbanColumn({
 
             {/* Bottom row: hours + action/status */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-              <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+              <span style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 {item.estimated_hours ? `${item.estimated_hours}h` : '—'}
+                {item.actual_hours != null && item.estimated_hours && (
+                  <span style={{
+                    fontSize: 10, marginLeft: 2,
+                    color: item.actual_hours > item.estimated_hours * 1.3 ? 'var(--danger)' : item.actual_hours > item.estimated_hours ? 'var(--warn)' : 'var(--jade)',
+                    fontWeight: 600,
+                  }}>
+                    → {item.actual_hours}h
+                  </span>
+                )}
               </span>
               {!dimmed && onStatusChange && nextStatus && (
                 <button
