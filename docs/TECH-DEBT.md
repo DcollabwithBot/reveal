@@ -5,32 +5,62 @@
 
 ---
 
-## Prioritet 1: Shared Session Helpers (NÆSTE)
+## Prioritet 1: Shared Helpers — Game + PM (NÆSTE)
 
-**Problem:** 8+ game screens laver hver sin copy-paste Supabase query for de samme ting.
-**50 filer** importerer supabase direkte. Kun 15 bruger api.js.
+**Problem:** 50 filer importerer supabase direkte. Kun 15 bruger api.js.
+Samme queries copy-pastes på tværs af game screens OG PM dashboard.
 
-### Duplikerede patterns der skal samles:
+### Duplikerede patterns — GAME-SIDE:
 
 | Pattern | Antal steder | Filer |
 |---|---|---|
 | `session_participants` fetch | 8 | BluffPoker, Perspective, Speed, Nesting, SprintDraft, Dependency, Refinement, Flow |
 | `sessions` fetch | 6 | Perspective, Nesting, Assumption, Risk, KPI, Bluff |
-| `session_items` fetch | 5+ | Speed, Nesting, Bluff, Timelog, KPI |
-| `organization_members` fetch | 6 | ProjectWorkspace, WorldSelect, Onboarding, Overworld, IntegrationsSettings |
+| `session_items` fetch (game) | 5+ | Speed, Nesting, Bluff, Timelog, KPI |
 | Realtime channel setup | 8+ | Alle game screens med broadcast |
 
-### Løsning: `lib/sessionHelpers.js`
+### Duplikerede patterns — PM-SIDE:
 
-Nye shared helpers:
-- `fetchSessionParticipants(sessionId)` → henter + mapper til sprite-format
-- `fetchSessionWithItems(sessionId)` → session + tilhørende items
-- `subscribeToSession(sessionId, handlers)` → standard realtime channel
-- `submitVote(sessionId, itemId, userId, value)` → gem + broadcast
-- `mapProfileToSprite(profile)` → DB-profil til sprite-objekt
-- `fetchOrgMembers(orgId)` → organization_members + profiles
+| Pattern | Antal steder | Filer |
+|---|---|---|
+| `projects` fetch | 9 | Dashboard, ProjectWorkspace, WorldSelect, Onboarding, RetroScreen, TeamKanban, AppShell, Timelog, KPI |
+| `sprints` fetch | 5 | Dashboard, Overworld, RetroScreen, AppShell, SprintCloseModal |
+| `session_items` fetch (PM) | 6 | Dashboard, KPI, Timelog x2, RetroScreen x2 |
+| `organization_members` fetch | 6 | ProjectWorkspace, WorldSelect, Onboarding, Overworld, IntegrationsSettings x2 |
+| `auth.getUser/getSession` | 29 | Næsten alle screens |
+| `integration_connections` | 4 | AdminPanel |
+| `smtp_configs` | 2 | AdminPanel |
 
-Alle game screens refaktoreres til at bruge disse i stedet for direkte supabase-kald.
+### Løsning: Shared helper-struktur
+
+```
+lib/
+  helpers/
+    sessionHelpers.js    → fetchSessionParticipants, subscribeToSession,
+                           submitVote, mapProfileToSprite (game)
+    projectHelpers.js    → fetchProjectsForOrg, fetchSprintsForProject,
+                           fetchItemsForSprint (PM)
+    orgHelpers.js        → fetchOrgMembers, getMembership (begge)
+  hooks/
+    useAuth.jsx          → centraliseret auth context (erstatter 29 getUser/getSession kald)
+```
+
+### Hvad der SKAL være fælles:
+- Auth/session (useAuth hook) — ét sted for token, user, membership
+- Organization members — bruges i game OG PM
+- Projects/sprints/items — bruges i PM dashboard, Overworld, RetroScreen
+- Session participants — bruges i alle game modes
+- Realtime channel opsætning — fælles pattern med cleanup
+
+### Hvad der IKKE skal være fælles:
+- Game-mode-specifik logik (bluff_assignments, scope_submissions etc.) — forbliver i den enkelte screen
+- Edge Function kald via edgeFn() — allerede centraliseret i api.js ✅
+- Visuel/UI logik (sprites, animationer) — screen-specifik
+
+### Sikkerhed & fleksibilitet:
+- Centraliseret auth context = ét sted at håndtere session expiry, token refresh, fejl
+- Shared error handler = ét sted at logge og vise fejl til bruger
+- RLS forbliver sikkerhedsmodel — helpers ændrer ikke på det
 
 ---
 
@@ -65,9 +95,9 @@ lib/
 - Landing.jsx (1 sted)
 
 ### Løsning:
-- Tilføj `console.error` som minimum
-- Overvej en shared `handleError(err, context)` helper
-- Kritiske fejl (session_participants, votes) skal vise bruger-feedback
+- Shared `handleError(err, context)` helper med console.error + optional toast
+- Kritiske fejl (session_participants, votes) viser bruger-feedback
+- Aldrig tomme catch blocks
 
 ---
 
