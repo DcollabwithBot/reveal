@@ -10,6 +10,19 @@ Opdateret: 2026-03-21 (XP persistence, real team members, Overworld data binding
 > PM-data er source of truth. Game-layer er advisory og motiverende.
 > Spillet kan ALDRIG skrive direkte til PM-data — kun læse.
 
+## Tech-stack & API-model
+
+- **Database & Auth:** Supabase (PostgreSQL + Row Level Security + Supabase Auth)
+- **Frontend:** Vite + React (SPA, deployed som statisk build)
+- **Server-side logik:** Supabase Edge Functions (Deno) — ALDRIG Express/Node backend
+- **API:** Direkte Supabase client (`@supabase/supabase-js`) fra frontend → Supabase DB. Ingen custom API-server.
+- **Deploy:** Statisk build til Nordicway cPanel (reveal.blichert.net)
+
+### ⛔ Constraints
+- **Ingen custom backend/API.** Alt server-side kører som Supabase Edge Functions.
+- **Ingen Express, Fastify, Hono eller lignende.** Agenter må ALDRIG oprette en Node/Express server til Reveal.
+- **RLS er sikkerhedsmodellen.** Supabase Row Level Security + auth.uid() — ikke custom middleware.
+
 ---
 
 ## Lag 1: PM-data (Supabase)
