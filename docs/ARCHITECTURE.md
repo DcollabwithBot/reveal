@@ -202,12 +202,55 @@ Uden item-selektion ved start: spillet kører uden PM-kontekst og output kan ikk
 
 ---
 
-## Sprints og projekter → synlige i spillet
+## World Map → Project Hub (Super Mario Party-model)
+
+**Vision:** Hvert projekt er en verden på World Map. Klikker du ind i en verden, åbner projektets **hub** — alt der hører til det projekt lever her.
+
+### Navigationsflow (mål)
+```
+World Map
+  └── [klik på projekt-verden]
+        └── Project Hub (ny screen)
+              ├── Aktiv sprint + burndown
+              ├── Backlog (items til estimering)
+              ├── Game Modes
+              │     ├── Planning Poker → vælg items → START
+              │     ├── Risk Poker → vælg items → START
+              │     ├── Retro → Boss Battle Retro → START
+              │     ├── Standup → Speed Scope → START
+              │     └── ... alle 14 modes
+              ├── Session-historik (tidligere sessions)
+              └── Final Boss (sprint deadline / release)
+```
+
+### Project Hub — hvad der skal vises
+- **Sprint-status:** aktiv sprint, burndown, dage tilbage
+- **Backlog:** uafsluttede items sorteret efter prioritet — kan vælges til session
+- **Final Boss:** sprint-deadline eller milestone — vises som en boss der nærmer sig
+- **Seneste session:** hvornår sidst der var en session, hvad der skete
+- **Team:** hvem er med i projektet (sprites)
+
+### Final Boss
+Hvert projekt har en "Final Boss" — det er sprint-deadlinen eller et defineret milestone.
+- Vises visuelt som en boss på Project Hub der nærmer sig (HP-bar = dage tilbage)
+- Når deadline nærmer sig: boss HP lav, urgency stiger
+- Når sprint afsluttes: Boss defeated → ny sprint = ny boss
+
+### Nuværende flow vs. mål
+
+| Nu | Mål |
+|---|---|
+| WorldSelect → vælg mode → SessionLaunchModal → spil | WorldSelect → Project Hub → vælg aktivitet → SessionLaunchModal → spil |
+| Mode-valg er løsrevet fra projekt-kontekst | Alt foregår inde i projektets hub |
+| Ingen sprint-kontekst ved session-start | Sprint + items er synlige inden spillet starter |
+
+### Sprints og projekter → synlige i spillet
 
 Korrekt binding (delvist implementeret):
 - World Map viser projekter fra DB ✅
-- SessionLaunchModal skal vise **aktiv sprint + items fra den sprint** til selektion ❌ (mangler)
-- Under session: item-titel + beskrivelse vises for hvert item der estimeres ✅ (i Session.jsx via node.name)
+- Project Hub (ny screen) viser sprint + backlog per projekt ❌ (mangler)
+- SessionLaunchModal viser items fra valgt sprint til selektion ❌ (mangler)
+- Under session: item-titel + beskrivelse vises ✅ (i Session.jsx via node.name)
 - Efter session: sprint-velocity opdateres i KPI Dashboard ❌ (mangler)
 
 ---
