@@ -38,6 +38,7 @@ const RefinementRouletteScreen = lazy(() => import("./screens/RefinementRoulette
 const DependencyMapperScreen = lazy(() => import("./screens/DependencyMapperScreen.jsx"));
 const QuestLogScreen = lazy(() => import("./screens/QuestLogScreen.jsx"));
 const OnboardingWalkthrough = lazy(() => import("./screens/OnboardingWalkthrough.jsx"));
+const DocsScreen = lazy(() => import("./screens/DocsScreen.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -83,6 +84,9 @@ export default function App() {
     } else if (screen === 'quest_log') {
       window.history.pushState({}, '', '/quest-log');
       setAuthScreen('quest_log');
+    } else if (screen === 'docs') {
+      window.history.pushState({}, '', '/docs');
+      setAuthScreen('docs');
     } else if (screen === 'welcome') {
       window.history.pushState({}, '', '/welcome');
       setAuthScreen('welcome');
@@ -116,6 +120,7 @@ export default function App() {
     if (pathname === '/analytics') { setAuthScreen('analytics'); return; }
     if (pathname === '/quest-log') { setAuthScreen('quest_log'); return; }
     if (pathname === '/welcome') { setAuthScreen('welcome'); return; }
+    if (pathname === '/docs' || pathname === '/help') { setAuthScreen('docs'); return; }
 
     // Unified session route: /sessions/:id/:slug
     const sessionMatch = pathname.match(/^\/sessions\/([^/]+)\/([^/]+)$/);
@@ -399,6 +404,36 @@ export default function App() {
         >
           <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
             <WorkspaceSettings
+              onBack={() => {
+                window.history.pushState({}, document.title, '/dashboard');
+                setAuthScreen("dashboard");
+              }}
+            />
+          </Suspense>
+        </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "docs") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
+        <AppShell
+          user={user}
+          activeScreen="docs"
+          activeProjectId={workspaceProjectId}
+          onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>}>
+            <DocsScreen
               onBack={() => {
                 window.history.pushState({}, document.title, '/dashboard');
                 setAuthScreen("dashboard");

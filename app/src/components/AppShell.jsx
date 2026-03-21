@@ -164,6 +164,16 @@ export default function AppShell({ user, activeScreen, activeProjectId, onNaviga
           />
         </div>
 
+        {/* Docs / Help */}
+        <div style={{ padding: '0 10px', marginBottom: 2 }}>
+          <NavItem
+            icon="📚"
+            label="Dokumentation"
+            active={activeScreen === 'docs'}
+            onClick={() => onNavigate('docs')}
+          />
+        </div>
+
         {/* Game Widget */}
         {showGameWidget && (
           <div style={{ margin: 'auto 10px 0', padding: 12, background: 'var(--gold-dim)', border: '1px solid rgba(200,168,75,0.18)', borderRadius: 'var(--radius)' }}>
@@ -248,6 +258,7 @@ function screenTitle(screen) {
     workspace: 'Project Workspace',
     settings: 'Settings',
     retro: 'Retrospective',
+    docs: 'Dokumentation',
   };
   return titles[screen] || 'Reveal';
 }
