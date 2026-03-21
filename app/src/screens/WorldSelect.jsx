@@ -405,7 +405,18 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
           activeMissions={activeMissions}
           activeRandomEvent={activeRandomEvent}
           organizationId={organizationId}
-          onStart={(cfg) => { setLaunchMode(null); handleModeSelect(cfg.mode || launchMode); }}
+          onStart={(cfg) => {
+            const modeToLaunch = cfg.mode || launchMode;
+            setLaunchMode(null);
+            sound("door");
+            const zoneMeta = ZONE_META[modeToLaunch.zone] || {};
+            setFlash(zoneMeta.color || "#feae34");
+            setTimeout(() => {
+              setFlash(null);
+              if (onSelectMode) onSelectMode(modeToLaunch);
+              else onSelect({ ...modeToLaunch, id: modeToLaunch.id, name: modeToLaunch.name });
+            }, 400);
+          }}
           onClose={() => setLaunchMode(null)}
         />
       )}
@@ -429,18 +440,20 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
 
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "40%", background: "radial-gradient(ellipse at 50% 80%,#ff603008,transparent 60%)", pointerEvents: "none" }} />
 
-      {/* NPCs */}
-      {NPC_DEFS.map((m, i) => (
+      {/* NPCs — only in worlds tab */}
+      {tab === "worlds" && NPC_DEFS.map((m, i) => (
         <div key={m.name} style={{ position: "absolute", left: `${m.px + Math.sin(t * 0.008 + i * 2) * 4}%`, top: `${m.py}%`, animation: `charWalk ${3 + i}s ease-in-out infinite`, zIndex: 3 }}>
           <Spr hat={m.hat} body={m.body} skin={m.skin} cls={m.cls} size={1.5} dir={Math.sin(t * 0.008 + i * 2) > 0 ? 1 : -1} label={m.name} />
         </div>
       ))}
 
-      {/* Player */}
-      <div style={{ position: "absolute", left: "46%", top: "55%", zIndex: 4 }}>
-        <Spr hat={playerHat} body={playerBody} skin={playerSkin} cls={playerCls} size={2.3} anim="float 2s ease-in-out infinite" label="Du" />
-        <div style={{ fontFamily: PF, fontSize: "4px", color: C.acc, textAlign: "center", marginTop: "2px", animation: "pulse 1.5s infinite" }}>▼</div>
-      </div>
+      {/* Player — only in worlds tab */}
+      {tab === "worlds" && (
+        <div style={{ position: "absolute", left: "46%", top: "55%", zIndex: 4 }}>
+          <Spr hat={playerHat} body={playerBody} skin={playerSkin} cls={playerCls} size={2.3} anim="float 2s ease-in-out infinite" label="Du" />
+          <div style={{ fontFamily: PF, fontSize: "4px", color: C.acc, textAlign: "center", marginTop: "2px", animation: "pulse 1.5s infinite" }}>▼</div>
+        </div>
+      )}
 
       {/* Main UI */}
       <div style={{ position: "relative", zIndex: 5, padding: "8px 10px", paddingBottom: 40 }}>

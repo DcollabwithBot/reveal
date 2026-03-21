@@ -856,6 +856,7 @@ export default function App() {
               // Route to the correct game screen based on mode id
               const modeRoutes = {
                 planning_poker: null, // uses default session flow via world select
+                boss_battle_retro: null, // uses default session flow via world select
                 sprint_draft: (id) => { setDraftSessionId(id); setAuthScreen('sprint_draft'); },
                 spec_wars: (id) => { setSpecWarsSessionId(id); setAuthScreen('spec_wars'); },
                 perspective_poker: (id) => { setPerspectiveSessionId(id); setAuthScreen('perspective_poker'); },
