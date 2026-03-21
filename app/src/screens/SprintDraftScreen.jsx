@@ -1,6 +1,65 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getDraftState, submitDraftPicks, submitPriorityVotes, finalizeDraft } from '../lib/api';
+import { Scene, Sprite, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
+import GameXPBar from '../components/session/GameXPBar.jsx';
+import SoundToggle from '../components/session/SoundToggle.jsx';
+import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
+import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+
+// ── Draft CSS ─────────────────────────────────────────────────────────────────
+let sdStylesInjected = false;
+function injectDraftStyles() {
+  if (sdStylesInjected) return;
+  sdStylesInjected = true;
+  const s = document.createElement('style');
+  s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+    @keyframes sd-screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      20%       { transform: translate(-5px, 0); }
+      40%       { transform: translate(5px, 0); }
+      60%       { transform: translate(-3px, 0); }
+      80%       { transform: translate(3px, 0); }
+    }
+    @keyframes sd-flash-red { 0%,100%{background:transparent} 50%{background:rgba(255,68,68,0.25)} }
+    @keyframes sd-flash-green { 0%,100%{background:transparent} 50%{background:rgba(0,200,150,0.25)} }
+    .sd-shake { animation: sd-screenShake 0.5s ease-in-out; }
+    .sd-flash-red { animation: sd-flash-red 0.5s ease; }
+    .sd-flash-green { animation: sd-flash-green 1s ease; }
+  `;
+  document.head.appendChild(s);
+}
+
+// ── Simple coin sound ─────────────────────────────────────────────────────────
+function playCoin() {
+  if (!isSoundEnabled()) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.setValueAtTime(988, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(1319, ctx.currentTime + 0.06);
+    g.gain.setValueAtTime(0.06, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.12);
+    setTimeout(() => ctx.close(), 200);
+  } catch {}
+}
+function playFanfare() {
+  if (!isSoundEnabled()) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784, 1047, 1319, 1047, 1319, 1568].forEach((f, i) => {
+      const osc = ctx.createOscillator(); const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = f;
+      const t = ctx.currentTime + i * 0.1;
+      g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      osc.start(t); osc.stop(t + 0.2);
+    });
+    setTimeout(() => ctx.close(), 1200);
+  } catch {}
+}
 
 const STEPS = ['lobby', 'priority', 'draft', 'summary'];
 const PRIORITY_TOKENS = 5;
@@ -381,6 +440,8 @@ const actionBtn = {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function SprintDraftScreen({ sessionId, user, onBack }) {
+  useEffect(() => { injectDraftStyles(); }, []);
+  const { soundEnabled, toggleSound } = useGameSound();
   const [step, setStep] = useState('lobby');
   const [session, setSession] = useState(null);
   const [items, setItems] = useState([]);
@@ -402,6 +463,19 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
   const [consensusItems, setConsensusItems] = useState({});
   const timerRef = useRef(null);
   const pickOrderRef = useRef(0);
+  const [dmgNums, setDmgNums] = useState([]);
+  const [lootActive, setLootActive] = useState(false);
+  const [shaking, setShaking] = useState(false);
+  const [flashClass, setFlashClass] = useState('');
+  const perfectFillTriggered = useRef(false);
+
+  function addDmg(value, color = C.gld) {
+    const id = Date.now();
+    setDmgNums(p => [...p, { id, value, color }]);
+    setTimeout(() => setDmgNums(p => p.filter(d => d.id !== id)), 1400);
+  }
+  function triggerShake() { setShaking(true); setTimeout(() => setShaking(false), 500); }
+  function triggerFlash(cls) { setFlashClass(cls); setTimeout(() => setFlashClass(''), 700); }
 
   const isGM = session?.game_master_id === user?.id;
   const capacity = session?.draft_config?.capacity_points || 0;
@@ -532,6 +606,10 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     if (decision === 'drafted' && !isOverride && estimate > 0 && estimate > capacityLeft) {
       setOverflowFlash(true);
       setTimeout(() => setOverflowFlash(false), 600);
+      // Game soul: overflow warning
+      addDmg('⚠️ Over capacity!', C.red);
+      triggerShake();
+      triggerFlash('sd-flash-red');
       return;
     }
 
@@ -549,6 +627,11 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     setPicks(prev => ({ ...prev, [itemId]: newPick }));
     try {
       await submitDraftPicks(sessionId, [newPick]);
+      // Game soul: draft feedback
+      if (decision === 'drafted') {
+        addDmg('+1 drafted', C.grn);
+        playCoin();
+      }
     } catch (e) {
       console.error('Draft pick error:', e);
     }
@@ -598,6 +681,20 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     setFinalizing(true);
     try {
       await finalizeDraft(sessionId);
+      // Game soul: completion fanfare
+      triggerFlash('sd-flash-green');
+      setLootActive(true); setTimeout(() => setLootActive(false), 2000);
+      playFanfare();
+      // Perfect Fill achievement: exactly 100% capacity
+      if (capacityPct >= 98 && capacityPct <= 102 && user?.id && !perfectFillTriggered.current) {
+        perfectFillTriggered.current = true;
+        supabase.from('achievement_unlocks').insert({
+          user_id: user.id,
+          achievement_key: 'perfect_fill',
+          session_id: sessionId,
+          xp_awarded: 50,
+        }).then(() => {}).catch(() => {});
+      }
       setShowCelebration(true);
     } catch (e) {
       setError(e.message);
@@ -605,12 +702,32 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     }
   }
 
+  // ── Shared game soul overlay ──
+  const draftGameSoul = (
+    <>
+      {dmgNums.map(d => <DmgNum key={d.id} value={d.value} color={d.color} />)}
+      <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+        <LootDrops active={lootActive} items={[{ icon: '🎯', label: 'DRAFT', color: C.gld }, { icon: '✅', label: 'DONE', color: C.grn }]} />
+      </div>
+      {user?.id && <XPBadgeNotifier userId={user.id} />}
+      {user?.id && (
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
+          <GameXPBar userId={user.id} />
+        </div>
+      )}
+    </>
+  );
+
   // ── Render ──
   if (loading) {
     return (
-      <div style={screenStyles.container}>
-        <div style={screenStyles.loading}>Loading Sprint Draft...</div>
-      </div>
+      <Scene mc="#f59e0b">
+        {draftGameSoul}
+        <div style={screenStyles.container}>
+          <div style={screenStyles.loading}>Loading Sprint Draft...</div>
+        </div>
+      </Scene>
     );
   }
 
@@ -639,7 +756,9 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
   // ── Step 1: Lobby ──
   if (step === 'lobby') {
     return (
-      <div style={screenStyles.container}>
+      <Scene mc="#f59e0b">
+        {draftGameSoul}
+      <div className={`${shaking ? 'sd-shake' : ''} ${flashClass}`} style={screenStyles.container}>
         <div style={screenStyles.panel}>
           <button onClick={onBack} style={screenStyles.backBtn}>← Back</button>
           <h1 style={screenStyles.title}>🎯 SPRINT DRAFT</h1>
@@ -668,6 +787,12 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
           {participants.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 8, fontFamily: "'Press Start 2P', monospace" }}>PARTICIPANTS</p>
+              {/* Sprite avatars for participants */}
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8 }}>
+                {participants.map((p, i) => (
+                  <Sprite key={p.id} m={{ name: (p.display_name || 'Anon').split(' ')[0], cls: CLASSES[i % CLASSES.length], lv: 3, hat: CLASSES[i % CLASSES.length].color, body: CLASSES[i % CLASSES.length].color, skin: '#fdd' }} size={1.0} idle />
+                ))}
+              </div>
               {participants.map(p => (
                 <div key={p.id} style={{ padding: '4px 0', fontSize: 12, color: 'var(--text2)' }}>
                   {p.display_name || 'Anonymous'} {p.user_id === session?.game_master_id ? '👑' : ''}
@@ -688,6 +813,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
           )}
         </div>
       </div>
+      </Scene>
     );
   }
 
@@ -696,7 +822,9 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     const timerPct = (timer / VOTE_TIMER_SECONDS) * 100;
 
     return (
-      <div style={screenStyles.container}>
+      <Scene mc="#f59e0b">
+        {draftGameSoul}
+      <div className={`${shaking ? 'sd-shake' : ''} ${flashClass}`} style={screenStyles.container}>
         <div style={screenStyles.panel}>
           <h2 style={screenStyles.title}>⭐ PRIORITY VOTE</h2>
           <p style={{ fontSize: 11, color: 'var(--text2)', textAlign: 'center', marginBottom: 12 }}>
@@ -767,12 +895,13 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
           </div>
 
           {isGM && (
-            <button onClick={handleEndPriorityVote} style={{ ...screenStyles.primaryBtn, marginTop: 16, background: 'var(--gold)' }}>
+            <button onClick={handleEndPriorityVote} style={{ ...screenStyles.primaryBtn, marginTop: 16, background: 'var(--gold)', color: '#000' }}>
               End Vote Early →
             </button>
           )}
         </div>
       </div>
+      </Scene>
     );
   }
 
@@ -781,7 +910,9 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     const allDecided = sortedItems.every(item => picks[item.id]);
 
     return (
-      <div style={screenStyles.container}>
+      <Scene mc="#f59e0b">
+        {draftGameSoul}
+      <div className={`${shaking ? 'sd-shake' : ''} ${flashClass}`} style={screenStyles.container}>
         <div style={screenStyles.panel}>
           <h2 style={screenStyles.title}>🎯 THE DRAFT</h2>
 
@@ -828,6 +959,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
           />
         )}
       </div>
+      </Scene>
     );
   }
 
@@ -849,7 +981,9 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
     const confidencePct = confidenceEntries.length > 0 ? Math.round((thumbsUp / confidenceEntries.length) * 100) : 0;
 
     return (
-      <div style={screenStyles.container}>
+      <Scene mc="#f59e0b">
+        {draftGameSoul}
+      <div className={`${shaking ? 'sd-shake' : ''} ${flashClass}`} style={screenStyles.container}>
         <div style={screenStyles.panel}>
           <h2 style={screenStyles.title}>📋 SPRINT SUMMARY</h2>
 
@@ -947,6 +1081,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
           </button>
         </div>
       </div>
+      </Scene>
     );
   }
 
