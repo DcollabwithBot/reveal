@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { playReveal } from './ssAudio.js';
 import { fibStepDelta, avgEstimate, PF, VT } from './ssHelpers.js';
+import { fixedScanlines } from '../../shared/styles.js';
 
 export default function StepDelta({ items, round1Estimates, round2Estimates, onContinue, onApplyEstimates, isGM }) {
   useEffect(() => { playReveal(); }, []);
@@ -19,7 +20,7 @@ export default function StepDelta({ items, round1Estimates, round2Estimates, onC
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 800, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontFamily: PF, fontSize: 14, color: 'var(--gold)', letterSpacing: 2, marginBottom: 8 }}>🔍 DELTA ANALYSIS</div>

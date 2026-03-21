@@ -19,6 +19,7 @@ import StepQuickEstimate from './StepQuickEstimate.jsx';
 import StepSumReveal from './StepSumReveal.jsx';
 import StepGapAnalysis from './StepGapAnalysis.jsx';
 import StepApproval from './StepApproval.jsx';
+import { cornerControls, spectatorBar } from '../../shared/styles.js';
 
 export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarRef = useRef(null);
@@ -121,12 +122,12 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
       <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
         <LootDrops active={lootActive} items={[{ icon: '⛏️', label: '+XP', color: C.org }, { icon: '🧬', label: 'SCOPE', color: C.gld }]} />
       </div>
-      <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+      <div style={spectatorBar}>
         {getDisplaySprites(participants, NPC_TEAM).map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
       </div>
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={cornerControls}>
           <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} ref={xpBarRef} />
         </div>

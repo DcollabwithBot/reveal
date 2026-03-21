@@ -9,6 +9,7 @@ import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+import { cornerControls } from '../shared/styles.js';
 
 const RETRO_COLS = [
   { key: 'well',    label: '↑ What went well',   color: 'var(--jade)',   bg: 'rgba(0,200,150,0.08)',   border: 'rgba(0,200,150,0.25)' },
@@ -314,7 +315,7 @@ export default function RetroScreen({ onNavigate }) {
       {/* Game soul: XP bar + sound toggle */}
       {currentUser?.id && <XPBadgeNotifier userId={currentUser.id} />}
       {currentUser?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={cornerControls}>
           <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={currentUser.id} />
         </div>

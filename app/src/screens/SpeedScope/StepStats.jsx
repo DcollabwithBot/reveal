@@ -3,6 +3,7 @@ import PostSessionSummary from '../../components/session/PostSessionSummary.jsx'
 import AchievementPopup from './AchievementPopup.jsx';
 import { playSpeedWinner } from './ssAudio.js';
 import { fibStepDelta, avgEstimate, PF, VT } from './ssHelpers.js';
+import { fixedScanlines } from '../../shared/styles.js';
 
 export default function StepStats({ items, round1Estimates, round2Estimates, participants, responseTimes, onBack, sessionId }) {
   const [animated, setAnimated] = useState(false);
@@ -40,7 +41,7 @@ export default function StepStats({ items, round1Estimates, round2Estimates, par
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontFamily: PF, fontSize: 16, color: 'var(--gold)', letterSpacing: 2, marginBottom: 4 }}>📊 VELOCITY STATS</div>

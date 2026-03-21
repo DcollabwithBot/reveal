@@ -22,6 +22,7 @@ import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 import PostSessionSummary from '../components/session/PostSessionSummary.jsx';
+import { cornerControls, fixedScanlines, spectatorBar } from '../shared/styles.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -351,7 +352,7 @@ function StepSpeed({ items, currentItemIndex, onVote, votedItems, isGM, particip
   return (
     <div className={!myVote ? 'ss-edge-danger' : ''} style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: 'hidden', padding: '24px 20px' }}>
       {/* Scanline */}
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
 
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto' }}>
         {/* Header */}
@@ -421,7 +422,7 @@ function StepDiscuss({ items, currentItemIndex, onVote, votedItems, mySpeedEstim
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -516,7 +517,7 @@ function StepDelta({ items, round1Estimates, round2Estimates, onContinue, onAppl
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 800, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontFamily: PF, fontSize: 14, color: 'var(--gold)', letterSpacing: 2, marginBottom: 8 }}>🔍 DELTA ANALYSIS</div>
@@ -640,7 +641,7 @@ function StepStats({ items, round1Estimates, round2Estimates, participants, resp
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontFamily: PF, fontSize: 16, color: 'var(--gold)', letterSpacing: 2, marginBottom: 4 }}>📊 VELOCITY STATS</div>
@@ -919,7 +920,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarEl = user?.id ? (
     <>
       <XPBadgeNotifier userId={user.id} />
-      <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={cornerControls}>
         <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
         <GameXPBar userId={user.id} ref={xpBarRef} />
       </div>
@@ -931,7 +932,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
       <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
         <LootDrops active={lootActive} items={[{ icon: '⚡', label: '+XP', color: '#8b5cf6' }, { icon: '🎯', label: 'SPEED', color: C.gld }]} />
       </div>
-      <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+      <div style={spectatorBar}>
         {getDisplaySprites(participants, NPC_TEAM).map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
       </div>
     </>
@@ -954,7 +955,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
       <Scene mc="#8b5cf6">
       <div style={{ minHeight: '100vh', background: 'transparent', padding: '24px 20px' }}>
         {xpBarEl}
-        <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+        <div style={fixedScanlines} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
           <div className="ss-speed-title" style={{ fontFamily: PF, fontSize: 18, color: '#00aaff', letterSpacing: 2, marginBottom: 8 }}>⚡ SPEED SCOPE</div>
           <div style={{ fontFamily: VT, fontSize: 20, color: 'var(--text2)', marginBottom: 32 }}>Estimate fast. Reflect slow. Find hidden complexity.</div>

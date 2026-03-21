@@ -1,6 +1,7 @@
 import CountdownTimer from './CountdownTimer.jsx';
 import FibCard from './FibCard.jsx';
 import { PF, VT, FIBONACCI } from './ssHelpers.js';
+import { fixedScanlines } from '../../shared/styles.js';
 
 export default function StepDiscuss({ items, currentItemIndex, onVote, votedItems, mySpeedEstimates, isGM, participantCount, voteCount, showSpeedVotes, allRound1, onGMAdvance, onToggleShowSpeed }) {
   const item = items[currentItemIndex];
@@ -11,7 +12,7 @@ export default function StepDiscuss({ items, currentItemIndex, onVote, votedItem
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={fixedScanlines} />
       <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>

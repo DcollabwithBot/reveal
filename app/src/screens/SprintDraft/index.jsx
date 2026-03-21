@@ -15,6 +15,7 @@ import { injectDraftStyles } from './sdStyles.js';
 import { playCoin, playFanfare } from './sdAudio.js';
 import { PRIORITY_TOKENS, VOTE_TIMER_SECONDS, screenStyles } from './sdConstants.js';
 import { QuickEstimateModal, ConfettiBurst, SprintCelebration, CapacityGauge, TokenAssigner, DraftItemCard } from './DraftComponents.jsx';
+import { cornerControls } from '../../shared/styles.js';
 
 export default function SprintDraftScreen({ sessionId, user, onBack }) {
   useEffect(() => { injectDraftStyles(); }, []);
@@ -197,7 +198,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
       </div>
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={cornerControls}>
           <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} />
         </div>

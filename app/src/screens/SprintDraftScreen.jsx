@@ -10,6 +10,7 @@ import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+import { cornerControls } from '../shared/styles.js';
 
 // ── Draft CSS ─────────────────────────────────────────────────────────────────
 let sdStylesInjected = false;
@@ -712,7 +713,7 @@ export default function SprintDraftScreen({ sessionId, user, onBack }) {
       </div>
       {user?.id && <XPBadgeNotifier userId={user.id} />}
       {user?.id && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={cornerControls}>
           <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
           <GameXPBar userId={user.id} />
         </div>

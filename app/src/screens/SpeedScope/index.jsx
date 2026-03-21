@@ -15,6 +15,7 @@ import StepSpeed from './StepSpeed.jsx';
 import StepDiscuss from './StepDiscuss.jsx';
 import StepDelta from './StepDelta.jsx';
 import StepStats from './StepStats.jsx';
+import { cornerControls, fixedScanlines, spectatorBar } from '../../shared/styles.js';
 
 export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarRef = useRef(null);
@@ -136,7 +137,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
   const xpBarEl = user?.id ? (
     <>
       <XPBadgeNotifier userId={user.id} />
-      <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={cornerControls}>
         <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
         <GameXPBar userId={user.id} ref={xpBarRef} />
       </div>
@@ -149,7 +150,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
       <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
         <LootDrops active={lootActive} items={[{ icon: '⚡', label: '+XP', color: '#8b5cf6' }, { icon: '🎯', label: 'SPEED', color: C.gld }]} />
       </div>
-      <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+      <div style={spectatorBar}>
         {getDisplaySprites(participants, NPC_TEAM).map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
       </div>
     </>
@@ -172,7 +173,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
       <Scene mc="#8b5cf6">
         <div style={{ minHeight: '100vh', background: 'transparent', padding: '24px 20px' }}>
           {xpBarEl}
-          <div style={{ position: 'fixed', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)', pointerEvents: 'none', zIndex: 1 }} />
+          <div style={fixedScanlines} />
           <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
             <div className="ss-speed-title" style={{ fontFamily: PF, fontSize: 18, color: '#00aaff', letterSpacing: 2, marginBottom: 8 }}>⚡ SPEED SCOPE</div>
             <div style={{ fontFamily: VT, fontSize: 20, color: 'var(--text2)', marginBottom: 32 }}>Estimate fast. Reflect slow. Find hidden complexity.</div>

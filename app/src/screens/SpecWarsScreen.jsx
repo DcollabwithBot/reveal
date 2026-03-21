@@ -22,6 +22,7 @@ import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
 import { useGameSound, isSoundEnabled } from '../hooks/useGameSound.js';
 import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
+import { cornerControls, spectatorBar } from '../shared/styles.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -637,13 +638,13 @@ export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
           <LootDrops active={lootActive} items={[{ icon: '📜', label: '+XP', color: C.gld }, { icon: '⭐', label: 'SPEC', color: C.yel }]} />
         </div>
         {/* Spectators — real participants or NPC fallback */}
-        <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
+        <div style={spectatorBar}>
           {getDisplaySprites(participants, NPC_TEAM).map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
         </div>
         {/* XP Bar */}
         {user?.id && <XPBadgeNotifier userId={user.id} />}
         {user?.id && (
-          <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={cornerControls}>
             <SoundToggle soundEnabled={soundEnabled} onToggle={toggleSound} size="sm" />
             <GameXPBar userId={user.id} />
           </div>
