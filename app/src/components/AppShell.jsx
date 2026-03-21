@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameFeature } from '../shared/useGameFeature';
 import { getMembership } from '../lib/api';
-import { supabase } from '../lib/supabase';
+import { fetchProjectsForOrg, fetchSprintsForProjects, fetchItemsForSprints } from '../lib/helpers/projectHelpers.js';
 import NotificationBell from './NotificationBell';
 
 // ── nav-tree inline styles ────────────────────────────────────────────────────
@@ -27,31 +27,21 @@ export default function AppShell({ user, activeScreen, activeProjectId, onNaviga
         const membership = await getMembership();
         if (!membership?.organization_id) return;
 
-        const { data: projs } = await supabase
-          .from('projects')
-          .select('id,name,icon,status')
-          .eq('organization_id', membership.organization_id)
-          .eq('status', 'active')
-          .order('updated_at', { ascending: false });
+        const projs = await fetchProjectsForOrg(membership.organization_id, { statusFilter: 'active' });
 
-        if (!projs?.length) return;
+        if (!projs.length) return;
         setProjects(projs);
 
         // Hent sprint + item counts per project
-        const { data: sprints } = await supabase
-          .from('sprints')
-          .select('id,name,status,project_id')
-          .in('project_id', projs.map(p => p.id))
-          .eq('status', 'active');
+        const sprints = await fetchSprintsForProjects(projs.map(p => p.id), {
+          fields: 'id,name,status,project_id',
+          statusFilter: 'active',
+        });
 
-        const sprintIds = (sprints || []).map(s => s.id);
+        const sprintIds = sprints.map(s => s.id);
         let items = [];
         if (sprintIds.length) {
-          const { data: itemData } = await supabase
-            .from('session_items')
-            .select('id,item_status,sprint_id')
-            .in('sprint_id', sprintIds);
-          items = itemData || [];
+          items = await fetchItemsForSprints(sprintIds, { fields: 'id,item_status,sprint_id' });
         }
 
         const insights = {};

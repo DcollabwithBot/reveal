@@ -4,15 +4,12 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { supabase } from '../lib/supabase';
+import { buildAuthHeaders } from '../lib/helpers/projectHelpers.js';
 
 const PF = "'Press Start 2P', monospace";
 
-async function authHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-    : { 'Content-Type': 'application/json' };
-}
+// buildAuthHeaders from projectHelpers replaces inline authHeaders()
+const authHeaders = buildAuthHeaders;
 
 const FILTERS = [
   { label: 'Denne sprint', value: 1 },

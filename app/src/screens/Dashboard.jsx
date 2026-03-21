@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ProjectTemplateSelector from '../components/templates/ProjectTemplateSelector.jsx';
 import { supabase } from '../lib/supabase';
+import { fetchSprintsForOrg, fetchProjectsForOrg } from '../lib/helpers/projectHelpers.js';
 import {
   applyApprovedRequest,
   applyRequest,
@@ -718,13 +719,13 @@ export default function Dashboard({ onTimelog, onWorkspace, onAnalytics, onQuest
       const membership = await getMembership();
       if (!membership?.organization_id) return;
 
-      const { data: sprints } = await supabase.from('sprints').select('id, name, project_id').eq('organization_id', membership.organization_id).limit(20);
+      const sprints = await fetchSprintsForOrg(membership.organization_id, { fields: 'id, name, project_id' });
       const sprintMap = {};
-      (sprints || []).forEach(s => { sprintMap[s.id] = s; });
+      sprints.forEach(s => { sprintMap[s.id] = s; });
 
-      const { data: projects } = await supabase.from('projects').select('id, name, icon').eq('organization_id', membership.organization_id);
+      const projects = await fetchProjectsForOrg(membership.organization_id);
       const projectMap = {};
-      (projects || []).forEach(p => { projectMap[p.id] = p; });
+      projects.forEach(p => { projectMap[p.id] = p; });
 
       const sprintIds = Object.keys(sprintMap);
       if (!sprintIds.length) return;

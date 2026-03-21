@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMembership, updateItem } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { fetchProjectsForOrg, fetchSprintsForProjects, buildAuthHeaders } from '../lib/helpers/projectHelpers.js';
 import ItemDetailModal from '../components/ItemDetailModal';
 
 // ── rarity from estimated_hours ───────────────────────────────────────────────
@@ -243,24 +244,16 @@ export default function TeamKanban() {
         if (!membership?.organization_id) { setLoading(false); return; }
         const orgId = membership.organization_id;
 
-        const { data: projs } = await supabase
-          .from('projects')
-          .select('id,name,icon,status')
-          .eq('organization_id', orgId)
-          .eq('status', 'active');
-        setProjects(projs || []);
+        const projs = await fetchProjectsForOrg(orgId, { statusFilter: 'active' });
+        setProjects(projs);
         const pMap = {};
-        (projs || []).forEach(p => { pMap[p.id] = p; });
+        projs.forEach(p => { pMap[p.id] = p; });
         setProjectMap(pMap);
 
-        const projIds = (projs || []).map(p => p.id);
+        const projIds = projs.map(p => p.id);
         let sprintList = [];
         if (projIds.length) {
-          const { data: sprintData } = await supabase
-            .from('sprints')
-            .select('id,name,project_id,status')
-            .in('project_id', projIds);
-          sprintList = sprintData || [];
+          sprintList = await fetchSprintsForProjects(projIds, { fields: 'id,name,project_id,status' });
         }
         setSprints(sprintList);
         const sMap = {};
@@ -299,7 +292,7 @@ export default function TeamKanban() {
         // Hent assignees fra dedikeret endpoint
         try {
           const resp = await fetch('/api/team/assignees', {
-            headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+            headers: await buildAuthHeaders(),
           });
           if (resp.ok) setAssignees(await resp.json());
         } catch { /* ignorér */ }

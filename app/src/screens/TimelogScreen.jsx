@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchSprintsForProject } from '../lib/helpers/projectHelpers.js';
 
 const DKK = (n) => Number(n || 0).toLocaleString('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' kr.';
 const H = (n) => Number(n || 0).toFixed(1) + 't';
@@ -39,14 +40,9 @@ export default function TimelogScreen({ projectId, onBack }) {
       setProject(proj);
 
       // Load latest sprint for project
-      const { data: sprintData, error: se } = await supabase
-        .from('sprints')
-        .select('id, name, sprint_code, status')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      if (se) throw se;
+      const sprintList = await fetchSprintsForProject(projectId, { fields: 'id, name, sprint_code, status' });
+      const sprintData = sprintList[sprintList.length - 1] || null; // last = most recent (ordered by created_at asc)
+      if (!sprintData) throw new Error('No sprint found for project');
       setSprint(sprintData);
 
       // Load items for sprint

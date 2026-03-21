@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { getMembership, reportExportEvent } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { fetchProjectsForOrg, fetchSprintsForProjects } from '../lib/helpers/projectHelpers.js';
 import { buildSprintExportFileBase, buildSprintExportPayload, buildSprintItemsCsv, resolveNextSprint } from '../domain/session/retro/sprintFlow';
 import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
@@ -96,7 +97,7 @@ export default function RetroScreen({ onNavigate }) {
   const veteranTriggered = useRef(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null));
+    supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null)); // TODO: replace with useAuth hook
     loadData();
   }, []); // eslint-disable-line
 
@@ -114,19 +115,21 @@ export default function RetroScreen({ onNavigate }) {
       if (!membership?.organization_id) { setLoading(false); return; }
       setOrgId(membership.organization_id);
 
-      const { data: projs } = await supabase.from('projects').select('id,name,icon').eq('organization_id', membership.organization_id);
+      const projs = await fetchProjectsForOrg(membership.organization_id);
       const pMap = {};
-      (projs || []).forEach(p => { pMap[p.id] = p; });
+      projs.forEach(p => { pMap[p.id] = p; });
       setProjects(pMap);
 
-      const projIds = (projs || []).map(p => p.id);
+      const projIds = projs.map(p => p.id);
       if (!projIds.length) { setLoading(false); return; }
 
-      const { data: sprintData } = await supabase
-        .from('sprints').select('id,name,project_id,status,sprint_code,start_date,created_at,updated_at').in('project_id', projIds)
-        .order('status', { ascending: true });
-      setSprints(sprintData || []);
-      if (sprintData?.length) setSelectedSprintId(sprintData[0].id);
+      const sprintData = await fetchSprintsForProjects(projIds, {
+        fields: 'id,name,project_id,status,sprint_code,start_date,created_at,updated_at',
+      });
+      // Sort: active first
+      sprintData.sort((a, b) => (a.status === b.status ? 0 : a.status === 'active' ? -1 : 1));
+      setSprints(sprintData);
+      if (sprintData.length) setSelectedSprintId(sprintData[0].id);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
