@@ -2,9 +2,34 @@ import { useState, useEffect } from "react";
 import { C, PF, BF, WORLDS } from "../shared/constants.js";
 import { dk } from "../shared/utils.js";
 import { getGameAvailability } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 import Leaderboard from "../components/leaderboard/Leaderboard.jsx";
 import SituationalRecommender, { ALL_MODES, ZONE_META } from "../components/discovery/SituationalRecommender.jsx";
 import SessionLaunchModal from "../components/discovery/SessionLaunchModal.jsx";
+
+// Rotating world visual themes from the original hardcoded WORLDS
+const WORLD_THEMES = [
+  { icon: "⚔️", color: "#38b764", boss: "👾", sky: "#6a98e0", grs: "#38b764", drt: "#d77643" },
+  { icon: "🏰", color: "#feae34", boss: "🐉", sky: "#e0c888", grs: "#f0d888", drt: "#a08050" },
+  { icon: "🗼", color: "#5fcde4", boss: "💀", sky: "#8ab0d8", grs: "#d8e8f8", drt: "#8898a8" },
+  { icon: "🌋", color: "#f04f78", boss: "🔥", sky: "#d06888", grs: "#a03848", drt: "#702030" },
+  { icon: "🏔️", color: "#b55088", boss: "🦑", sky: "#9080c0", grs: "#6a5890", drt: "#4a3860" },
+];
+
+const FREE_ROAD_WORLD = {
+  id: 'free-road',
+  name: 'Free Road',
+  sprint: 'Daily missions · Side quests · Events',
+  icon: '🌿',
+  color: '#7ec850',
+  prog: 0, tot: 1,
+  lv: 'FREE ROAD',
+  boss: '🌟',
+  sky: '#88c8a0', grs: '#7ec850', drt: '#5a8838',
+  isFreeRoad: true,
+  unlocked: true,
+  nodes: [], paths: [],
+};
 
 const WL = "#2a1f3d", WD = "#1a1230", FL = "#3a2820", FD = "#281a14", WO = "#5a3a20", ST = "#4a4460", SD = "#3a3450";
 
@@ -251,8 +276,60 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
   const [showRecommender, setShowRecommender] = useState(false);
   const [launchMode, setLaunchMode] = useState(null); // mode object for SessionLaunchModal
   const [activeSideQuest, setActiveSideQuest] = useState(null);
+  const [dynamicWorlds, setDynamicWorlds] = useState(null); // null = loading
+  const [worldsError, setWorldsError] = useState(null);
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
+
+  // Fetch real projects from Supabase
+  useEffect(() => {
+    if (!organizationId) {
+      setDynamicWorlds([]);
+      return;
+    }
+    supabase
+      .from('projects')
+      .select('id,name,description,status,color,icon,sprints(id,name,session_items(id,item_status))')
+      .eq('organization_id', organizationId)
+      .neq('status', 'completed')
+      .order('updated_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('WorldSelect: failed to load projects', error);
+          setWorldsError(error.message);
+          setDynamicWorlds([]);
+          return;
+        }
+        const worlds = (data || []).map((p, i) => {
+          const theme = WORLD_THEMES[i % WORLD_THEMES.length];
+          const activeSpr = p.sprints?.[0];
+          const items = activeSpr?.session_items || [];
+          const doneCount = items.filter(it => it.item_status === 'done' || it.item_status === 'completed').length;
+          return {
+            id: p.id,
+            name: p.name,
+            sprint: activeSpr?.name || p.description || 'Sprint klar',
+            icon: p.icon || theme.icon,
+            color: p.color || theme.color,
+            prog: doneCount,
+            tot: items.length || 1,
+            lv: `WORLD ${i + 1}`,
+            boss: theme.boss,
+            sky: theme.sky,
+            grs: theme.grs,
+            drt: theme.drt,
+            projectId: p.id,
+            unlocked: true,
+            nodes: [],
+            paths: [],
+          };
+        });
+        setDynamicWorlds(worlds);
+      });
+  }, [organizationId]);
+
+  // Build final worlds list: dynamic projects + Free Road
+  const worldsList = dynamicWorlds ? [...dynamicWorlds, FREE_ROAD_WORLD] : [];
 
   useEffect(() => {
     const sprintId = activeSprint?.id;
@@ -260,11 +337,11 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
     getGameAvailability(sprintId).then(avail => {
       if (avail) {
         const map = {};
-        WORLDS.forEach(w => { map[w.id] = avail; });
+        worldsList.forEach(w => { map[w.id] = avail; });
         setAvailability(map);
       }
     }).catch(() => {});
-  }, [activeSprint]);
+  }, [activeSprint, dynamicWorlds]);
 
   // Check for active side quest in missions
   useEffect(() => {
@@ -280,6 +357,16 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
   const playerCls = avatar?.cls || { icon: "⚔️", color: "#f04f78" };
 
   function handleSelect(w) {
+    if (w.isFreeRoad) {
+      sound("door");
+      setFlash(w.color);
+      setTimeout(() => {
+        setFlash(null);
+        window.history.pushState({}, '', '/quest-log');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, 400);
+      return;
+    }
     sound("door");
     setFlash(w.color);
     setTimeout(() => { setFlash(null); onSelect(w); }, 500);
@@ -522,13 +609,50 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
         {/* WORLDS TAB */}
         {tab === "worlds" && (
           <div style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
-            {WORLDS.map((w, i) => (
-              <div key={w.id} style={{ animation: `slideUp 0.3s ${i * 0.1}s both` }}
-                onMouseEnter={() => { setHov(w.id); sound("click"); }}
-                onMouseLeave={() => setHov(null)}>
-                <Portal w={w} hovered={hov === w.id} t={t} onClick={() => handleSelect(w)} availability={availability[w.id]} />
+            {dynamicWorlds === null ? (
+              /* Loading state */
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <div style={{ fontFamily: PF, fontSize: "8px", color: C.acc, animation: "pulse 1s infinite" }}>⏳</div>
+                <div style={{ fontFamily: BF, fontSize: "13px", color: C.dim, marginTop: 8 }}>Loader verdener...</div>
               </div>
-            ))}
+            ) : dynamicWorlds.length === 0 && !worldsError ? (
+              /* Empty state */
+              <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <div style={{ fontSize: "32px", marginBottom: 12 }}>🗺️</div>
+                <div style={{ fontFamily: PF, fontSize: "7px", color: C.txt, marginBottom: 8 }}>Ingen projekter endnu</div>
+                <button
+                  onClick={() => {
+                    window.history.pushState({}, '', '/dashboard');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  style={{
+                    fontFamily: PF, fontSize: "6px",
+                    padding: "8px 18px",
+                    background: C.acc + "22",
+                    border: `2px solid ${C.acc}`,
+                    borderRadius: 6, color: C.acc,
+                    cursor: "pointer",
+                  }}
+                >
+                  Opret dit første projekt →
+                </button>
+                {/* Still show Free Road */}
+                <div style={{ marginTop: 20 }}
+                  onMouseEnter={() => { setHov(FREE_ROAD_WORLD.id); sound("click"); }}
+                  onMouseLeave={() => setHov(null)}>
+                  <Portal w={FREE_ROAD_WORLD} hovered={hov === FREE_ROAD_WORLD.id} t={t} onClick={() => handleSelect(FREE_ROAD_WORLD)} availability={{}} />
+                </div>
+              </div>
+            ) : (
+              /* Project worlds + Free Road */
+              worldsList.map((w, i) => (
+                <div key={w.id} style={{ animation: `slideUp 0.3s ${i * 0.1}s both` }}
+                  onMouseEnter={() => { setHov(w.id); sound("click"); }}
+                  onMouseLeave={() => setHov(null)}>
+                  <Portal w={w} hovered={hov === w.id} t={t} onClick={() => handleSelect(w)} availability={availability[w.id]} />
+                </div>
+              ))
+            )}
           </div>
         )}
 
