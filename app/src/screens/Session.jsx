@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useReducer } from "react";
+import { useState, useEffect, useRef, useReducer, useCallback } from "react";
 import PostSessionSummary from "../components/session/PostSessionSummary.jsx";
 import { C, PF, NPC_TEAM, CLASSES } from "../shared/constants.js";
 import { buildRewardLoot } from "../domain/session/rewards/buildRewardLoot.js";
@@ -29,7 +29,23 @@ import { supabase } from "../lib/supabase.js";
 import LifelinesPanel from "../components/session/LifelinesPanel.jsx";
 const PV = [1, 2, 3, 5, 8, 13, 21];
 function clamp(v) { let b = PV[0]; for (const p of PV) if (Math.abs(p - v) < Math.abs(b - v)) b = p; return b; }
+// NPC fallback: simulate votes from NPC_TEAM (solo/demo mode only)
 function gv(pv, sp = 2) { return NPC_TEAM.map(m => ({ mid: m.id, val: clamp(Math.max(1, pv + Math.round((Math.random() - 0.5) * sp * 2))) })); }
+
+function makeAnonMember(index, name = '') {
+  const cls = CLASSES[index % CLASSES.length];
+  return {
+    id: `anon-${index}`,
+    name: name || `P${index + 1}`,
+    isP: false,
+    lv: 1,
+    cls,
+    hat: cls.color,
+    body: cls.color,
+    btc: cls.color,
+    skin: '#fdd',
+  };
+}
 
 
 export default function Session({ avatar, node, project, onBack, onComplete, sound }) {
@@ -43,18 +59,25 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const isB = node?.tp === "b";
   const mc = isR ? C.yel : isB ? C.red : C.blu;
 
-  // Build team from avatar + NPCs
-  const TEAM = [
-    {
-      id: 1, name: "Du", isP: true, lv: 3,
-      cls: avatar?.cls || CLASSES[0],
-      hat: avatar?.helmet?.pv || avatar?.cls?.color || "#f04f78",
-      body: avatar?.armor?.pv || avatar?.cls?.color || "#f04f78",
-      btc: avatar?.boots?.pv || dk(avatar?.cls?.color || "#f04f78", 60),
-      skin: avatar?.skin || "#fdd",
-    },
-    ...NPC_TEAM,
-  ];
+  // Real participants state (populated from DB)
+  const [dbParticipants, setDbParticipants] = useState([]);
+  const sessionChannelRef = useRef(null);
+
+  // My member (player 1 = always real user)
+  const myMember = {
+    id: 1, name: "Du", isP: true, lv: 3,
+    cls: avatar?.cls || CLASSES[0],
+    hat: avatar?.helmet?.pv || avatar?.cls?.color || "#f04f78",
+    body: avatar?.armor?.pv || avatar?.cls?.color || "#f04f78",
+    btc: avatar?.boots?.pv || dk(avatar?.cls?.color || "#f04f78", 60),
+    skin: avatar?.skin || "#fdd",
+  };
+
+  // Build team: real participants when available, NPC_TEAM fallback for solo/demo
+  const otherMembers = dbParticipants.length > 0
+    ? dbParticipants.map((p, i) => makeAnonMember(i, p.name))
+    : NPC_TEAM;
+  const TEAM = [myMember, ...otherMembers];
 
   const { maxHp: initialMaxHp } = projectBossEncounter({
     projectionConfig: null,
@@ -108,6 +131,61 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
       } catch (e) { console.warn('[Session] auth resolve failed', e.message); }
     })();
   }, []);
+
+  // ── Fetch real participants from DB ────────────────────────────────────────
+  const sessionId = node?.session_id || node?.sessionId || node?.id;
+  useEffect(() => {
+    if (!sessionId) return;
+    async function loadParticipants() {
+      try {
+        const { data: pRows } = await supabase
+          .from('session_participants')
+          .select('*, profiles(id, username, display_name, avatar_config)')
+          .eq('session_id', sessionId);
+        if (!pRows) return;
+        const myId = authUserRef.current?.id;
+        // Only include OTHER participants (not current user)
+        const others = pRows
+          .filter(p => p.user_id !== myId)
+          .map((p, i) => ({
+            id: p.id,
+            userId: p.user_id,
+            name: p.profiles?.username || p.profiles?.display_name || `P${i + 1}`,
+            voted: false,
+          }));
+        setDbParticipants(others);
+      } catch (e) {
+        console.warn('[Session] participant fetch failed', e.message);
+      }
+    }
+    // Wait for auth to resolve first
+    const t = setTimeout(loadParticipants, 200);
+    return () => clearTimeout(t);
+  }, [sessionId]);
+
+  // Ref for accumulating incoming remote votes (used in realtime handler)
+  const remoteVotesRef = useRef([]);
+
+  // ── Realtime vote broadcast channel ───────────────────────────────────────
+  useEffect(() => {
+    if (!sessionId) return;
+    const channel = supabase.channel(`session-votes-${sessionId}`)
+      .on('broadcast', { event: 'VOTE_CAST' }, ({ payload }) => {
+        const myId = authUserRef.current?.id;
+        if (payload.user_id === myId) return; // ignore own echo
+        const newVote = { mid: payload.user_id, val: payload.vote };
+        remoteVotesRef.current = [...remoteVotesRef.current, newVote];
+        // Merge remote votes into flow state
+        dispatchFlow({ type: 'setVotesReady', votes: remoteVotesRef.current });
+      })
+      .subscribe();
+    sessionChannelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+      sessionChannelRef.current = null;
+      remoteVotesRef.current = [];
+    };
+  }, [sessionId]);
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -260,12 +338,33 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
 
   useEffect(() => {
     if (pv === null || rdy) return;
+    const isSolo = dbParticipants.length === 0;
     const timer = setTimeout(() => {
-      const v = gv(pv, 2); dispatchFlow({ type: 'setVotesReady', votes: v });
-      orchestration.runNpcAttackSequence(v);
+      if (isSolo) {
+        // Solo/demo mode: simulate NPC votes
+        const v = gv(pv, 2); dispatchFlow({ type: 'setVotesReady', votes: v });
+        orchestration.runNpcAttackSequence(v);
+      }
+      // Multi-player: broadcast our vote, wait for others via realtime
+      if (sessionChannelRef.current) {
+        sessionChannelRef.current.send({
+          type: 'broadcast',
+          event: 'VOTE_CAST',
+          payload: { user_id: authUserRef.current?.id, vote: pv },
+        });
+      }
+      // Also persist vote to DB
+      if (sessionId && authUserRef.current?.id) {
+        supabase.from('votes').upsert({
+          session_id: sessionId,
+          user_id: authUserRef.current.id,
+          item_id: node?.id,
+          value: pv,
+        }, { onConflict: 'session_id,user_id,item_id' }).catch(() => {});
+      }
     }, 1200);
     return () => clearTimeout(timer);
-  }, [pv, rdy]);
+  }, [pv, rdy, dbParticipants.length]);
 
   // E12: Supabase Realtime subscriptions for bidirectional sync
   useEffect(() => {
@@ -364,7 +463,11 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     dispatchFlow({ type: 'merge', patch: { cv: result.confidence } });
     sound('select');
     if (result.achievementId) addAchieve(result.achievementId);
-    setTimeout(() => { dispatchFlow({ type: 'merge', patch: { ac: NPC_TEAM.map(m => ({ mid: m.id, val: Math.max(1, Math.min(5, v + Math.floor(Math.random() * 3) - 1)) })) } }); }, 500);
+    // Confidence votes: use real participants or NPC fallback
+    const confMembers = dbParticipants.length > 0
+      ? dbParticipants.map(p => ({ id: p.userId || p.id }))
+      : NPC_TEAM;
+    setTimeout(() => { dispatchFlow({ type: 'merge', patch: { ac: confMembers.map(m => ({ mid: m.id, val: Math.max(1, Math.min(5, v + Math.floor(Math.random() * 3) - 1)) })) } }); }, 500);
   }
   function doFin() {
     const result = createVictoryResult({

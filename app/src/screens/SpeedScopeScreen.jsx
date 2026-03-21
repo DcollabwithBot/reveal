@@ -12,6 +12,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
+import { getDisplaySprites } from '../lib/participantHelpers.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -931,7 +932,7 @@ export default function SpeedScopeScreen({ sessionId, user, avatar, onBack }) {
         <LootDrops active={lootActive} items={[{ icon: '⚡', label: '+XP', color: '#8b5cf6' }, { icon: '🎯', label: 'SPEED', color: C.gld }]} />
       </div>
       <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
-        {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
+        {getDisplaySprites(participants, NPC_TEAM).map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
       </div>
     </>
   );

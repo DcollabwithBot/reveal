@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Sprite, Scene, DmgNum, LootDrops } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES, NPC_TEAM, C } from '../shared/constants.js';
+import { getDisplaySprites } from '../lib/participantHelpers.js';
 import { dk } from '../shared/utils.js';
 import GameXPBar from '../components/session/GameXPBar.jsx';
 import SoundToggle from '../components/session/SoundToggle.jsx';
@@ -18,6 +19,11 @@ const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const TSHIRT_POINTS = { XS: 1, S: 2, M: 3, L: 5, XL: 8, XXL: 13 };
 
 const STEPS = { LOBBY: 1, BREAKDOWN: 2, GM_MERGE: 3, QUICK_ESTIMATE: 4, SUM_REVEAL: 5, GAP_ANALYSIS: 6, APPROVAL: 7 };
+
+function makeAnonMember(index, name = '') {
+  const cl = CLASSES[index % CLASSES.length];
+  return { id: index + 1, name: name || `P${index + 1}`, lv: 1 + (index % 5), cls: cl, hat: cl.color, body: cl.color, btc: dk(cl.color, 60), skin: ['#fdd', '#fed', '#edc', '#ffe', '#fec'][index % 5], isP: false };
+}
 
 // ─── WEB AUDIO ────────────────────────────────────────────────────────────────
 function playDing(index) {
@@ -937,9 +943,9 @@ export default function NestingScopeScreen({ sessionId, user, avatar, onBack }) 
       <div style={{ position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
         <LootDrops active={lootActive} items={[{ icon: '⛏️', label: '+XP', color: C.org }, { icon: '🧬', label: 'SCOPE', color: C.gld }]} />
       </div>
-      {/* NPC Spectators */}
+      {/* Spectators — real participants or NPC fallback for solo mode */}
       <div style={{ position: 'fixed', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12, zIndex: 5, pointerEvents: 'none' }}>
-        {NPC_TEAM.map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
+        {getDisplaySprites(participants, NPC_TEAM).map(m => <Sprite key={m.id} m={m} size={0.7} idle />)}
       </div>
       {/* XP Bar + Achievement notifier */}
       {user?.id && <XPBadgeNotifier userId={user.id} />}
