@@ -11,6 +11,9 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { Sprite } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES } from '../shared/constants.js';
+import { dk } from '../shared/utils.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -104,13 +107,45 @@ async function edgeFn(fnName, body, token) {
   return res.json();
 }
 
-function anonymize(submissions, myId) {
-  const avatars = ['👾', '🤖', '👽', '🕹️', '🎮', '🃏', '🧙', '⚔️'];
-  return submissions.map((s, i) => ({
-    ...s,
-    displayName: s.author_id === myId ? '🌟 YOU' : avatars[i % avatars.length],
-    isMe: s.author_id === myId,
-  }));
+/** Build a deterministic pixel-art member object from an index (for anonymous users) */
+function makeAnonMember(index, name = '') {
+  const cl = CLASSES[index % CLASSES.length];
+  return {
+    id: index,
+    name: name || `ANON ${index + 1}`,
+    lv: 1 + (index % 5),
+    cls: cl,
+    hat: cl.color,
+    body: cl.color,
+    btc: dk(cl.color, 60),
+    skin: ['#fdd', '#fed', '#edc', '#ffe', '#fec'][index % 5],
+    isP: false,
+  };
+}
+
+/** Build a member object from the user's saved avatar */
+function makeMyMember(avatar) {
+  const cl = avatar?.cls || CLASSES[0];
+  return {
+    id: 0,
+    name: 'YOU',
+    lv: 3,
+    cls: cl,
+    hat: avatar?.helmet?.pv || cl.color,
+    body: avatar?.armor?.pv || cl.color,
+    btc: avatar?.boots?.pv || dk(cl.color, 60),
+    skin: avatar?.skin || '#fdd',
+    isP: true,
+  };
+}
+
+function anonymize(submissions, myId, myAvatar) {
+  let anonIdx = 0;
+  return submissions.map((s) => {
+    const isMe = s.author_id === myId;
+    const member = isMe ? makeMyMember(myAvatar) : makeAnonMember(anonIdx++);
+    return { ...s, member, isMe };
+  });
 }
 
 // ── Pixel art: Star rating ────────────────────────────────────────────────────
@@ -235,12 +270,12 @@ function Step1Write({ item, onSubmit, userId }) {
   );
 }
 
-function Step2Vote({ submissions, userId, sessionId, itemId, onDone, isGM }) {
+function Step2Vote({ submissions, userId, avatar, sessionId, itemId, onDone, isGM }) {
   const [ratings, setRatings] = useState({});
   const [voted, setVoted] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const anon = anonymize(submissions, userId);
+  const anon = anonymize(submissions, userId, avatar);
 
   async function handleVote() {
     if (saving) return;
@@ -270,9 +305,9 @@ function Step2Vote({ submissions, userId, sessionId, itemId, onDone, isGM }) {
           style={{ ...styles.submissionCard, animationDelay: `${i * 0.1}s`, opacity: 0 }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontFamily: PF, fontSize: 8, color: s.isMe ? 'var(--jade)' : 'var(--text2)' }}>
-              <span className="sw-avatar" style={{ display: 'inline-block' }}>{s.displayName}</span>
-            </span>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }} className="sw-avatar">
+              <Sprite m={s.member} size={0.85} idle />
+            </div>
             {!s.isMe && (
               <StarRating
                 value={ratings[s.id] || 0}
@@ -315,8 +350,14 @@ function Step2Vote({ submissions, userId, sessionId, itemId, onDone, isGM }) {
   );
 }
 
-function Step3Winner({ winner, submissions, userId, onNext, isGM }) {
+function Step3Winner({ winner, submissions, userId, avatar, onNext, isGM }) {
   useEffect(() => { playWinner(); }, []);
+
+  const winnerIdx = submissions.findIndex(s => s.id === winner.id);
+  const isMyWin = winner.author_id === userId;
+  const winnerMember = isMyWin
+    ? makeMyMember(avatar)
+    : makeAnonMember(winnerIdx >= 0 ? winnerIdx : 0);
 
   return (
     <div style={styles.step}>
@@ -329,9 +370,9 @@ function Step3Winner({ winner, submissions, userId, onNext, isGM }) {
 
       <div className="sw-winner-card" style={styles.winnerCard}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontFamily: PF, fontSize: 7, color: 'var(--gold)' }}>
-            {winner.author_id === userId ? '🌟 YOUR SPEC' : '👾 ANONYMOUS'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <Sprite m={winnerMember} size={1.0} idle />
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <StarRating value={Math.round(winner.score || 0)} readOnly />
             <span style={{ fontFamily: PF, fontSize: 7, color: 'var(--text2)', marginLeft: 4 }}>
@@ -366,7 +407,7 @@ function Step3Winner({ winner, submissions, userId, onNext, isGM }) {
 }
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
-export default function SpecWarsScreen({ sessionId, user, onBack }) {
+export default function SpecWarsScreen({ sessionId, user, avatar, onBack }) {
   useEffect(() => { injectStyles(); }, []);
 
   const [phase, setPhase] = useState('loading'); // loading | write | vote | winner | done
@@ -557,6 +598,7 @@ export default function SpecWarsScreen({ sessionId, user, onBack }) {
           <Step2Vote
             submissions={submissions}
             userId={user.id}
+            avatar={avatar}
             sessionId={sessionId}
             itemId={currentItem.id}
             onDone={onVoteDone}
@@ -569,6 +611,7 @@ export default function SpecWarsScreen({ sessionId, user, onBack }) {
             winner={winner}
             submissions={submissions}
             userId={user.id}
+            avatar={avatar}
             onNext={onGMDecision}
             isGM={isGM}
           />

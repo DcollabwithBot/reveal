@@ -481,6 +481,7 @@ export default function App() {
           <PerspectivePokerScreen
             sessionId={perspectiveSessionId}
             user={user}
+            avatar={avatar}
             onBack={() => {
               window.history.pushState({}, '', '/dashboard');
               setAuthScreen('dashboard');

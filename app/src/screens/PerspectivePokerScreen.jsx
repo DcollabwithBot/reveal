@@ -12,6 +12,9 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { Sprite } from '../components/session/SessionPrimitives.jsx';
+import { CLASSES } from '../shared/constants.js';
+import { dk } from '../shared/utils.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -310,8 +313,37 @@ function GapDiagram({ votes, perspectiveMap }) {
   );
 }
 
+// ── Pixel art avatar helpers ──────────────────────────────────────────────────
+function makeAnonMember(index) {
+  const cl = CLASSES[index % CLASSES.length];
+  return {
+    id: index,
+    name: `ANON ${index + 1}`,
+    lv: 1 + (index % 5),
+    cls: cl,
+    hat: cl.color,
+    body: cl.color,
+    skin: ['#fdd', '#fed', '#edc', '#ffe', '#fec'][index % 5],
+    isP: false,
+  };
+}
+
+function makeMyMember(avatar) {
+  const cl = avatar?.cls || CLASSES[0];
+  return {
+    id: 0,
+    name: 'YOU',
+    lv: 3,
+    cls: cl,
+    hat: avatar?.helmet?.pv || cl.color,
+    body: avatar?.armor?.pv || cl.color,
+    skin: avatar?.skin || '#fdd',
+    isP: true,
+  };
+}
+
 // ── Main Screen ───────────────────────────────────────────────────────────────
-export default function PerspectivePokerScreen({ sessionId, user, onBack }) {
+export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack }) {
   useEffect(() => { injectStyles(); }, []);
 
   const [phase, setPhase] = useState('loading');
@@ -592,6 +624,7 @@ export default function PerspectivePokerScreen({ sessionId, user, onBack }) {
             <div style={{ fontFamily: PF, fontSize: 8, color: 'var(--text3)', letterSpacing: 2 }}>
               YOUR PERSPECTIVE
             </div>
+            <Sprite m={makeMyMember(avatar)} size={1.4} idle />
             {myPerspective && (
               <PerspectiveCard perspKey={myPerspective} revealed animate />
             )}
@@ -658,6 +691,8 @@ export default function PerspectivePokerScreen({ sessionId, user, onBack }) {
               {allVotes.map((v, i) => {
                 const pk = perspectiveMap[v.user_id] || 'developer';
                 const p = PERSPECTIVES[pk] || PERSPECTIVES.developer;
+                const isMe = v.user_id === user.id;
+                const member = isMe ? makeMyMember(avatar) : makeAnonMember(i);
                 return (
                   <div
                     key={v.user_id}
@@ -673,9 +708,12 @@ export default function PerspectivePokerScreen({ sessionId, user, onBack }) {
                       borderRadius: 8,
                     }}
                   >
-                    <span style={{ fontFamily: VT, fontSize: 20, color: p.color }}>
-                      {p.icon} {p.label}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                      <Sprite m={member} size={0.85} idle />
+                      <span style={{ fontFamily: VT, fontSize: 20, color: p.color }}>
+                        {p.icon} {p.label}
+                      </span>
+                    </div>
                     <span style={{
                       fontFamily: PF,
                       fontSize: 14,
