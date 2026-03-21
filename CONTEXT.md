@@ -1,18 +1,55 @@
 # Reveal — Projekt CONTEXT
 
-Last updated: 2026-03-20 (sprints 7-11 dokumenteret, V8+ mockup live, sidebar refactor næste)
+Last updated: 2026-03-21 (Sprint A–E complete, 8 game modes, full PM integration, leaderboard, audit, deployed)
 
 ## Hvad er det?
 Gamificeret team-estimeringsplatform. Planning Poker + Scope Roulette + Sprint Retrospectives pakket ind i RPG-mekanik med klasser, spells, boss battles, achievements og loot.
 
 ## Status
-- Fase: Aktiv udvikling — v0.11+ (Sprint 11 game_mode + time tracking landed ✅)
-- Live: https://reveal.blichert.net
+- Fase: Aktiv udvikling — v0.13+ (Sprint A–E deployed 2026-03-21)
+- Live: https://reveal.blichert.net ✅ (deployed 2026-03-21)
 - Salgs-demo mockup: https://reveal.blichert.net/reveal-v8plus.html (V8+ — bruges mens sidebar refactores)
 - GitHub: https://github.com/DcollabwithBot/reveal
-- Branch: `main` (sprint 11 merged 2026-03-20)
+- Branch: `main` (sprint E merged + deployed 2026-03-21)
 - App: `app/` — Vite + React
 - **Næste:** Sidebar refactor — App.jsx → persistent app-shell (sidebar 232px + main)
+
+## Sprint A–E Status (2026-03-21) ✅
+
+### Sprint A (Data Audit) ✅
+- Schema audit, RLS gennemgang, hardcoded-vs-DB analyse
+- Alle write-paths verificeret
+
+### Sprint B (Mission Engine + New Game Modes) ✅
+- `sprint_b1_mission_engine.sql` deployed 2026-03-21
+- Missions: user_missions, spec_submissions, perspective_votes, session_roles, session_lifelines
+- Supabase pg_net + pg_cron extensions
+- SprintReportCard, XP/badges (sniper_shot, oracle, risk_prophet, spec_machine, perspective_master)
+- SpecWarsScreen.jsx + PerspectivePokerScreen.jsx (2 nye game modes)
+- acceptance_criteria + risk_notes på session_items
+
+### Sprint C (6 Game Modes Live) ✅
+- `sprint_c_game_modes.sql` deployed
+- BluffPokerScreen.jsx, NestingScopeScreen.jsx, SpeedScopeScreen.jsx
+- useGameSound + SoundToggle — Web Audio API til alle 6 game modes
+- 9 nye achievements (Master Bluffer, Detective, Archaeologist, Speed Demon etc.)
+
+### Sprint D (Game Soul Polish) ✅
+- `sprint_d_achievements.sql` deployed 2026-03-21
+- Achievement master list: 16 achievements på tværs af alle modes
+- SprintDraftScreen.jsx + RetroScreen.jsx polish
+- Tilføjet: perfect_fill, retrospective_veteran achievements
+
+### Sprint E (World Map + PM Integration) ✅
+- `sprint_e_visibility.sql` deployed — game_availability tabel, World Map availability states
+- `sprint_e_audit_log_v2.sql` deployed — audit_log v2
+- `sprint_e_sync.sql` deployed — realtime sync forbedringer
+- `sprint_e_leaderboard.sql` deployed — leaderboard_org, Hall of Fame, High Score Board
+- `sprint_e_approval_chain.sql` deployed — approval_chain_members, governance
+- PM Board game-knapper (estimer sprint, spec wars, perspektiv-poker)
+- Mission Shield widget i sidebar
+- Game HUD i PM (GameHUD komponent)
+- Leaderboard.jsx + Hall of Fame
 
 ## Hvad er bygget
 
@@ -182,6 +219,16 @@ Bygges EFTER vi har pilotkunder og validated use case.
 - Sprint 5 tilføjede: `sessions.voting_mode`, `retro_events` (12 rows), `challenges` (18 rows)
 - Sprint 6 tilføjede: `projects`, `sprints`, `session_templates`, `node_completions`, nye felter på `sessions` og `session_items`
 - Migration kørt: 2026-03-19 via Supabase Management API (`sprint5.sql` + `sprint6.sql`)
+
+### Migrationer deployed 2026-03-21 ✅
+- `sprint9_projection_config.sql` — game_profiles, boss_profiles, reward_rules, achievement_definitions
+- `sprint_b1_mission_engine.sql` — missions, spec_submissions, perspective_votes, session_roles, session_lifelines
+- `sprint_d_achievements.sql` — Sprint D achievements (perfect_fill, retrospective_veteran)
+- `sprint_e_visibility.sql` — game_availability
+- `sprint_e_audit_log_v2.sql` — audit_log v2
+- `sprint_e_sync.sql` — realtime sync
+- `sprint_e_leaderboard.sql` — leaderboard_org
+- `sprint_e_approval_chain.sql` — approval_chain_members
 
 ## Tech stack
 - React (hooks only) + Vite
