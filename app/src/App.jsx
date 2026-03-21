@@ -657,7 +657,7 @@ export default function App() {
           <WorldSelect
             avatar={avatar}
             onSelect={(w) => { setWorld(w); setScreen("map"); }}
-            onSelectMode={(mode) => {
+            onSelectMode={(mode, selectedItems = []) => {
               const modeId = mode.id;
               const modeRouteSlugs = {
                 planning_poker: 'planning-poker',
@@ -685,6 +685,7 @@ export default function App() {
                       organization_id: organizationId,
                       status: "active",
                       created_by: user?.id,
+                      ...(selectedItems?.length ? { items_covered: selectedItems } : {}),
                     })
                     .select("id")
                     .single()

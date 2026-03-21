@@ -56,6 +56,19 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
   const [showVisibility, setShowVisibility] = useState(false);
   const [projectVisibility, setProjectVisibility] = useState('public');
 
+  // Workspace tabs
+  const [workspaceTab, setWorkspaceTab] = useState('backlog'); // 'backlog' | 'approvals' | 'sessions'
+
+  // Approvals tab
+  const [approvals, setApprovals] = useState([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState(null); // requestId being processed
+
+  // Sessions tab
+  const [sessionLog, setSessionLog] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [expandedSession, setExpandedSession] = useState(null); // session id
+
   // Column name mapping for smart detection
   const COLUMN_ALIASES = {
     title: ['title', 'titel', 'summary', 'name', 'story', 'opgave', 'task'],
@@ -229,6 +242,11 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (workspaceTab === 'approvals') loadApprovals();
+    if (workspaceTab === 'sessions') loadSessionLog();
+  }, [workspaceTab, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     // Hent team members uafhængigt af organizationId prop — find org via bruger
     loadTeamMembers(organizationId);
   }, [organizationId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -292,6 +310,53 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
       setImportBatches(batches.filter(b => Date.now() - new Date(b.created_at).getTime() < 60 * 60 * 1000));
     }).catch(() => {});
     setLoading(false);
+  }
+
+  async function loadApprovals() {
+    if (!projectId) return;
+    setApprovalsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('approval_requests')
+        .select('*, sessions(game_mode, completed_at), session_items(title)')
+        .eq('state', 'pending_approval')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+      if (error) handleError(error, 'load-approvals');
+      else setApprovals(data || []);
+    } catch (e) { handleError(e, 'load-approvals'); }
+    setApprovalsLoading(false);
+  }
+
+  async function handleApprovalAction(requestId, action) {
+    setApprovalBusy(requestId);
+    try {
+      const { error } = await supabase.functions.invoke('approve-mutation', {
+        body: { approvalId: requestId, action },
+      });
+      if (error) throw new Error(error.message || 'Ukendt fejl');
+      setToast(action === 'approve' ? '✅ Godkendt' : '❌ Afvist');
+      await loadApprovals();
+    } catch (e) {
+      setToast(`Fejl: ${e.message}`);
+    }
+    setApprovalBusy(null);
+  }
+
+  async function loadSessionLog() {
+    if (!projectId) return;
+    setSessionsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, game_mode, status, created_at, completed_at, created_by, summary, items_covered, participants, profiles(display_name)')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) handleError(error, 'load-sessions');
+      else setSessionLog(data || []);
+    } catch (e) { handleError(e, 'load-sessions'); }
+    setSessionsLoading(false);
   }
 
   async function handleLaunchSpecWars() {
@@ -645,8 +710,47 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
         </div>
       )}
 
-      {/* Main grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 22 }}>
+      {/* Workspace Tab Navigation */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {[
+          { id: 'backlog', label: 'Backlog', icon: '📋' },
+          { id: 'approvals', label: 'Godkendelser', icon: '✅', badge: approvals.length > 0 ? approvals.length : null },
+          { id: 'sessions', label: 'Sessions', icon: '🎮' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setWorkspaceTab(tab.id)}
+            style={{
+              position: 'relative',
+              fontSize: 12, fontWeight: 600,
+              padding: '8px 16px',
+              border: 'none', background: 'none', cursor: 'pointer',
+              color: workspaceTab === tab.id ? 'var(--jade)' : 'var(--text3)',
+              borderBottom: workspaceTab === tab.id ? '2px solid var(--jade)' : '2px solid transparent',
+              marginBottom: -1,
+              transition: 'color 0.15s',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+            {tab.badge != null && (
+              <span style={{
+                minWidth: 18, height: 18, borderRadius: 9,
+                background: 'var(--danger)', color: '#fff',
+                fontSize: 10, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '0 4px',
+              }}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Main grid (Backlog tab) */}
+      {workspaceTab === 'backlog' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 22 }}>
         <div>
           {/* Action bar: Unplanned + Import + Undo */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -908,7 +1012,208 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
           onTimelog={onTimelog}
           projectId={projectId}
         />
-      </div>
+      </div>}
+
+      {/* ── Godkendelser tab ─────────────────────────────────── */}
+      {workspaceTab === 'approvals' && (
+        <div style={{ maxWidth: 800 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+              Ventende godkendelser
+            </div>
+            <button
+              onClick={loadApprovals}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)' }}
+            >
+              ↻ Opdatér
+            </button>
+          </div>
+
+          {approvalsLoading ? (
+            <div style={{ fontSize: 12, color: 'var(--text3)', padding: 24, textAlign: 'center' }}>Indlæser godkendelser...</div>
+          ) : approvals.length === 0 ? (
+            <div style={{
+              padding: 32, textAlign: 'center',
+              background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🎉</div>
+              <div style={{ fontSize: 14, color: 'var(--text2)' }}>Ingen ventende godkendelser 🎉</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Alt er op-to-date</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {approvals.map(req => {
+                const sessionMode = req.sessions?.game_mode || '';
+                const sessionDate = req.sessions?.completed_at
+                  ? new Date(req.sessions.completed_at).toLocaleDateString('da-DK')
+                  : req.created_at ? new Date(req.created_at).toLocaleDateString('da-DK') : '—';
+                const itemTitle = req.session_items?.title || req.target_id || '—';
+                const proposedValue = req.requested_patch
+                  ? Object.entries(req.requested_patch).map(([k, v]) => `${k}: ${v}`).join(', ')
+                  : '—';
+                const isBusy = approvalBusy === req.id;
+
+                return (
+                  <div key={req.id} style={{
+                    padding: 16, background: 'var(--bg2)',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+                    display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                        {itemTitle}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <span>🎮 {sessionMode || 'Ukendt mode'}</span>
+                        <span>📅 {sessionDate}</span>
+                        <span style={{ color: 'var(--gold)' }}>📊 {proposedValue}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button
+                        onClick={() => handleApprovalAction(req.id, 'approve')}
+                        disabled={isBusy}
+                        style={{
+                          fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 'var(--radius)',
+                          cursor: isBusy ? 'wait' : 'pointer', border: 'none',
+                          background: isBusy ? 'var(--bg3)' : 'var(--jade)', color: isBusy ? 'var(--text3)' : '#0c0c0f',
+                        }}
+                      >
+                        {isBusy ? '...' : '✅ Godkend'}
+                      </button>
+                      <button
+                        onClick={() => handleApprovalAction(req.id, 'reject')}
+                        disabled={isBusy}
+                        style={{
+                          fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 'var(--radius)',
+                          cursor: isBusy ? 'wait' : 'pointer',
+                          border: '1px solid rgba(232,84,84,0.4)',
+                          background: 'rgba(232,84,84,0.08)', color: 'var(--danger)',
+                        }}
+                      >
+                        {isBusy ? '...' : '❌ Afvis'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Sessions tab ─────────────────────────────────────── */}
+      {workspaceTab === 'sessions' && (
+        <div style={{ maxWidth: 900 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+              Session-historik
+            </div>
+            <button
+              onClick={loadSessionLog}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)' }}
+            >
+              ↻ Opdatér
+            </button>
+          </div>
+
+          {sessionsLoading ? (
+            <div style={{ fontSize: 12, color: 'var(--text3)', padding: 24, textAlign: 'center' }}>Indlæser sessions...</div>
+          ) : sessionLog.length === 0 ? (
+            <div style={{
+              padding: 32, textAlign: 'center',
+              background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🗺️</div>
+              <div style={{ fontSize: 14, color: 'var(--text2)' }}>Ingen sessions endnu — start en fra World Map</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Sessions vises her efter afslutning</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {sessionLog.map(sess => {
+                const isExpanded = expandedSession === sess.id;
+                const relativeDate = sess.created_at ? relativeTime(sess.created_at) : '—';
+                const modeLabel = formatGameMode(sess.game_mode);
+                const isActive = sess.status === 'active';
+                const participantCount = Array.isArray(sess.participants) ? sess.participants.length : 0;
+                const itemCount = Array.isArray(sess.items_covered) ? sess.items_covered.length : 0;
+                const creator = sess.profiles?.display_name || sess.created_by || '—';
+
+                return (
+                  <div key={sess.id} style={{
+                    background: 'var(--bg2)',
+                    border: `1px solid ${isActive ? 'rgba(0,200,150,0.3)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+                  }}>
+                    {/* Session row */}
+                    <div
+                      onClick={() => setExpandedSession(isExpanded ? null : sess.id)}
+                      style={{
+                        padding: 14, display: 'flex', alignItems: 'center', gap: 12,
+                        cursor: 'pointer', flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ fontSize: 22, flexShrink: 0 }}>
+                        {gameModeIcon(sess.game_mode)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                          {modeLabel}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                          {relativeDate} · af {creator}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                        {isActive ? (
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 8, background: 'rgba(0,200,150,0.12)', color: 'var(--jade)', border: '1px solid rgba(0,200,150,0.3)' }}>● Aktiv</span>
+                        ) : (
+                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>Afsluttet</span>
+                        )}
+                        {itemCount > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>{itemCount} items</span>
+                        )}
+                        <span style={{ fontSize: 14, color: 'var(--text3)' }}>{isExpanded ? '▲' : '▼'}</span>
+                      </div>
+                    </div>
+
+                    {/* Expanded details */}
+                    {isExpanded && (
+                      <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
+                        {sess.summary && (
+                          <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 10, marginBottom: 8, padding: '8px 12px', background: 'var(--bg3)', borderRadius: 'var(--radius)' }}>
+                            📝 {sess.summary}
+                          </div>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, marginTop: 10 }}>
+                          {participantCount > 0 && (
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Deltagere</div>
+                              <div style={{ fontSize: 12, color: 'var(--text)' }}>👥 {participantCount} deltagere</div>
+                            </div>
+                          )}
+                          {itemCount > 0 && (
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Items behandlet</div>
+                              <div style={{ fontSize: 12, color: 'var(--text)' }}>📋 {itemCount} items</div>
+                            </div>
+                          )}
+                          {sess.completed_at && (
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Afsluttet</div>
+                              <div style={{ fontSize: 12, color: 'var(--text)' }}>{new Date(sess.completed_at).toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short' })}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedItem && (
         <ItemDetailModal
@@ -919,6 +1224,50 @@ export default function ProjectWorkspace({ projectId, organizationId, onBack, on
       )}
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function relativeTime(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days} ${days === 1 ? 'dag' : 'dage'} siden`;
+  if (hours > 0) return `${hours} ${hours === 1 ? 'time' : 'timer'} siden`;
+  if (minutes > 0) return `${minutes} min siden`;
+  return 'Lige nu';
+}
+
+function formatGameMode(modeId) {
+  const labels = {
+    planning_poker: 'Planning Poker',
+    boss_battle_retro: 'Boss Battle Retro',
+    spec_wars: 'Spec Wars',
+    perspective_poker: 'Perspektiv-Poker',
+    bluff_poker: 'Bluff Poker',
+    nesting_scope: 'Russian Nesting Scope',
+    speed_scope: 'Speed Scope',
+    truth_serum: 'Truth Serum',
+    flow_poker: 'Flow Poker',
+    risk_poker: 'Risk Poker',
+    assumption_slayer: 'Assumption Slayer',
+    refinement_roulette: 'Refinement Roulette',
+    dependency_mapper: 'Dependency Mapper',
+    sprint_draft: 'Sprint Draft',
+  };
+  return labels[modeId] || modeId || 'Ukendt mode';
+}
+
+function gameModeIcon(modeId) {
+  const icons = {
+    planning_poker: '⚔️', boss_battle_retro: '👾', spec_wars: '🎭',
+    perspective_poker: '📊', bluff_poker: '🃏', nesting_scope: '🪆',
+    speed_scope: '⚡', truth_serum: '💉', flow_poker: '🌊',
+    risk_poker: '🎰', assumption_slayer: '⚔', refinement_roulette: '🎡',
+    dependency_mapper: '🗺️', sprint_draft: '📝',
+  };
+  return icons[modeId] || '🎮';
 }
 
 // ── Budget Overview ──────────────────────────────────────────────────────────

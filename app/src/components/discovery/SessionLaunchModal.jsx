@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { PF, BF } from "../../shared/constants.js";
 import { supabase } from "../../lib/supabase.js";
+import { fetchItemsForSprint } from "../../lib/helpers/projectHelpers.js";
+import { handleError } from "../../lib/errorHandler.js";
 
 const C = {
   bg: "#0e1019", bg2: "#1a1230", bg3: "#251940",
@@ -58,12 +60,15 @@ export default function SessionLaunchModal({
   activeMissions = [],
   activeRandomEvent = null,
   organizationId,
-  onStart,          // (selectedItems) => void
+  projectId,        // optional — if provided, fetch sprint items for this project
+  onStart,          // ({ mode, selectedItems }) => void
   onClose,
 }) {
   const [items, setItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [sprintName, setSprintName] = useState(null);
+  const [hasActiveSprint, setHasActiveSprint] = useState(null); // null=unknown, true/false
   const [starting, setStarting] = useState(false);
 
   const zoneColor = ZONE_COLORS[mode?.zone] || C.acc;
@@ -75,28 +80,80 @@ export default function SessionLaunchModal({
     (!m.required_mode && !m.mode)
   );
 
-  // Load backlog items for selection
+  // Load backlog items: prefer project's active sprint, fallback to org-level
   useEffect(() => {
-    if (!organizationId || !mode) return;
-    setLoadingItems(true);
-    supabase
-      .from("session_items")
-      .select("id, title, description, estimated_hours, item_status, sprint_id")
-      .eq("organization_id", organizationId)
-      .is("sprint_id", null)
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        setItems(data || []);
-        setLoadingItems(false);
-      })
-      .catch(() => setLoadingItems(false));
-  }, [organizationId, mode?.id]);
+    if (!mode) return;
+
+    if (projectId) {
+      // Fetch active sprint for this project, then items from sprint
+      setLoadingItems(true);
+      setHasActiveSprint(null);
+      supabase
+        .from("sprints")
+        .select("id, name")
+        .eq("project_id", projectId)
+        .eq("status", "active")
+        .maybeSingle()
+        .then(async ({ data: sprint, error: sprintErr }) => {
+          if (sprintErr) handleError(sprintErr, "fetch-sprint");
+          if (!sprint) {
+            setHasActiveSprint(false);
+            setItems([]);
+            setLoadingItems(false);
+            return;
+          }
+          setHasActiveSprint(true);
+          setSprintName(sprint.name);
+          try {
+            const sprintItems = await fetchItemsForSprint(sprint.id, {
+              fields: "id, title, description, item_status, estimated_hours, priority",
+            });
+            // Filter out done items
+            const nonDone = sprintItems.filter(
+              (i) => i.item_status !== "done" && i.item_status !== "completed"
+            );
+            setItems(nonDone);
+          } catch (e) {
+            handleError(e, "fetch-sprint-items");
+            setItems([]);
+          }
+          setLoadingItems(false);
+        })
+        .catch((e) => {
+          handleError(e, "fetch-sprint");
+          setLoadingItems(false);
+        });
+    } else if (organizationId) {
+      // Fallback: org-level items without sprint filter
+      setLoadingItems(true);
+      setHasActiveSprint(null);
+      supabase
+        .from("session_items")
+        .select("id, title, description, estimated_hours, item_status, sprint_id")
+        .eq("organization_id", organizationId)
+        .is("sprint_id", null)
+        .order("created_at", { ascending: false })
+        .limit(20)
+        .then(({ data }) => {
+          setItems(data || []);
+          setLoadingItems(false);
+        })
+        .catch(() => setLoadingItems(false));
+    }
+  }, [projectId, organizationId, mode?.id]);
 
   function toggleItem(id) {
     setSelectedItems(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
+  }
+
+  function selectAll() {
+    setSelectedItems(items.map(i => i.id));
+  }
+
+  function deselectAll() {
+    setSelectedItems([]);
   }
 
   function handleStart() {
@@ -106,6 +163,9 @@ export default function SessionLaunchModal({
   }
 
   if (!mode) return null;
+
+  const totalItems = items.length;
+  const selectedCount = selectedItems.length;
 
   return (
     <div style={{
@@ -224,25 +284,71 @@ export default function SessionLaunchModal({
 
           {/* Item selection */}
           <div style={{ marginBottom: 16 }}>
+            {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ fontSize: 11, color: C.dim }}>
-                📋 Vælg items til sessionen
+                📋 {sprintName ? `Items i sprint: ${sprintName}` : "Vælg items til sessionen"}
               </div>
-              {selectedItems.length > 0 && (
-                <div style={{
-                  fontSize: 10, color: zoneColor,
-                  background: zoneColor + "18", padding: "2px 8px", borderRadius: 4,
-                }}>
-                  {selectedItems.length} valgt
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {totalItems > 0 && (
+                  <span style={{ fontSize: 10, color: zoneColor }}>
+                    {selectedCount} af {totalItems} items valgt
+                  </span>
+                )}
+              </div>
             </div>
+
+            {/* Select all / Deselect all */}
+            {totalItems > 1 && (
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <button
+                  onClick={selectAll}
+                  style={{
+                    fontSize: 10, padding: "3px 10px", borderRadius: 5,
+                    border: `1px solid ${zoneColor}55`,
+                    background: zoneColor + "14",
+                    color: zoneColor, cursor: "pointer",
+                  }}
+                >
+                  Vælg alle
+                </button>
+                <button
+                  onClick={deselectAll}
+                  style={{
+                    fontSize: 10, padding: "3px 10px", borderRadius: 5,
+                    border: `1px solid ${C.border}`,
+                    background: "rgba(255,255,255,0.03)",
+                    color: C.dim, cursor: "pointer",
+                  }}
+                >
+                  Fravælg alle
+                </button>
+              </div>
+            )}
 
             {loadingItems ? (
               <div style={{ fontSize: 11, color: C.dim, textAlign: "center", padding: 12 }}>
                 Indlæser items...
               </div>
-            ) : items.length === 0 ? (
+            ) : hasActiveSprint === false ? (
+              <div style={{
+                fontSize: 11, color: C.dim, textAlign: "center",
+                padding: "12px 14px", background: "rgba(255,255,255,0.03)",
+                border: `1px solid ${C.border}`, borderRadius: 6,
+              }}>
+                Ingen items i aktiv sprint.
+                <div style={{ marginTop: 4, opacity: 0.6 }}>Session startes uden PM-kontekst.</div>
+              </div>
+            ) : items.length === 0 && hasActiveSprint !== null ? (
+              <div style={{
+                fontSize: 11, color: C.dim, textAlign: "center",
+                padding: "10px 14px", background: "rgba(255,255,255,0.03)",
+                border: `1px solid ${C.border}`, borderRadius: 6,
+              }}>
+                Ingen items i aktiv sprint.
+                <div style={{ marginTop: 4, opacity: 0.6 }}>Session startes uden PM-kontekst.</div>
+              </div>
+            ) : items.length === 0 && !loadingItems ? (
               <div style={{
                 fontSize: 11, color: C.dim, textAlign: "center",
                 padding: "10px 14px", background: "rgba(255,255,255,0.03)",
@@ -252,7 +358,7 @@ export default function SessionLaunchModal({
                 <div style={{ marginTop: 4, opacity: 0.6 }}>Session startes med tomme items.</div>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 180, overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 200, overflowY: "auto" }}>
                 {items.map(item => {
                   const sel = selectedItems.includes(item.id);
                   return (

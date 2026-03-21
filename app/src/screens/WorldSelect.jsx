@@ -275,6 +275,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
   const [recommendedTop, setRecommendedTop] = useState(null);
   const [showRecommender, setShowRecommender] = useState(false);
   const [launchMode, setLaunchMode] = useState(null); // mode object for SessionLaunchModal
+  const [launchProjectId, setLaunchProjectId] = useState(null); // projectId for SessionLaunchModal item selection
   const [activeSideQuest, setActiveSideQuest] = useState(null);
   const [dynamicWorlds, setDynamicWorlds] = useState(null); // null = loading
   const [worldsError, setWorldsError] = useState(null);
@@ -428,6 +429,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
     setRecommendedTop(mode.id);
     setShowRecommender(false);
     setLaunchMode(mode); // open launch modal with full context
+    // projectId stays null when launching from recommender (no project context)
   }
 
   // Group modes by zone
@@ -446,19 +448,22 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
           activeMissions={activeMissions}
           activeRandomEvent={activeRandomEvent}
           organizationId={organizationId}
+          projectId={launchProjectId}
           onStart={(cfg) => {
             const modeToLaunch = cfg.mode || launchMode;
+            const selectedItems = cfg.selectedItems || [];
             setLaunchMode(null);
+            setLaunchProjectId(null);
             sound("door");
             const zoneMeta = ZONE_META[modeToLaunch.zone] || {};
             setFlash(zoneMeta.color || "#feae34");
             setTimeout(() => {
               setFlash(null);
-              if (onSelectMode) onSelectMode(modeToLaunch);
+              if (onSelectMode) onSelectMode(modeToLaunch, selectedItems);
               else onSelect({ ...modeToLaunch, id: modeToLaunch.id, name: modeToLaunch.name });
             }, 400);
           }}
-          onClose={() => setLaunchMode(null)}
+          onClose={() => { setLaunchMode(null); setLaunchProjectId(null); }}
         />
       )}
       {flash && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: flash, opacity: 0.4, pointerEvents: "none", zIndex: 200, animation: "flashOut 0.5s ease-out forwards" }} />}
@@ -645,7 +650,7 @@ export default function WorldSelect({ avatar, onSelect, onSelectMode, sound, act
                             mode={mode}
                             hovered={hov === mode.id}
                             t={t}
-                            onClick={() => setLaunchMode(mode)}
+                            onClick={() => { setLaunchMode(mode); setLaunchProjectId(null); }}
                             isRecommended={recommendedTop === mode.id}
                             missions={modeActiveMissions}
                             hasRandomEvent={modeHasRandomEvent}
