@@ -552,7 +552,7 @@ function ProjectTable({ projects, onWorkspace, onTimelog, onProjectStatusChange 
   );
 }
 
-export default function Dashboard({ onTimelog, onWorkspace }) {
+export default function Dashboard({ onTimelog, onWorkspace, onAnalytics }) {
   const [dashboard, setDashboard] = useState({ active: [], upcoming: [], finished: [], projects: [], activity: [] });
   const [approvalRequests, setApprovalRequests] = useState([]);
   const [health, setHealth] = useState({ queue_depth: 0, blocked_writes: 0, duplicate_events: 0 });
@@ -900,6 +900,24 @@ export default function Dashboard({ onTimelog, onWorkspace }) {
       </div>
 
       <RiskBand riskItems={riskItems} onAdd={handleAddRisk} onResolve={handleResolveRisk} onEdit={handleEditRisk} />
+
+      {/* v3.1 KPI Dashboard link */}
+      {onAnalytics && (
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={onAnalytics}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              fontSize: 12, fontWeight: 600, padding: '8px 16px',
+              background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.25)',
+              borderRadius: 'var(--radius)', cursor: 'pointer', color: 'var(--jade)',
+              transition: 'all 0.15s',
+            }}
+          >
+            📊 Se teamets fremgang →
+          </button>
+        </div>
+      )}
 
       {/* E14: Sprint Hall of Fame leaderboard */}
       {orgId && (

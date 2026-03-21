@@ -28,6 +28,8 @@ const RetroScreen = lazy(() => import("./screens/RetroScreen.jsx"));
 const ProjectWorkspace = lazy(() => import("./screens/ProjectWorkspace.jsx"));
 const SprintDraftScreen = lazy(() => import("./screens/SprintDraftScreen.jsx"));
 const Onboarding = lazy(() => import("./screens/Onboarding.jsx"));
+const KpiDashboard = lazy(() => import("./screens/KpiDashboard.jsx"));
+const TruthSerumScreen = lazy(() => import("./screens/TruthSerumScreen.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -44,6 +46,7 @@ export default function App() {
   const [nestingScopeSessionId, setNestingScopeSessionId] = useState(null);
   const [speedScopeSessionId, setSpeedScopeSessionId] = useState(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [truthSerumSessionId, setTruthSerumSessionId] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -71,6 +74,9 @@ export default function App() {
     } else if (screen === 'retro') {
       window.history.pushState({}, '', '/retro');
       setAuthScreen('retro');
+    } else if (screen === 'analytics') {
+      window.history.pushState({}, '', '/analytics');
+      setAuthScreen('analytics');
     } else {
       setAuthScreen(screen);
     }
@@ -84,6 +90,16 @@ export default function App() {
     }
     if (pathname === '/settings') {
       setAuthScreen('settings');
+      return;
+    }
+    if (pathname === '/analytics') {
+      setAuthScreen('analytics');
+      return;
+    }
+    const truthSerumMatch = pathname.match(/^\/sessions\/([^/]+)\/truth-serum$/);
+    if (truthSerumMatch) {
+      setTruthSerumSessionId(truthSerumMatch[1]);
+      setAuthScreen('truth_serum');
       return;
     }
     const draftMatch = pathname.match(/^\/sessions\/([^/]+)\/draft$/);
@@ -318,6 +334,10 @@ export default function App() {
                 window.history.pushState({}, '', `/projects/${projectId}`);
                 setAuthScreen('workspace');
               }}
+              onAnalytics={() => {
+                window.history.pushState({}, '', '/analytics');
+                setAuthScreen('analytics');
+              }}
             />
           </Suspense>
         </AppShell>
@@ -457,6 +477,57 @@ export default function App() {
             <RetroScreen onNavigate={handleShellNavigate} />
           </Suspense>
         </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "analytics") {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        {searchModalEl}
+        <AppShell
+          user={user}
+          activeScreen="analytics"
+          activeProjectId={workspaceProjectId}
+          onNavigate={handleShellNavigate}
+          onWorkspaceNavigate={(projectId) => {
+            setWorkspaceProjectId(projectId);
+            window.history.pushState({}, '', `/projects/${projectId}`);
+            setAuthScreen('workspace');
+          }}
+          isLight={isLight}
+          toggleTheme={toggleTheme}
+        >
+          <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Analytics...</div>}>
+            <KpiDashboard
+              organizationId={organizationId}
+              onBack={() => {
+                window.history.pushState({}, document.title, '/dashboard');
+                setAuthScreen('dashboard');
+              }}
+            />
+          </Suspense>
+        </AppShell>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "truth_serum" && truthSerumSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Truth Serum...</div>}>
+          <TruthSerumScreen
+            sessionId={truthSerumSessionId}
+            userId={user?.id}
+            isGm={true}
+            organizationId={organizationId}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
       </GameModeProvider>
     );
   }
