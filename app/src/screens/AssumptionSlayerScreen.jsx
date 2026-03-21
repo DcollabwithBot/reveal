@@ -501,7 +501,22 @@ export default function AssumptionSlayerScreen({ sessionId, user, onBack }) {
   }
 
   if (showSummary) {
-    return <PostSessionSummary sessionId={sessionId} userId={user?.id} onBack={onBack} />;
+    const sorted = [...assumptions].sort((a, b) => avgDanger(b.votes || []) - avgDanger(a.votes || []));
+    const maxDanger = sorted.length > 0 ? avgDanger(sorted[0].votes || []) : 0;
+    return (
+      <PostSessionSummary
+        sessionId={sessionId}
+        sessionType="assumption_slayer"
+        results={{
+          assumption_count: assumptions.length,
+          max_danger: maxDanger.toFixed(1),
+        }}
+        approvalPending={isGm && !savedTop3 && session?.project_id}
+        approvalItems={['Top-3 assumptions → project comments']}
+        teamId={session?.world_id || session?.organization_id}
+        onBack={onBack}
+      />
+    );
   }
 
   return (

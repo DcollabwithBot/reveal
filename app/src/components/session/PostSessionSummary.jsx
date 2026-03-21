@@ -25,6 +25,11 @@ const SESSION_LABELS = {
   nesting_scope: 'Nesting Scope',
   speed_scope: 'Speed Scope',
   truth_serum: 'Truth Serum',
+  flow_poker: 'Flow Poker',
+  risk_poker: 'Risk Poker',
+  assumption_slayer: 'Assumption Slayer',
+  refinement_roulette: 'Refinement Roulette',
+  dependency_mapper: 'Dependency Mapper',
 };
 
 const SESSION_ICONS = {
@@ -35,6 +40,11 @@ const SESSION_ICONS = {
   nesting_scope: '🪆',
   speed_scope: '⚡',
   truth_serum: '🔮',
+  flow_poker: '🌊',
+  risk_poker: '🎲',
+  assumption_slayer: '⚔️',
+  refinement_roulette: '🎰',
+  dependency_mapper: '🕸️',
 };
 
 export default function PostSessionSummary({
@@ -306,6 +316,63 @@ function buildResultRows(sessionType, results) {
         value: 'Se KPI Dashboard for mønster →',
         valueColor: 'var(--text3)',
       });
+      break;
+    }
+
+    case 'flow_poker': {
+      if (results.median_days != null) {
+        rows.push({ icon: '⏱️', label: 'Median cycle time:', value: `${results.median_days} dage`, valueColor: 'var(--gold)' });
+      }
+      if (results.flow_health) {
+        rows.push({ icon: '🌊', label: 'Flow Health:', value: results.flow_health, valueColor: results.flow_health === 'EXCELLENT' || results.flow_health === 'GOOD' ? 'var(--jade)' : 'var(--warn)' });
+      }
+      if (results.blocker_count != null) {
+        rows.push({ icon: '⚠️', label: 'Flow blockers:', value: `${results.blocker_count} items`, valueColor: results.blocker_count > 0 ? 'var(--danger)' : 'var(--jade)' });
+      }
+      rows.push({ icon: '📊', label: 'PM write-back:', value: `${results.items_estimated || 0} items gemt med cycle time`, valueColor: 'var(--jade)' });
+      break;
+    }
+
+    case 'risk_poker': {
+      if (results.hot_spot_count != null) {
+        rows.push({ icon: '🔥', label: 'Hot spots:', value: `${results.hot_spot_count} kritiske risici`, valueColor: results.hot_spot_count > 0 ? 'var(--danger)' : 'var(--jade)' });
+      }
+      if (results.risks_logged != null) {
+        rows.push({ icon: '📋', label: 'Risici logget:', value: `${results.risks_logged} risici godkendt`, valueColor: 'var(--jade)' });
+      }
+      rows.push({ icon: '🗺️', label: 'Risk matrix:', value: 'Gemt til projektets risikolog', valueColor: 'var(--jade)' });
+      break;
+    }
+
+    case 'assumption_slayer': {
+      if (results.assumption_count != null) {
+        rows.push({ icon: '📜', label: 'Assumptions afsløret:', value: `${results.assumption_count} stk.`, valueColor: 'var(--gold)' });
+      }
+      if (results.max_danger != null) {
+        rows.push({ icon: '☠️', label: 'Mest farlig antagelse:', value: `Farescore: ${results.max_danger}/5`, valueColor: results.max_danger >= 4 ? 'var(--danger)' : 'var(--warn)' });
+      }
+      rows.push({ icon: '📝', label: 'Top-3 assumptions:', value: 'Gemt som projekt-kommentarer', valueColor: 'var(--jade)' });
+      break;
+    }
+
+    case 'refinement_roulette': {
+      rows.push({ icon: '🌿', label: 'Item groomed:', value: results.item_title || 'Backlog item', valueColor: 'var(--jade)' });
+      if (results.misalignment_score != null) {
+        rows.push({ icon: '⚡', label: 'Misalignment score:', value: `${results.misalignment_score}%`, valueColor: results.misalignment_score > 50 ? 'var(--danger)' : 'var(--jade)' });
+      }
+      rows.push({ icon: '📋', label: 'Definition of Done:', value: 'Gemt som acceptance criteria', valueColor: 'var(--jade)', sub: '(afventer GM-godkendelse)' });
+      rows.push({ icon: '📝', label: 'Clarification:', value: 'Tilføjet til item description', valueColor: 'var(--jade)', sub: '(afventer GM-godkendelse)' });
+      break;
+    }
+
+    case 'dependency_mapper': {
+      if (results.deps_confirmed != null) {
+        rows.push({ icon: '🔗', label: 'Dependencies bekræftet:', value: `${results.deps_confirmed} stk.`, valueColor: 'var(--jade)' });
+      }
+      if (results.circular_count != null) {
+        rows.push({ icon: '🔄', label: 'Cirkulære dependencies:', value: `${results.circular_count} fundet og afvist`, valueColor: results.circular_count > 0 ? 'var(--danger)' : 'var(--jade)' });
+      }
+      rows.push({ icon: '🕸️', label: 'Dependency map:', value: 'Gemt til item_dependencies', valueColor: 'var(--jade)' });
       break;
     }
 

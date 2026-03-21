@@ -302,7 +302,7 @@ export default function RiskPokerScreen({ sessionId, user, onBack }) {
     });
     setAllVotes(grouped);
     setMyVotes(myV);
-    setPhase(localRisks.length > 0 ? 'voting' : 'add');
+    setPhase('lobby_intro');
   }
 
   // ── Realtime ───────────────────────────────────────────────────────────────
@@ -433,8 +433,57 @@ export default function RiskPokerScreen({ sessionId, user, onBack }) {
     );
   }
 
+  if (phase === 'lobby_intro') {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, fontFamily: PF, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ maxWidth: 520, width: '100%', padding: '0 24px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ fontSize: '48px', marginBottom: 12 }}>🎲</div>
+            <div style={{ fontSize: 18, color: C.red, letterSpacing: 2, marginBottom: 8 }}>RISK POKER</div>
+            <div style={{ fontSize: 9, color: C.text2 }}>{session?.title || 'Session'}</div>
+          </div>
+          <div style={{ background: C.panel, borderRadius: 6, padding: 24, border: '1px solid rgba(239,68,68,0.2)', marginBottom: 20 }}>
+            <div style={{ fontSize: 10, color: C.red, marginBottom: 16 }}>HVAD ER RISK POKER?</div>
+            <div style={{ fontFamily: "'VT323', monospace", fontSize: 17, color: C.text2, lineHeight: 1.8 }}>
+              Alle stemmer på sandsynlighed (1-5) + impact (1-5) for hver risiko.<br />
+              Ingen kan sidde stille — alle skal tage stilling.<br />
+              Reveal viser 5×5 risk matrix med hot spots.<br /><br />
+              🎯 <span style={{ color: C.red }}>Mål:</span> Gør skjulte risici synlige og rangér dem objektivt.<br /><br />
+              📊 <span style={{ color: C.green }}>PM-kobling:</span> Godkendte risici → gemt i projektets risikolog med probability + impact score.
+            </div>
+          </div>
+          <button
+            onClick={() => setPhase(risks.length > 0 ? 'voting' : 'add')}
+            style={{ fontFamily: PF, fontSize: 10, color: '#0e1019', background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', borderRadius: 4, padding: '14px 28px', cursor: 'pointer', width: '100%' }}
+          >
+            🎲 START RISK POKER
+          </button>
+          <button onClick={onBack} style={{ marginTop: 10, fontFamily: PF, fontSize: 8, color: C.text2, background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '8px 16px', cursor: 'pointer', width: '100%' }}>
+            ← BACK
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (showSummary) {
-    return <PostSessionSummary sessionId={sessionId} userId={user?.id} onBack={onBack} />;
+    const hotCount = risksWithScores.filter(r => r.probability >= 4 && r.impact >= 4).length;
+    return (
+      <PostSessionSummary
+        sessionId={sessionId}
+        sessionType="risk_poker"
+        results={{
+          hot_spot_count: hotCount,
+          risks_logged: approvedRisks.size,
+        }}
+        approvalPending={approvedRisks.size < revealedRisks.size}
+        approvalItems={risks
+          .filter(r => revealedRisks.has(r.id) && !approvedRisks.has(r.id))
+          .map(r => `Risiko: "${r.title}"`)}
+        teamId={session?.world_id || session?.organization_id}
+        onBack={onBack}
+      />
+    );
   }
 
   return (

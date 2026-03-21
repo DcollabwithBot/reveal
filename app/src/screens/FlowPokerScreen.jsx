@@ -264,6 +264,14 @@ export default function FlowPokerScreen({ sessionId, user, onBack }) {
     });
     setAllVotes(grouped);
     setMyVotes(myV);
+
+    // Load participants
+    const { data: parts } = await supabase
+      .from('session_participants')
+      .select('user_id')
+      .eq('session_id', sessionId);
+    setParticipants(parts || []);
+
     setPhase('lobby');
   }
 
@@ -375,16 +383,69 @@ export default function FlowPokerScreen({ sessionId, user, onBack }) {
   }
 
   if (showSummary) {
+    const blockerCount = items.filter(it => {
+      const med = median((allVotes[it.id] || []).map(v => v.days));
+      return med >= 8 && revealedItems.has(it.id);
+    }).length;
     return (
       <PostSessionSummary
         sessionId={sessionId}
-        userId={user?.id}
+        sessionType="flow_poker"
+        results={{
+          median_days: median(items.flatMap(it => (allVotes[it.id] || []).map(v => v.days))),
+          blocker_count: blockerCount,
+          items_estimated: approvedItems.size,
+          flow_health: flowHealthScore(items.flatMap(it => (allVotes[it.id] || []).map(v => v.days))).label,
+        }}
+        approvalPending={approvedItems.size < items.filter(it => revealedItems.has(it.id)).length}
+        approvalItems={items
+          .filter(it => revealedItems.has(it.id) && !approvedItems.has(it.id))
+          .map(it => `Cycle time for "${it.title}"`)}
+        teamId={session?.world_id || session?.organization_id}
         onBack={onBack}
       />
     );
   }
 
   const C = { bg: '#050c14', panel: '#0a1628', text: '#e2e8f0', text2: '#94a3b8', teal: '#0ea5e9', red: '#ef4444', green: '#22c55e' };
+
+  // ── Lobby phase ─────────────────────────────────────────────────────────
+  if (phase === 'lobby') {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, fontFamily: PF, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ maxWidth: 520, width: '100%', padding: '0 24px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ fontSize: '48px', marginBottom: 12 }}>🌊</div>
+            <div style={{ fontSize: 18, color: C.teal, letterSpacing: 2, marginBottom: 8 }}>FLOW POKER</div>
+            <div style={{ fontSize: 9, color: C.text2 }}>{session?.title || 'Session'}</div>
+          </div>
+          <div style={{ background: C.panel, borderRadius: 6, padding: 24, border: '1px solid rgba(14,165,233,0.2)', marginBottom: 20 }}>
+            <div style={{ fontSize: 10, color: C.teal, marginBottom: 16 }}>HVAD ER FLOW POKER?</div>
+            <div style={{ fontFamily: "'VT323', monospace", fontSize: 17, color: C.text2, lineHeight: 1.8 }}>
+              I stedet for story points estimerer I cycle time i dage.<br />
+              Alle voter — ingen kan sidde stille.<br />
+              Reveal viser histogram + median + Flow Health Score.<br /><br />
+              🎯 <span style={{ color: C.teal }}>Mål:</span> Identificér flow blockers (≥8 dage) og skab fælles forståelse af task-kompleksitet.<br /><br />
+              📊 <span style={{ color: '#22c55e' }}>PM-kobling:</span> Consensus cycle time → gemt direkte på backlog-items efter GM-godkendelse.
+            </div>
+          </div>
+          <div style={{ background: 'rgba(14,165,233,0.08)', borderRadius: 4, padding: 12, border: '1px solid rgba(14,165,233,0.2)', marginBottom: 24 }}>
+            <div style={{ fontSize: 8, color: C.text2, marginBottom: 4 }}>ITEMS I DENNE SESSION</div>
+            <div style={{ fontSize: 18, color: C.teal, fontFamily: "'VT323', monospace" }}>{items.length} backlog items klar til estimering</div>
+          </div>
+          <button
+            onClick={() => setPhase('voting')}
+            style={{ fontFamily: PF, fontSize: 10, color: '#0e1019', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', border: 'none', borderRadius: 4, padding: '14px 28px', cursor: 'pointer', width: '100%' }}
+          >
+            🌊 START FLOW POKER
+          </button>
+          <button onClick={onBack} style={{ marginTop: 10, fontFamily: PF, fontSize: 8, color: C.text2, background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '8px 16px', cursor: 'pointer', width: '100%' }}>
+            ← BACK
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: PF, color: C.text, position: 'relative', overflow: 'hidden' }}>

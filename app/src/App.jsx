@@ -33,6 +33,8 @@ const TruthSerumScreen = lazy(() => import("./screens/TruthSerumScreen.jsx"));
 const FlowPokerScreen = lazy(() => import("./screens/FlowPokerScreen.jsx"));
 const RiskPokerScreen = lazy(() => import("./screens/RiskPokerScreen.jsx"));
 const AssumptionSlayerScreen = lazy(() => import("./screens/AssumptionSlayerScreen.jsx"));
+const RefinementRouletteScreen = lazy(() => import("./screens/RefinementRouletteScreen.jsx"));
+const DependencyMapperScreen = lazy(() => import("./screens/DependencyMapperScreen.jsx"));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -53,6 +55,8 @@ export default function App() {
   const [flowPokerSessionId, setFlowPokerSessionId] = useState(null);
   const [riskPokerSessionId, setRiskPokerSessionId] = useState(null);
   const [assumptionSlayerSessionId, setAssumptionSlayerSessionId] = useState(null);
+  const [refinementRouletteSessionId, setRefinementRouletteSessionId] = useState(null);
+  const [dependencyMapperSessionId, setDependencyMapperSessionId] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
   const [node, setNode] = useState(null);
@@ -124,6 +128,18 @@ export default function App() {
     if (assumptionSlayerMatch) {
       setAssumptionSlayerSessionId(assumptionSlayerMatch[1]);
       setAuthScreen('assumption_slayer');
+      return;
+    }
+    const refinementRouletteMatch = pathname.match(/^\/sessions\/([^/]+)\/refinement-roulette$/);
+    if (refinementRouletteMatch) {
+      setRefinementRouletteSessionId(refinementRouletteMatch[1]);
+      setAuthScreen('refinement_roulette');
+      return;
+    }
+    const dependencyMapperMatch = pathname.match(/^\/sessions\/([^/]+)\/dependency-mapper$/);
+    if (dependencyMapperMatch) {
+      setDependencyMapperSessionId(dependencyMapperMatch[1]);
+      setAuthScreen('dependency_mapper');
       return;
     }
     const draftMatch = pathname.match(/^\/sessions\/([^/]+)\/draft$/);
@@ -599,6 +615,42 @@ export default function App() {
         <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Assumption Slayer...</div>}>
           <AssumptionSlayerScreen
             sessionId={assumptionSlayerSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "refinement_roulette" && refinementRouletteSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Refinement Roulette...</div>}>
+          <RefinementRouletteScreen
+            sessionId={refinementRouletteSessionId}
+            user={user}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "dependency_mapper" && dependencyMapperSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Dependency Mapper...</div>}>
+          <DependencyMapperScreen
+            sessionId={dependencyMapperSessionId}
             user={user}
             onBack={() => {
               window.history.pushState({}, '', '/dashboard');
