@@ -2169,6 +2169,106 @@ export async function getUserMissions() {
   return data || [];
 }
 
+// ── XP & Achievement Persistence ──────────────────────────────────────────────
+
+export async function awardXP(userId, amount, reason, organizationId) {
+  try {
+    // Fetch current profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('xp, level, total_sessions, display_name, avatar_class')
+      .eq('id', userId)
+      .single();
+
+    const currentXP = profile?.xp || 0;
+    const newXP = currentXP + amount;
+    const newLevel = Math.floor(newXP / 1000) + 1;
+    const newTotalSessions = (profile?.total_sessions || 0) + (reason === 'session_complete' ? 1 : 0);
+
+    // Update profiles
+    await supabase.from('profiles')
+      .update({ xp: newXP, level: newLevel, total_sessions: newTotalSessions })
+      .eq('id', userId);
+
+    // Update leaderboard_org
+    if (organizationId) {
+      const { data: existing } = await supabase
+        .from('leaderboard_org')
+        .select('id')
+        .eq('id', userId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from('leaderboard_org')
+          .update({ xp: newXP, level: newLevel })
+          .eq('id', userId)
+          .eq('organization_id', organizationId);
+      } else {
+        await supabase.from('leaderboard_org')
+          .insert({
+            id: userId,
+            display_name: profile?.display_name || userId.slice(0, 8),
+            avatar_class: profile?.avatar_class || null,
+            xp: newXP,
+            level: newLevel,
+            organization_id: organizationId
+          });
+      }
+    }
+
+    return { newXP, newLevel, totalSessions: newTotalSessions };
+  } catch (err) {
+    console.warn('[awardXP]', err.message);
+    return { newXP: 0, newLevel: 1, error: err.message };
+  }
+}
+
+export async function unlockAchievement(userId, achievementKey, sessionId, organizationId) {
+  try {
+    // Check if already unlocked
+    const { data: existing } = await supabase
+      .from('user_achievements')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('achievement_key', achievementKey)
+      .maybeSingle();
+
+    if (existing) return { alreadyUnlocked: true };
+
+    const { data, error } = await supabase
+      .from('user_achievements')
+      .insert({
+        user_id: userId,
+        achievement_key: achievementKey,
+        session_id: sessionId || null,
+        organization_id: organizationId || null
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { unlocked: true, achievement: data };
+  } catch (err) {
+    console.warn('[unlockAchievement]', err.message);
+    return { error: err.message };
+  }
+}
+
+export async function getUserAchievements(userId) {
+  try {
+    const { data } = await supabase
+      .from('user_achievements')
+      .select('id, achievement_key, session_id, organization_id, unlocked_at')
+      .eq('user_id', userId)
+      .order('unlocked_at', { ascending: false });
+    return data || [];
+  } catch (err) {
+    console.warn('[getUserAchievements]', err.message);
+    return [];
+  }
+}
+
 // ── Sprint E: Game Availability ───────────────────────────────────────────────
 export async function getGameAvailability(sprintId) {
   if (!sprintId) return null;

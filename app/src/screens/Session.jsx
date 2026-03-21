@@ -24,7 +24,7 @@ import { useSessionOrchestration } from "../hooks/useSessionOrchestration.js";
 import { useGameFeature } from "../shared/useGameFeature.js";
 import { dk } from "../shared/utils.js";
 import { projectApprovalOverlay } from "../domain/session/governance/approvalProjection.js";
-import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState, saveRetroActions } from "../lib/api.js";
+import { getGameSessionStateStatus, loadGameSessionState, persistGameSessionState, saveRetroActions, awardXP, unlockAchievement, getMembership } from "../lib/api.js";
 import { supabase } from "../lib/supabase.js";
 import LifelinesPanel from "../components/session/LifelinesPanel.jsx";
 const PV = [1, 2, 3, 5, 8, 13, 21];
@@ -94,6 +94,20 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
   const [syncStatus, setSyncStatus] = useState('synced'); // 'synced' | 'pending_approval' | 'conflict'
   const [syncMessage, setSyncMessage] = useState('');
   const [showPostSummary, setShowPostSummary] = useState(false);
+
+  // XP/Achievement persistence — resolve user + org once
+  const authUserRef = useRef(null);
+  const orgIdRef = useRef(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user: u } } = await supabase.auth.getUser();
+        authUserRef.current = u;
+        const membership = await getMembership();
+        orgIdRef.current = membership?.organization_id || null;
+      } catch (e) { console.warn('[Session] auth resolve failed', e.message); }
+    })();
+  }, []);
 
   function safeComplete() {
     if (finCalled.current) return;
@@ -231,6 +245,12 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     dispatchFlow({ type: 'addAchieveId', value: resolved.id });
     dispatchUi({ type: 'showAchieve', value: resolved });
     sound("achieve");
+    // Persist achievement to DB
+    const uid = authUserRef.current?.id;
+    if (uid) {
+      unlockAchievement(uid, resolved.id, node?.session_id || node?.id, orgIdRef.current)
+        .catch(e => console.warn('[addAchieve] persist failed', e));
+    }
   }
   function doBossHit(dmg) { dispatchUi({ type: 'bossHit', value: true }); setBossHp(h => Math.max(0, h - dmg)); setTimeout(() => dispatchUi({ type: 'bossHit', value: false }), 200); sound("hit"); }
 
@@ -361,6 +381,15 @@ export default function Session({ avatar, node, project, onBack, onComplete, sou
     dispatchFlow({ type: 'merge', patch: { loot: result.loot } });
     setTimeout(() => dispatchUi({ type: 'showLoot', value: true }), result.showLootDelayMs);
     setTimeout(() => safeComplete(), result.completeDelayMs);
+    // Persist XP to DB
+    const uid = authUserRef.current?.id;
+    if (uid) {
+      const xpBase = Number(sessionRewardRule?.rule?.xpBase ?? 45);
+      const comboMultiplier = Number(sessionRewardRule?.rule?.comboMultiplier ?? 5);
+      const xpAmount = xpBase + combo * comboMultiplier;
+      awardXP(uid, xpAmount, 'session_complete', orgIdRef.current)
+        .catch(e => console.warn('[doFin] XP persist failed', e));
+    }
   }
   function doLL(id) {
     const result = createLifelineResult({ id, pv, votes });
