@@ -147,6 +147,7 @@ function Scanlines() {
 function WorldMapPhase({ onNext }) {
   const [t, setT] = useState(0);
   const [hov, setHov] = useState(null);
+  const [selectedWorld, setSelectedWorld] = useState(null);
 
   useEffect(() => { const i = setInterval(() => setT(v => v + 1), 50); return () => clearInterval(i); }, []);
 
@@ -192,29 +193,56 @@ function WorldMapPhase({ onNext }) {
 
         {/* World portals */}
         <div style={{ display: "flex", justifyContent: "center", gap: "14px", flexWrap: "wrap", animation: "slideUp 0.3s" }}>
-          {DEMO_WORLDS.map((w, i) => (
-            <div key={w.id} style={{ animation: `slideUp 0.3s ${i * 0.1}s both` }}
-              onMouseEnter={() => setHov(w.id)}
-              onMouseLeave={() => setHov(null)}>
-              <Portal w={w} hovered={hov === w.id} t={t} onClick={() => {}} />
-            </div>
-          ))}
+          {DEMO_WORLDS.map((w, i) => {
+            const isSelected = selectedWorld === w.id;
+            return (
+              <div key={w.id} style={{
+                animation: `slideUp 0.3s ${i * 0.1}s both`,
+                position: "relative",
+                border: isSelected ? `2px solid var(--jade, ${C.grn})` : "2px solid transparent",
+                borderRadius: 8,
+                padding: 2,
+                transition: "border-color 0.2s",
+              }}
+                onMouseEnter={() => setHov(w.id)}
+                onMouseLeave={() => setHov(null)}>
+                <Portal w={w} hovered={hov === w.id || isSelected} t={t} onClick={() => setSelectedWorld(w.id)} />
+                {isSelected && (
+                  <div style={{
+                    position: "absolute", top: 4, right: 4,
+                    fontFamily: PF, fontSize: "5px", color: C.grn,
+                    background: C.bg + "dd", padding: "2px 5px",
+                    border: `1px solid ${C.grn}`, zIndex: 6,
+                  }}>
+                    VALGT ✓
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* CTA */}
         <div style={{ textAlign: "center", marginTop: "22px" }}>
           <button
-            onClick={onNext}
+            onClick={selectedWorld ? onNext : undefined}
+            disabled={!selectedWorld}
             style={{
-              fontFamily: PF, fontSize: "7px", color: C.bg,
-              background: C.grn, border: `2px solid ${C.grnD}`,
-              padding: "10px 24px", cursor: "pointer",
+              fontFamily: PF, fontSize: "7px",
+              color: selectedWorld ? C.bg : C.dim,
+              background: selectedWorld ? C.grn : C.bgL,
+              border: `2px solid ${selectedWorld ? C.grnD : C.brd}`,
+              padding: "10px 24px",
+              cursor: selectedWorld ? "pointer" : "not-allowed",
               letterSpacing: "1px",
-              boxShadow: `0 0 20px ${C.grn}44`,
-              animation: "pulse 2s infinite",
+              boxShadow: selectedWorld ? `0 0 20px ${C.grn}44` : "none",
+              animation: selectedWorld ? "pulse 2s infinite" : "none",
+              transition: "all 0.3s",
             }}
           >
-            ▶ START PLANNING POKER
+            {selectedWorld
+              ? `▶ START ${(DEMO_WORLDS.find(w => w.id === selectedWorld)?.name || "").toUpperCase()} →`
+              : "▶ VÆLG ET WORLD"}
           </button>
         </div>
       </div>
