@@ -15,6 +15,8 @@ import { supabase } from '../lib/supabase';
 import { Sprite } from '../components/session/SessionPrimitives.jsx';
 import { CLASSES } from '../shared/constants.js';
 import { dk } from '../shared/utils.js';
+import GameXPBar from '../components/session/GameXPBar.jsx';
+import XPBadgeNotifier from '../components/XPBadgeNotifier.jsx';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const PF = "'Press Start 2P', monospace";
@@ -588,6 +590,13 @@ export default function PerspectivePokerScreen({ sessionId, user, avatar, onBack
 
   return (
     <div style={styles.container}>
+      {/* XP Bar */}
+      {user?.id && <XPBadgeNotifier userId={user.id} />}
+      {user?.id && (
+        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 50 }}>
+          <GameXPBar userId={user.id} />
+        </div>
+      )}
       {/* Scanlines */}
       <div style={styles.scanlines} />
 

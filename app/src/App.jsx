@@ -16,6 +16,9 @@ const AvatarCreator = lazy(() => import("./screens/AvatarCreator.jsx"));
 const WorldSelect = lazy(() => import("./screens/WorldSelect.jsx"));
 const SpecWarsScreen = lazy(() => import("./screens/SpecWarsScreen.jsx"));
 const PerspectivePokerScreen = lazy(() => import("./screens/PerspectivePokerScreen.jsx"));
+const BluffPokerScreen = lazy(() => import("./screens/BluffPokerScreen.jsx"));
+const NestingScopeScreen = lazy(() => import("./screens/NestingScopeScreen.jsx"));
+const SpeedScopeScreen = lazy(() => import("./screens/SpeedScopeScreen.jsx"));
 const Overworld = lazy(() => import("./screens/Overworld.jsx"));
 const Session = lazy(() => import("./screens/Session.jsx"));
 const TimelogScreen = lazy(() => import("./screens/TimelogScreen.jsx"));
@@ -37,6 +40,9 @@ export default function App() {
   const [draftSessionId, setDraftSessionId] = useState(null);
   const [specWarsSessionId, setSpecWarsSessionId] = useState(null);
   const [perspectiveSessionId, setPerspectiveSessionId] = useState(null);
+  const [bluffPokerSessionId, setBluffPokerSessionId] = useState(null);
+  const [nestingScopeSessionId, setNestingScopeSessionId] = useState(null);
+  const [speedScopeSessionId, setSpeedScopeSessionId] = useState(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [avatar, setAvatar] = useState(null);
   const [world, setWorld] = useState(null);
@@ -96,6 +102,24 @@ export default function App() {
     if (perspMatch) {
       setPerspectiveSessionId(perspMatch[1]);
       setAuthScreen('perspective_poker');
+      return;
+    }
+    const bluffMatch = pathname.match(/^\/sessions\/([^/]+)\/bluff-poker$/);
+    if (bluffMatch) {
+      setBluffPokerSessionId(bluffMatch[1]);
+      setAuthScreen('bluff_poker');
+      return;
+    }
+    const nestingMatch = pathname.match(/^\/sessions\/([^/]+)\/nesting-scope$/);
+    if (nestingMatch) {
+      setNestingScopeSessionId(nestingMatch[1]);
+      setAuthScreen('nesting_scope');
+      return;
+    }
+    const speedMatch = pathname.match(/^\/sessions\/([^/]+)\/speed-scope$/);
+    if (speedMatch) {
+      setSpeedScopeSessionId(speedMatch[1]);
+      setAuthScreen('speed_scope');
       return;
     }
     const timelogMatch = pathname.match(/^\/projects\/([^/]+)\/timelog$/);
@@ -480,6 +504,63 @@ export default function App() {
         <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Perspektiv-Poker...</div>}>
           <PerspectivePokerScreen
             sessionId={perspectiveSessionId}
+            user={user}
+            avatar={avatar}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "bluff_poker" && bluffPokerSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Bluff Poker...</div>}>
+          <BluffPokerScreen
+            sessionId={bluffPokerSessionId}
+            user={user}
+            avatar={avatar}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "nesting_scope" && nestingScopeSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Russian Nesting Scope...</div>}>
+          <NestingScopeScreen
+            sessionId={nestingScopeSessionId}
+            user={user}
+            avatar={avatar}
+            onBack={() => {
+              window.history.pushState({}, '', '/dashboard');
+              setAuthScreen('dashboard');
+            }}
+          />
+        </Suspense>
+      </GameModeProvider>
+    );
+  }
+
+  if (user && authScreen === "speed_scope" && speedScopeSessionId) {
+    return (
+      <GameModeProvider organizationId={organizationId}>
+        <XPBadgeNotifier userId={user.id} organizationId={organizationId} />
+        <Suspense fallback={<div style={{ padding: 32, color: 'var(--text2)' }}>Loading Speed Scope...</div>}>
+          <SpeedScopeScreen
+            sessionId={speedScopeSessionId}
             user={user}
             avatar={avatar}
             onBack={() => {
