@@ -8,6 +8,7 @@ import IntegrationsSettings, { WebhookSettings } from '../components/Integration
 import AdminPanel from '../components/AdminPanel';
 import GameModeSettingsPanel from '../components/discovery/GameModeSettingsPanel.jsx';
 import PMModeSelector from '../components/discovery/PMModeSelector.jsx';
+import ApiKeysSettings from '../components/ApiKeysSettings.jsx';
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -422,6 +423,11 @@ export default function WorkspaceSettings({ onBack }) {
           </div>
           <IntegrationsSettings />
           <WebhookSettings />
+        </div>
+
+        {/* API Keys section */}
+        <div style={{ marginTop: 48 }}>
+          <ApiKeysSettings />
         </div>
         </>}
 
