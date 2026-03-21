@@ -275,6 +275,43 @@ Dette vises i ProjectWorkspace under "Sessions" — **altid, uanset om GM har ap
 
 ---
 
+## GM-rollen og Daily Missions genereret fra PM
+
+### GM = den der frigiver game-output til PM
+Project Manager (GM) er den eneste der kan approve game-output tilbage til PM-data. Ingen automatisk write-back. Altid et aktivt valg.
+
+### Daily missions og side quests genereres fra PM-data
+
+**Regel:** Hvis et projekt har backlog-items der IKKE er splittet i sprints, har estimater eller status/assignee — genererer disse items **daily missions og side quests** automatisk.
+
+**Formål:** Gamificeringen presser PM til at strukturere løst arbejde. I stedet for "someday/maybe"-items der rådner, bliver de til missions der aktivt kræver handling.
+
+**Eksempel:**
+```
+Projekt: "Nyt website" (ingen sprints, ingen estimater)
+  → Daily mission: "Bryd 'Nyt website' ned i 3 konkrete tasks"
+  → Side quest: "Estimér de første 5 items i backloggen"
+  → Bonus mission: "Planlæg Sprint 1 med mindst 8 items"
+```
+
+**Privat-flag:** Items markeret `is_private: true` genererer IKKE missions og er usynlige i game-laget.
+
+### Mission-generering logik
+```
+FOR hvert projekt i org:
+  FOR hvert item med is_private = false:
+    IF sprint mangler → "Planlæg sprint" mission
+    IF item mangler estimat → "Estimér items" mission (→ Planning Poker)
+    IF item mangler assignee → "Tildel opgaver" mission
+    IF ingen session i >7 dage → "Kør et ritual" mission
+```
+
+Free Road missions vises i `/quest-log` uden projekttilknytning og kan tages af alle i org.
+
+**Dette er den centrale gamification-motor** — ikke random events, men faktisk arbejde der mangler.
+
+---
+
 ## Game → PM Write-back model
 
 Dette er den centrale binding. **Alt arbejde i et spil skal være synligt i PM.**
