@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase";
 import { provisionUser } from "./lib/api";
 import { useSound } from "./shared/useSound.js";
 import Landing from "./screens/Landing.jsx";
+import DemoScreen from "./screens/DemoScreen.jsx";
 import Login from "./screens/Login.jsx";
 import Lobby from "./screens/Lobby.jsx";
 import AppShell from "./components/AppShell.jsx";
@@ -206,6 +207,10 @@ export default function App() {
       setAuthScreen('welcome');
       return;
     }
+    if (pathname === '/demo') {
+      setAuthScreen('demo');
+      return;
+    }
     if (pathname === '/' || pathname === '/login' || pathname === '/auth/callback') {
       setAuthScreen('lobby');
     }
@@ -222,6 +227,8 @@ export default function App() {
         syncAuthScreenFromPath(window.location.pathname, true);
       } else if (event === 'SIGNED_OUT') {
         setAuthScreen("landing");
+      } else if (!u && window.location.pathname === '/demo') {
+        setAuthScreen('demo');
       }
       // Sæt loading false første gang vi får et svar
       setLoading(false);
@@ -232,6 +239,8 @@ export default function App() {
       if (session?.user) {
         setUser(session.user);
         syncAuthScreenFromPath(window.location.pathname, true);
+      } else if (window.location.pathname === '/demo') {
+        setAuthScreen('demo');
       }
       setLoading(false);
     });
@@ -301,6 +310,10 @@ export default function App() {
       }}
     />
   ) : null;
+
+  if (authScreen === "demo") {
+    return <DemoScreen />;
+  }
 
   if (!user && authScreen !== "game") {
     if (authScreen === "login" || window.location.pathname.startsWith('/game')) {

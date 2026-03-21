@@ -78,6 +78,8 @@ export default function Landing({ onStartPlaying, onJoinSession }) {
             <button style={s.ctaSignIn} onClick={onStartPlaying}>
               🔑 Sign In
             </button>
+
+            <a href="/demo" style={{color: '#22c55e', marginLeft: '1rem', fontSize: '0.9rem', alignSelf: 'center', textDecoration: 'none'}}>Se live demo →</a>
           </div>
 
           {showJoin && (
